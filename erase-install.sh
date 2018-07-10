@@ -35,9 +35,6 @@
 # URL for downloading installinstallmacos.py
 installinstallmacos_URL=https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py
 
-# The installer_app_name will need to be updated as new versions of macOS are released
-installer_app_name="Install macOS High Sierra.app"
-
 # Directory in which to place the macOS installer
 installer_directory="/Applications"
 
@@ -47,8 +44,17 @@ workdir="/Library/Management/erase-install"
 # Functions
 
 find_existing_installer() {
-    # Let's see if there is already a version of macOS High Sierra on this device
-    if [[ -d "${installer_directory}/${installer_app_name}" ]]; then
+    # First let's see if this script has been run before and left an installer
+    macOSDMG=$( find ${workdir}/*.dmg -maxdepth 1 -type f -print -quit )
+
+    if [[ -f "${macOSDMG}" ]]; then
+        echo "[ $( date ) ] Installer dmg found at: ${macOSDMG}"
+        echo "[ $(date) ] Mounting ${macOSDMG}"
+        echo
+        hdiutil attach "${macOSDMG}"
+        installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit )
+    # Next see if there's an already downloaded installer
+    elif [[ -d "${installer_directory}/${installer_app_name}" ]]; then
         # make sure it is 10.13.4 or newer so we can use --eraseinstall
         installer_version=$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "${installer_directory}/${installer_app_name}/Contents/Info.plist" | cut -c1-3 )
         if [[ ${installer_version} > 133 ]]; then
@@ -90,6 +96,7 @@ run_installinstallmacos() {
         title=$( /usr/libexec/PlistBuddy -c "Print result:${index}:title" ${workdir}/softwareupdate.plist )
         if [[ ${title} != *"Beta"* ]]; then
             build=$( /usr/libexec/PlistBuddy -c "Print result:${index}:build" ${workdir}/softwareupdate.plist )
+            chosen_title="${title}"
         fi
     done
 
@@ -97,36 +104,26 @@ run_installinstallmacos() {
         echo "[ $(date) ] No valid build found. Exiting"
         exit 1
     else
-        echo "[ $(date) ] Build '$build - $title' found"
+        echo "[ $(date) ] Build '$build - $chosen_title' found"
     fi
 
     echo
     # Now run installinstallmacos.py again specifying the build
-    python ${workdir}/installinstallmacos.py --workdir "${workdir}" --build ${build}
+    python ${workdir}/installinstallmacos.py --workdir "${workdir}" --build ${build} --compress
 
-    # 4. Mount the installer and locate the app name
+    # Identify the installer dmg
 
-    macOSSparseImage=$( find ${workdir}/Install_macOS*.sparseimage )
-
-    existingInstaller=$( find /Volumes/Install_macOS* )
-    if [[ -d "${existingInstaller}" ]]; then
-        disktuil unmount force "${existingInstaller}"
-    fi
-
-    echo "[ $(date) ] Mounting ${macOSSparseImage}"
-    echo
-
-    hdiutil attach "${macOSSparseImage}"
-
-    installmacOSApp=$( find /Volumes/Install_macOS*/Applications/Install*.app -d -maxdepth 0 )
+    macOSDMG=$( find ${workdir} -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
 }
 
 # Main body
 
+[[ $1 == "cache" || $4 == "cache" ]] && cache_only="yes" || cache_only="no"
+
 # Display full screen message if this screen is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
-if [[ -f "${jamfHelper}" && $1 != "cache" ]]; then
+if [[ -f "${jamfHelper}" && ${cache_only} != "yes" ]]; then
     "${jamfHelper}" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg &
 fi
 
@@ -141,16 +138,14 @@ if [[ ! -d "${installmacOSApp}" ]]; then
     exit 1
 fi
 
-if [[ $1 == "cache" ]]; then
+if [[ ${cache_only} == "yes" ]]; then
     appName=$( basename "$installmacOSApp" )
-    if [[ ! -d "${installer_directory}/${installer_app_name}" ]]; then
-        echo "[ $(date) ] Installer saved to: ${installer_directory}/$appName"
-        cp -r "${installmacOSApp}" "${installer_directory}/"
-    else
-        echo "[ $(date) ] Installer already at: $installmacOSApp"
+    if [[ ! -d "${installmacOSApp}" ]]; then
+        echo "[ $(date) ] Installer is at: $installmacOSApp"
     fi
-    # Unmount the sparseimage
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name 'Install_macOS*' -print -quit )
+
+    # Unmount the dmg
+    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name 'Install macOS*' -print -quit )
     if [[ -d "${existingInstaller}" ]]; then
         diskutil unmount force "${existingInstaller}"
     fi
@@ -163,4 +158,4 @@ fi
 echo "[ $(date) ] WARNING! Running ${installmacOSApp} with eraseinstall option"
 echo
 
-"${installmacOSApp}/Contents/Resources/startosinstall" --applicationpath "${installmacOSApp}" --eraseinstall --agreetolicense --nointeraction
+# "${installmacOSApp}/Contents/Resources/startosinstall" --applicationpath "${installmacOSApp}" --eraseinstall --agreetolicense --nointeraction

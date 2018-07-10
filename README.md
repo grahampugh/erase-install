@@ -8,10 +8,10 @@ by Graham Pugh
 
 Specifically, this script does the following:
 
-1. Checks whether a valid existing macOS installer (>= 10.13.4) is present in the `/Applications` folder
-2. If no installer is present, downloads `installinstallmacos.py` and runs it in order to download a valid installer
-3. If run with the `cache` argument, copies the installer to the Applications folder and quits
-4. If run without an argument, runs `startosinstall --eraseinstall` with the relevant options in order to wipe the drive and reinstall macOS
+1. Checks whether this script has already been run with the `cache` argument and downloaded an installer dmg to the working directory, and mounts it if so.
+2. If not, checks whether a valid existing macOS installer (>= 10.13.4) is already present in the `/Applications` folder
+3. If no installer is present, downloads `installinstallmacos.py` and runs it in order to download a valid installer, which is saved to a dmg in the working directory.
+5. If run without an argument, runs `startosinstall --eraseinstall` with the relevant options in order to wipe the drive and reinstall macOS.
 
 **NOTE: at present this script uses a forked version of Greg's script so that it can properly automate the download process**
 
