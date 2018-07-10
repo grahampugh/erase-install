@@ -17,7 +17,7 @@ Specifically, this script does the following:
 
 ## Options:
 
-* Run the script with the `cache` argument to check and download the installer as required, and copy it to `/Applications`, e.g.
+* Run the script with the `cache` argument to check and download the installer as required, e.g.
 
     ```
     sudo bash erase-install.sh cache
