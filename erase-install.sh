@@ -41,25 +41,27 @@ installer_directory="/Applications"
 # Temporary working directory
 workdir="/Library/Management/erase-install"
 
+
 # Functions
 
 find_existing_installer() {
-    # First let's see if this script has been run before and left an installer
-    macOSDMG=$( find ${workdir}/*.dmg -maxdepth 1 -type f -print -quit )
+    macOSDMG=$( find ${workdir}/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    installer_app=$( find "${installer_directory}/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
 
+    # First let's see if this script has been run before and left an installer
     if [[ -f "${macOSDMG}" ]]; then
         echo "[ $( date ) ] Installer dmg found at: ${macOSDMG}"
         echo "[ $(date) ] Mounting ${macOSDMG}"
         echo
         hdiutil attach "${macOSDMG}"
-        installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit )
+        installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Next see if there's an already downloaded installer
-    elif [[ -d "${installer_directory}/${installer_app_name}" ]]; then
+    elif [[ -d "${installer_app}" ]]; then
         # make sure it is 10.13.4 or newer so we can use --eraseinstall
-        installer_version=$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "${installer_directory}/${installer_app_name}/Contents/Info.plist" | cut -c1-3 )
+        installer_version=$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "${installer_app}/Contents/Info.plist" 2>/dev/null | cut -c1-3 )
         if [[ ${installer_version} > 133 ]]; then
             echo "[ $( date ) ] Valid installer found. No need to download."
-            installmacOSApp="${installer_directory}/${installer_app_name}"
+            installmacOSApp="${installer_app}"
         else
             echo "[ $( date ) ] Installer too old."
         fi
@@ -95,8 +97,15 @@ run_installinstallmacos() {
     for index in $( seq 0 $plist_count ); do
         title=$( /usr/libexec/PlistBuddy -c "Print result:${index}:title" ${workdir}/softwareupdate.plist )
         if [[ ${title} != *"Beta"* ]]; then
-            build=$( /usr/libexec/PlistBuddy -c "Print result:${index}:build" ${workdir}/softwareupdate.plist )
-            chosen_title="${title}"
+            build_check=$( /usr/libexec/PlistBuddy -c "Print result:${index}:build" ${workdir}/softwareupdate.plist )
+            if [[ $build ]]; then
+                build=$( /usr/bin/python -c 'from distutils.version import LooseVersion; build = "'$build'"; build_check = "'$build_check'"; lowest_build = [build if LooseVersion(build) < LooseVersion(build_check) else build_check]; print lowest_build[0]' )
+            else
+                build=$build_check
+            fi
+            if [[ $build_check == $build ]]; then
+                chosen_title="${title}"
+            fi
         fi
     done
 
