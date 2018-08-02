@@ -41,11 +41,11 @@ installer_directory="/Applications"
 # Temporary working directory
 workdir="/Library/Management/erase-install"
 
+macOSDMG=$( find ${workdir}/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
 # Functions
 
 find_existing_installer() {
-    macOSDMG=$( find ${workdir}/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     installer_app=$( find "${installer_directory}/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
@@ -121,7 +121,6 @@ run_installinstallmacos() {
     python ${workdir}/installinstallmacos.py --workdir "${workdir}" --build ${build} --compress
 
     # Identify the installer dmg
-
     macOSDMG=$( find ${workdir} -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
 }
 
@@ -142,6 +141,8 @@ if [[ ! -d "${installmacOSApp}" ]]; then
     run_installinstallmacos
 fi
 
+# Now look again
+find_existing_installer
 if [[ ! -d "${installmacOSApp}" ]]; then
     echo "[ $(date) ] macOS Installer not found, cannot continue"
     exit 1
