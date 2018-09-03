@@ -49,7 +49,6 @@ Specifically, this script does the following:
 
 All possible combinations:
 
-    ```
     sudo bash erase-install.sh
     sudo bash erase-install.sh --erase
     sudo bash erase-install.sh --move
@@ -62,7 +61,6 @@ All possible combinations:
     sudo bash erase-install.sh --overwrite --erase
     sudo bash erase-install.sh --overwrite --samebuild --erase
     sudo bash erase-install.sh --help
-    ```
 
 ## Requirements:
 
