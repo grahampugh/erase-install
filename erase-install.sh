@@ -206,8 +206,6 @@ do
             ;;
         -h|--help) show_help
             ;;
-        *) show_help
-            ;;
     esac
     shift
 done
