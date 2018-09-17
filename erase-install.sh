@@ -75,10 +75,10 @@ find_existing_installer() {
         echo "   [find_existing_installer] Mounting $macOSDMG"
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    elif [[ -d "$macOSDMG" && $overwrite == "yes" ]]; then
+    elif [[ -d "$macOSDMG" && $overwrite == "yes" && $1 != "again" ]]; then
         echo
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
-        rm -f $macOSDMG
+        rm -f "$macOSDMG"
     # Next see if there's an already downloaded installer
     elif [[ -d "$installer_app" && $overwrite != "yes" ]]; then
         # make sure it is 10.13.4 or newer so we can use --eraseinstall
@@ -92,7 +92,7 @@ find_existing_installer() {
             echo
             echo "   [find_existing_installer] Installer too old."
         fi
-    elif [[ -d "$installer_app" && $overwrite == "yes" ]]; then
+    elif [[ -d "$installer_app" && $overwrite == "yes" && $1 != "again" ]]; then
         echo
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
         rm -rf $installer_app
@@ -247,7 +247,7 @@ if [[ ! -d "$installmacOSApp" ]]; then
     # Now look again
     echo
     echo "   [erase-install] Looking for existing installer"
-    find_existing_installer
+    find_existing_installer again
     if [[ ! -d "$installmacOSApp" ]]; then
         echo
         echo "   [erase-install] macOS Installer not found, cannot continue"
