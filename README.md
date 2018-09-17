@@ -35,6 +35,12 @@ Specifically, this script does the following:
     sudo bash erase-install.sh --samebuild
     ```
 
+* Run the script with argument `--build=XYZ123` to check for the installer which matches the specified build ID, rather than the latest production installer. This allows the reinstallation of a forked or beta version. Note that it will only work if the build is compatible with the device on which you are running the script.
+
+    ```
+    sudo bash erase-install.sh --build=XYZ123
+    ```
+
 * Run the script with argument `--move` move the downloaded installer to the `/Applications` folder. Note that this argument does not apply in conjunction with the `--erase` flag.
 
     ```
@@ -52,13 +58,18 @@ All possible combinations:
     sudo bash erase-install.sh
     sudo bash erase-install.sh --erase
     sudo bash erase-install.sh --move
+    sudo bash erase-install.sh --build=XYZ123
+    sudo bash erase-install.sh --build=XYZ123 --move
+    sudo bash erase-install.sh --build=XYZ123 --erase
     sudo bash erase-install.sh --samebuild
     sudo bash erase-install.sh --samebuild --move
     sudo bash erase-install.sh --samebuild --erase
     sudo bash erase-install.sh --overwrite
     sudo bash erase-install.sh --overwrite --move
+    sudo bash erase-install.sh --overwrite --build=XYZABC --move
     sudo bash erase-install.sh --overwrite --samebuild --move
     sudo bash erase-install.sh --overwrite --erase
+    sudo bash erase-install.sh --overwrite --build=XYZABC --erase
     sudo bash erase-install.sh --overwrite --samebuild --erase
     sudo bash erase-install.sh --help
 
@@ -66,3 +77,21 @@ All possible combinations:
 
 * macOS 10.13.4+ is already installed on the device
 * Device file system is APFS
+
+## Setting up in Jamf Pro
+
+To run this script in Jamf Pro, upload the script, and then create a policy to run it. In the script parameters of the Policy, add the desired options, including the `--`.
+
+For example, to create a policy named `Erase and Reinstall macOS` which is scoped models of Mac that can run the latest standard build, set parameters as follows:
+
+* Parameter 4: `--erase`
+
+If you need a particular fork, create a policy scoped to the devices that require the forked build, and set parameters as follows:
+
+* Parameter 4: `--erase`
+* Parameter 5: `--build=18A389`
+
+If you want to precache the installer in /Applications, make a policy named `Download macOS Installer` and set parameters as follows:
+
+* Parameter 4: `--move`
+* Parameter 5: `--overwrite`

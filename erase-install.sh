@@ -9,22 +9,15 @@
 # which expects you to choose a value corresponding to the version of macOS you wish to download.
 # This script automatically fills in that value so that it can be run remotely.
 #
-# Specifically, this script does the following:
-# 1. Checks whether this script has already been run with the `cache` argument and downloaded an installer dmg to the working directory, and mounts it if so.
-# 2. If not, checks whether a valid existing macOS installer (>= 10.13.4) is already present in the `/Applications` folder
-# 3. If no installer is present, downloads `installinstallmacos.py` and runs it in order to download a valid installer, which is saved to a dmg in the working directory.
-# 4. If run without an argument, runs `startosinstall --eraseinstall` with the relevant options in order to wipe the drive and reinstall macOS.
+# See README.md for details on use.
 #
-# Options:
-# Run the script with the "cache" argument to check and download the installer as required, and copy it to /Applications
-# e.g.
-# sudo bash erase-install.sh cache
-#
-# or just run without an argument to check and download the installer as required and then run it to wipe the drive
+## or just run without an argument to check and download the installer as required and then run it to wipe the drive
 #
 # Version History
 # Version 1.0     29.03.2018      Initial version. Expects a manual choice of installer from installinstallmacos.py
-# Version 2.0     09.07.2018      Updated version automatically selects a non-beta installer
+# Version 2.0     09.07.2018      Automatically selects a non-beta installer
+# Version 3.0     03.09.2018      Changed and additional options for selecting non-standard builds. See README
+# Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
 #
 # Requirements:
 # macOS 10.13.4+ is already installed on the device
@@ -33,7 +26,7 @@
 # NOTE: at present this script uses a forked version of Greg's script so that it can properly automate the download process
 
 # URL for downloading installinstallmacos.py
-installinstallmacos_URL=https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py
+installinstallmacos_URL="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
 
 # Directory in which to place the macOS installer
 installer_directory="/Applications"
@@ -41,20 +34,51 @@ installer_directory="/Applications"
 # Temporary working directory
 workdir="/Library/Management/erase-install"
 
-macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
 # Functions
+show_help() {
+    echo "
+    [erase-install] by @GrahamRPugh
+
+    Usage:
+    [sudo] bash erase-install.sh [--samebuild] [--move] [--erase]
+
+    [no flags]:   Finds latest current production, non-forked version
+                  of macOS, downloads it.
+    --samebuild:  Finds the version of macOS that matches the
+                  existing system version, downloads it.
+    --build=XYZ:  Finds a specific inputted version of macOS if available
+                  and downloads it if so.
+    --move:       If not erasing, moves the
+                  downloaded macOS installer to /Applications
+    --erase:      After download, erases the current system
+                  and reinstalls macOS
+    --overwrite:  Download macOS installer even if an installer
+                  already exists in /Applications
+
+    Note: If existing installer is found, this script will not check
+          to see if it matches the installed system version. It will
+          only check whether it is a valid installer. If you need to
+          ensure that the currently installed version of macOS is used
+          to wipe the device, use the --overwrite parameter.
+    "
+    exit
+}
 
 find_existing_installer() {
     installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
-    if [[ -f "$macOSDMG" ]]; then
+    if [[ -f "$macOSDMG" && $overwrite != "yes" ]]; then
         echo
         echo "   [find_existing_installer] Installer dmg found at: $macOSDMG"
         echo "   [find_existing_installer] Mounting $macOSDMG"
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    elif [[ -d "$macOSDMG" && $overwrite == "yes" ]]; then
+        echo
+        echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
+        rm -f $macOSDMG
     # Next see if there's an already downloaded installer
     elif [[ -d "$installer_app" && $overwrite != "yes" ]]; then
         # make sure it is 10.13.4 or newer so we can use --eraseinstall
@@ -106,9 +130,11 @@ run_installinstallmacos() {
     # 3. Use installinstallmacos.py to download the desired version of macOS
 
     echo
-    if [[ $samebuild == "yes" ]]; then
+    if [[ $prechosen_build ]]; then
+        echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available using $workdir/installinstallmacos.py"
+    elif [[ $samebuild == "yes" ]]; then
         installed_build=$( sw_vers | grep BuildVersion | cut -d$'\t' -f2 )
-        echo "   [run_installinstallmacos] Checking that build $installed_build is available using $workdir/installinstallmacos.py"
+        echo "   [run_installinstallmacos] Checking that current build $installed_build is available using $workdir/installinstallmacos.py"
     else
         echo "   [run_installinstallmacos] Getting current production version from $workdir/installinstallmacos.py"
     fi
@@ -126,7 +152,12 @@ run_installinstallmacos() {
     for index in $( seq 0 $plist_count ); do
         title=$( /usr/libexec/PlistBuddy -c "Print result:$index:title" $workdir/softwareupdate.plist )
         build_check=$( /usr/libexec/PlistBuddy -c "Print result:$index:build" $workdir/softwareupdate.plist )
-        if [[ $samebuild == "yes" ]]; then
+        if [[ $prechosen_build ]]; then
+            if [[ "$build_check" == $prechosen_build ]]; then
+                build=$build_check
+                chosen_title="$title"
+            fi
+        elif [[ $samebuild == "yes" ]]; then
             if [[ "$build_check" == $installed_build ]]; then
                 build=$build_check
                 chosen_title="$title"
@@ -161,37 +192,16 @@ run_installinstallmacos() {
     macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
 }
 
-show_help() {
-    echo "
-    [erase-install] by @GrahamRPugh
-
-    Usage:
-    [sudo] bash erase-install.sh [--samebuild] [--move] [--erase]
-
-    [no flags]:   Finds latest current production, non-forked version
-                  of macOS, downloads it.
-    --samebuild:  Finds the version of macOS that matches the
-                  existing system version, downloads it.
-    --move:       If not erasing, moves the
-                  downloaded macOS installer to /Applications
-    --erase:      After download, erases the current system
-                  and reinstalls macOS
-    --overwrite:  Download macOS installer even if an installer
-                  already exists in /Applications
-
-    Note: If existing installer is found, this script will not check
-          to see if it matches the installed system version. It will
-          only check whether it is a valid installer. If you need to
-          ensure that the currently installed version of macOS is used
-          to wipe the device, use the --overwrite parameter.
-    "
-    exit
-}
-
 # Main body
 
-# Safety mechanism
+# Existing partially downloaded content can mess things up, so let's clear this out
+rm -rf "$workdir/content/downloads"
+
+# Safety mechanism to prevent unwanted wipe while testing
 erase="no"
+
+# Search for an existing download
+macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
 while test $# -gt 0
 do
@@ -203,6 +213,9 @@ do
         -s|--samebuild) samebuild="yes"
             ;;
         -o|--overwrite) overwrite="yes"
+            ;;
+        --build*)
+            prechosen_build=$(echo $1 | sed -e 's/^[^=]*=//g')
             ;;
         -h|--help) show_help
             ;;
