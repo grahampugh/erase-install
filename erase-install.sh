@@ -67,6 +67,8 @@ show_help() {
 
 find_existing_installer() {
     installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    # Search for an existing download
+    macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
     if [[ -f "$macOSDMG" && $overwrite != "yes" ]]; then
@@ -75,7 +77,7 @@ find_existing_installer() {
         echo "   [find_existing_installer] Mounting $macOSDMG"
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    elif [[ -d "$macOSDMG" && $overwrite == "yes" && $1 != "again" ]]; then
+    elif [[ -f "$macOSDMG" && $overwrite == "yes" && $1 != "again" ]]; then
         echo
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
         rm -f "$macOSDMG"
@@ -99,10 +101,14 @@ find_existing_installer() {
     else
         echo
         echo "   [find_existing_installer] No valid installer found."
+        # if it's still not there on a second pass then the script must fail
+        [[ $1 == "again" ]] && exit 1
     fi
 }
 
 move_to_applications_folder() {
+    # Search for an existing download
+    macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     hdiutil attach "$macOSDMG"
     installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     cp -r "$installmacOSApp" /Applications/
@@ -200,9 +206,6 @@ rm -rf "$workdir/content/downloads"
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
 
-# Search for an existing download
-macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
-
 while test $# -gt 0
 do
     case "$1" in
@@ -248,11 +251,6 @@ if [[ ! -d "$installmacOSApp" ]]; then
     echo
     echo "   [erase-install] Looking for existing installer"
     find_existing_installer again
-    if [[ ! -d "$installmacOSApp" ]]; then
-        echo
-        echo "   [erase-install] macOS Installer not found, cannot continue"
-        exit 1
-    fi
 fi
 
 if [[ $erase != "yes" ]]; then
