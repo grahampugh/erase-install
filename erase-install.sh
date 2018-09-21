@@ -121,7 +121,7 @@ move_to_applications_folder() {
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
-    # rm -f "$macOSDMG"
+    rm -f "$macOSDMG"
     echo
     echo "   [move_to_applications_folder] Installer moved to /Applications folder"
     echo
