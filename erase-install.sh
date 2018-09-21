@@ -69,7 +69,7 @@ show_help() {
 }
 
 find_existing_installer() {
-    installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
@@ -79,7 +79,7 @@ find_existing_installer() {
         echo "   [find_existing_installer] Installer dmg found at: $macOSDMG"
         echo "   [find_existing_installer] Mounting $macOSDMG"
         hdiutil attach "$macOSDMG"
-        installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     elif [[ -f "$macOSDMG" && $overwrite == "yes" && $1 != "again" ]]; then
         echo
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
@@ -115,9 +115,9 @@ move_to_applications_folder() {
     # Search for an existing download
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     hdiutil attach "$macOSDMG"
-    installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     cp -R "$installmacOSApp" /Applications/
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name 'Install macOS'* -print -quit )
+    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
@@ -293,7 +293,7 @@ if [[ $erase != "yes" ]]; then
     fi
 
     # Unmount the dmg
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name 'Install macOS'* -print -quit )
+    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
