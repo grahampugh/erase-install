@@ -18,6 +18,7 @@
 # Version 2.0     09.07.2018      Automatically selects a non-beta installer
 # Version 3.0     03.09.2018      Changed and additional options for selecting non-standard builds. See README
 # Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
+# Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
 #
 # Requirements:
 # macOS 10.13.4+ is already installed on the device
@@ -47,8 +48,10 @@ show_help() {
                   of macOS, downloads it.
     --samebuild:  Finds the version of macOS that matches the
                   existing system version, downloads it.
-    --build=XYZ:  Finds a specific inputted version of macOS if available
-                  and downloads it if so.
+    --version:    Finds a specific inputted version of macOS if available
+                  and downloads it if so. Will choose the lowest matching build.
+    --build=XYZ:  Finds a specific inputted build of macOS if available
+                and downloads it if so.
     --move:       If not erasing, moves the
                   downloaded macOS installer to /Applications
     --erase:      After download, erases the current system
@@ -71,7 +74,7 @@ find_existing_installer() {
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
-    if [[ -f "$macOSDMG" && $overwrite != "yes" ]]; then
+    if [[ -f "$macOSDMG" && ( $overwrite != "yes" || $1 == "again" ) ]]; then
         echo
         echo "   [find_existing_installer] Installer dmg found at: $macOSDMG"
         echo "   [find_existing_installer] Mounting $macOSDMG"
@@ -82,20 +85,22 @@ find_existing_installer() {
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
         rm -f "$macOSDMG"
     # Next see if there's an already downloaded installer
-    elif [[ -d "$installer_app" && $overwrite != "yes" ]]; then
+    elif [[ -d "$installer_app" && ( $overwrite != "yes" || $1 == "again" ) ]]; then
         # make sure it is 10.13.4 or newer so we can use --eraseinstall
         installer_version=$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$installer_app/Contents/Info.plist" 2>/dev/null | cut -c1-3 )
         if [[ $installer_version > 133 ]]; then
             echo
-            echo "   [find_existing_installer] Valid installer found. No need to download."
+            echo "   [find_existing_installer] Valid installer found."
             app_is_in_applications_folder="yes"
             installmacOSApp="$installer_app"
         else
             echo
             echo "   [find_existing_installer] Installer too old."
+            [[ $1 == "again" ]] && exit 1
         fi
-    elif [[ -d "$installer_app" && $overwrite == "yes" && $1 != "again" ]]; then
+    elif [[ -d "$installer_app" && $overwrite == "yes" ]]; then
         echo
+        echo "   [find_existing_installer] Valid installer found."
         echo "   [find_existing_installer] Overwrite option selected. Deleting existing version."
         rm -rf $installer_app
     else
@@ -111,7 +116,7 @@ move_to_applications_folder() {
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     hdiutil attach "$macOSDMG"
     installmacOSApp=$( find '/Volumes/Install macOS'*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    cp -r "$installmacOSApp" /Applications/
+    cp -R "$installmacOSApp" /Applications/
     existingInstaller=$( find /Volumes -maxdepth 1 -type d -name 'Install macOS'* -print -quit )
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
@@ -136,7 +141,9 @@ run_installinstallmacos() {
     # 3. Use installinstallmacos.py to download the desired version of macOS
 
     echo
-    if [[ $prechosen_build ]]; then
+    if [[ $prechosen_version ]]; then
+        echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available using $workdir/installinstallmacos.py"
+    elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available using $workdir/installinstallmacos.py"
     elif [[ $samebuild == "yes" ]]; then
         installed_build=$( sw_vers | grep BuildVersion | cut -d$'\t' -f2 )
@@ -158,7 +165,19 @@ run_installinstallmacos() {
     for index in $( seq 0 $plist_count ); do
         title=$( /usr/libexec/PlistBuddy -c "Print result:$index:title" $workdir/softwareupdate.plist )
         build_check=$( /usr/libexec/PlistBuddy -c "Print result:$index:build" $workdir/softwareupdate.plist )
-        if [[ $prechosen_build ]]; then
+        version_check=$( /usr/libexec/PlistBuddy -c "Print result:$index:version" $workdir/softwareupdate.plist )
+        if [[ $prechosen_version ]]; then
+            if [[ "$version_check" == "$prechosen_version" && $title != *"Beta"* ]]; then
+                if [[ $build ]]; then
+                    build=$( /usr/bin/python -c 'from distutils.version import LooseVersion; build = "'$build'"; build_check = "'$build_check'"; lowest_build = [build if LooseVersion(build) < LooseVersion(build_check) else build_check]; print lowest_build[0]' )
+                else
+                    build=$build_check
+                fi
+                if [[ $build_check == $build ]]; then
+                    chosen_title="$title"
+                fi
+            fi
+        elif [[ $prechosen_build ]]; then
             if [[ "$build_check" == $prechosen_build ]]; then
                 build=$build_check
                 chosen_title="$title"
@@ -216,6 +235,9 @@ do
         -s|--samebuild) samebuild="yes"
             ;;
         -o|--overwrite) overwrite="yes"
+            ;;
+        --version*)
+            prechosen_version=$(echo $1 | sed -e 's/^[^=]*=//g')
             ;;
         --build*)
             prechosen_build=$(echo $1 | sed -e 's/^[^=]*=//g')
