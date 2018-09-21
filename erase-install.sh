@@ -311,6 +311,10 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo
     echo "   [erase-install] Opening jamfHelper full screen message"
     "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+    jamfPID=$(echo $!)
 fi
 
 "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction
+
+# Kill Jamf FUD if startosinstall ends before a reboot
+[[ $jamfPID ]] && kill $jamfPID
