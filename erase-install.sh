@@ -86,7 +86,7 @@ run_installinstallmacos() {
     echo "[ $(date) ] Getting current production version from ${workdir}/installinstallmacos.py"
     echo
     # Generate the plist
-    python ${workdir}/installinstallmacos.py --workdir ${workdir} --list
+    python ${workdir}/installinstallmacos.py --workdir ${workdir} --list --validate
     echo
 
     # Get the number of entries
