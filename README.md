@@ -4,18 +4,23 @@ by Graham Pugh
 
 **WARNING. This is a self-destruct script. Do not try it out on your own device!**
 
-`erase-install.sh` downloads and runs `installinstallmacos.py` from Greg Neagle. `installinstallmacos.py` expects you to choose a value corresponding to the version of macOS you wish to download, so `erase-install.sh` automatically chooses the correct value so that it can be run remotely.
+`erase-install.sh` is a script to erase a Mac directly from the system volume, utilising the `eraseinstall` option of `startosinstall`, which is built into macOS installer applications since version 10.13.4.
 
-Specifically, this script does the following:
+If run without any options, the script will do the following:
 
-1. Checks whether this script has already been run to download an installer DMG to the working directory, and mounts it if so.
-2. If not, checks whether a valid existing macOS installer (>= 10.13.4) is already present in the `/Applications` folder.
-3. If no installer is present, downloads `installinstallmacos.py` and runs it in order to download a valid installer, which is saved to a DMG in the working directory.
-4. If run with the `--erase` argument, runs `startosinstall --eraseinstall` with the relevant options in order to wipe the drive and reinstall macOS.
+1. Check if an installer is already present in the working directory of this script from a previous run.
+2. If not, check if an existing macOS installer is present in the `/Applications` folder. If present, checks that it isn't older than the current installed version.
+3. If no valid installer is found, a forked version of `installinstallmacos.py` is downloaded. This is used to download the current macOS installer that is valid for this device (determined by Board ID and Model Identifier). The installer is compressed and placed in a `.dmg` in the working directory.
 
-**NOTE: at present this script uses a forked version of Greg's script so that it can properly automate the download process**
+For more information on the forked version of `installinstallmacos.py`, see [grahampugh/macadmin-scripts](https://github.com/grahampugh/macadmin-scripts)
 
-## Options:
+There are a number of options that can be specified to automate this script further:
+
+1. `--erase` runs the `startosinstall` command with the `--eraseinstall` option to wipe the device.
+2. `--move` moved the macOS installer to `/Applications` if it isn't already there.
+3. `--overwrite` deletes any existing downloaded installer and re-downloads it.
+
+## Full list of Options:
 
 * Run the script with no arguments to download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.  If an existing installer is found locally on the disk (either in the default location or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again.
 
@@ -41,7 +46,7 @@ Specifically, this script does the following:
     sudo bash erase-install.sh --version=10.14
     ```
 
-* Run the script with argument `--build=XYZ123` to check for the installer which matches the specified build ID, rather than the latest production installer. This allows the reinstallation of a forked or beta version. Note that it will only work if the build is compatible with the device on which you are running the script.
+* Run the script with argument `--build=XYZ123` to check for the installer which matches the specified build ID, rather than the latest production installer or the same build. Note that it will only work if the build is compatible with the device on which you are running the script.
 
     ```
     sudo bash erase-install.sh --build=XYZ123
@@ -102,11 +107,7 @@ If you need a particular fork, create a policy scoped to the devices that requir
 * Parameter 4: `--erase`
 * Parameter 5: `--build=18A389`
 
-If you want to precache the installer in /Applications, make a policy named `Download macOS Installer` and set parameters as follows:
+If you want to pre-cache the installer in `/Applications` for use by another policy, make a policy named `Download macOS Installer` and set parameters as follows:
 
 * Parameter 4: `--move`
 * Parameter 5: `--overwrite`
-
-If you want to precache a particular version, e.g. for upgrading when an older version is still in the software catalog, add Parameter 6:
-
-* Parameter 6: `--version=10.14`

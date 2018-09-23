@@ -79,9 +79,17 @@ find_existing_installer() {
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     elif [[ -d "$installer_app" ]]; then
-        echo "   [find_existing_installer] Valid installer found at $installer_app."
-        installmacOSApp="$installer_app"
-        app_is_in_applications_folder="yes"
+        echo "   [find_existing_installer] Installer found at $installer_app."
+        # check installer validity
+        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
+        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' | sed 's|10\.||')
+        if [[ $installer_version -lt $installed_version ]]; then
+            echo "   [find_existing_installer] 10.$installer_version < 10.$installed_version so not valid."
+        else
+            echo "   [find_existing_installer] 10.$installer_version >= 10.$installed_version so valid."
+            installmacOSApp="$installer_app"
+            app_is_in_applications_folder="yes"
+        fi
     else
         echo "   [find_existing_installer] No valid installer found."
     fi
