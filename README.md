@@ -6,7 +6,9 @@ by Graham Pugh
 
 `erase-install.sh` is a script to erase a Mac directly from the system volume, utilising the `eraseinstall` option of `startosinstall`, which is built into macOS installer applications since version 10.13.4.
 
-If run without any options, the script will do the following:
+If run without any options, the script will **not perform the erase**. This means that the script can also be used to pre-cache the installer, or simply to make it available for the user.
+
+So, if run without any options, the script will do the following:
 
 1. Check if an installer is already present in the working directory of this script from a previous run.
 2. If not, check if an existing macOS installer is present in the `/Applications` folder. If present, checks that it isn't older than the current installed version.
@@ -89,10 +91,12 @@ All possible combinations:
     sudo bash erase-install.sh --overwrite --samebuild --erase
     sudo bash erase-install.sh --help
 
-## Requirements:
+## Requirements for performing the eraseinstall:
 
 * macOS 10.13.4+ is already installed on the device
 * Device file system is APFS
+
+Note that downloading the installer does not require 10.13.4 or APFS, it is just the `starts install --eraseinstall` command that requires it.
 
 ## Setting up in Jamf Pro
 
@@ -107,7 +111,15 @@ If you need a particular fork, create a policy scoped to the devices that requir
 * Parameter 4: `--erase`
 * Parameter 5: `--build=18A389`
 
+## Using the `erase-install.sh` script to cache the installer for use with the `install-macos.sh` script
+
 If you want to pre-cache the installer in `/Applications` for use by another policy, make a policy named `Download macOS Installer` and set parameters as follows:
 
 * Parameter 4: `--move`
 * Parameter 5: `--overwrite`
+
+If you want to upgrade to macOS 10.14 while 10.13 installers are still available in the catalog, add this additional flag:
+
+* Parameter 6: `--version=10.14`
+
+Once the installer is in place in `/Applications` folder, you can use the `install-macOS.sh` script included here in a different policy to perform an in-place upgrade, without erasing the system. 
