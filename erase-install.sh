@@ -19,12 +19,13 @@
 # Version 3.0     03.09.2018      Changed and additional options for selecting non-standard builds. See README
 # Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
 # Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
+# Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
 #
 # Requirements:
-# macOS 10.13.4+ is already installed on the device
+# macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
 #
-# NOTE: at present this script uses a forked version of Greg's script so that it can properly automate the download process
+# NOTE: at present this script downloads a forked version of Greg's script so that it can properly automate the download process
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_URL="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -133,12 +134,11 @@ run_installinstallmacos() {
     installinstallmacos_args=''
     if [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
-        installinstallmacos_args+="--version=$prechosen_version"
+        installinstallmacos_args+="--version=$prechosen_version --validate"
 
     elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
-        installinstallmacos_args+="--build=$prechosen_build"
-        installinstallmacos_args+="--validate"
+        installinstallmacos_args+="--build=$prechosen_build --validate"
 
     elif [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
@@ -153,8 +153,14 @@ run_installinstallmacos() {
 
     # Identify the installer dmg
     macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
-    hdiutil attach "$macOSDMG"
-    installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    if [[ -f "$macOSDMG" ]]; then
+        echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
+        hdiutil attach "$macOSDMG"
+        installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    else
+        echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
+        exit
+    fi
 }
 
 # Main body
