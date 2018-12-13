@@ -134,11 +134,13 @@ run_installinstallmacos() {
     installinstallmacos_args=''
     if [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
-        installinstallmacos_args+="--version=$prechosen_version --validate"
+        installinstallmacos_args+="--version=$prechosen_version"
+        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
-        installinstallmacos_args+="--build=$prechosen_build --validate"
+        installinstallmacos_args+="--build=$prechosen_build"
+        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
@@ -159,6 +161,7 @@ run_installinstallmacos() {
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
+        /usr/bin/pkill jamfHelper
         exit
     fi
 }
@@ -209,11 +212,12 @@ if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] Starting download process"
     if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
         "$jamfHelper" -windowType hud -windowPosition ul -title "Downloading macOS" -alignHeading center -alignDescription left -description "We need to download the macOS installer to your computer; this will take several minutes." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
-        jamfPID=$(echo $!)
+        # jamfPID=$(echo $!)
     fi
-    [[ $jamfPID ]] && kill $jamfPID
     # now run installinstallmacos
     run_installinstallmacos
+    # Once finished downloading, kill the jamfHelper
+    /usr/bin/pkill jamfHelper
 fi
 
 if [[ $erase != "yes" ]]; then
