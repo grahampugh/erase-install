@@ -20,6 +20,8 @@
 # Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
 # Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
 # Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
+
+# Version 3.4      25.03.2019     fix version checking
 #
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
@@ -69,6 +71,66 @@ show_help() {
     exit
 }
 
+############# v 3.4 
+# added bash code to validate versions
+
+versionsComparison () {
+    if [[ $1 == $2 ]]
+    then
+        return 0
+    fi
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    # fill empty fields in ver1 with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+    do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++))
+    do
+        if [[ -z ${ver2[i]} ]]
+        then
+            # fill empty fields in ver2 with zeros
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]}))
+        then
+            return 1
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]}))
+        then
+            return 2
+        fi
+    done
+    return 0
+}
+
+testVersionsComparison () {
+    versionsComparison $1 $2
+    case $? in
+        0) op='='
+        caseexit="0"
+        versionsOK="yes"
+        ;;
+        1) op='>'
+        caseexit="1"
+        versionsOK="yes"
+        ;;
+        2) op='<'
+        caseexit="2"
+        versionsOK="no"
+        ;;
+        *)
+        caseexit="*"
+        versionsOK="no"
+    esac
+    echo "$caseexit:$versionsOK"
+}
+
+#############
+
+
+
 find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
@@ -82,9 +144,18 @@ find_existing_installer() {
     elif [[ -d "$installer_app" ]]; then
         echo "   [find_existing_installer] Installer found at $installer_app."
         # check installer validity
-        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
+        # deprecated #installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
+        # updated version gathering below v3.4
+        installer_version_main=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
+		installer_subversion=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | awk -F"." '{print $2}')
+	    installer_version=($installer_version_main.$installer_subversion)
+
+
         installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' | sed 's|10\.||')
-        if [[ $installer_version -lt $installed_version ]]; then
+        # deprecated test #if [[ $installer_version -lt $installed_version ]]; then
+        # updated test versions v3.4
+        testVersionsComparison "$installer_version" "$installed_version"
+		if [ "$versionsOK" = "no" ]; then
             echo "   [find_existing_installer] 10.$installer_version < 10.$installed_version so not valid."
         else
             echo "   [find_existing_installer] 10.$installer_version >= 10.$installed_version so valid."
