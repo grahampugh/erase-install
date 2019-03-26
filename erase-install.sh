@@ -151,6 +151,13 @@ run_installinstallmacos() {
 
     python "$workdir/installinstallmacos.py" --workdir=$workdir --ignore-cache --compress $installinstallmacos_args
 
+    if [[ $? > 0 ]]; then
+        echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
+        [[ $jamfPID ]] && kill $jamfPID
+        echo
+        exit 1
+    fi
+
     # Identify the installer dmg
     macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
     hdiutil attach "$macOSDMG"
