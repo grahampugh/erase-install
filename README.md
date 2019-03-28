@@ -42,10 +42,16 @@ There are a number of options that can be specified to automate this script furt
     sudo bash erase-install.sh --samebuild
     ```
 
-* Run the script with argument `--version=10.14` to check for the installer which matches the specified macOS version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
 
     ```
-    sudo bash erase-install.sh --version=10.14
+    sudo bash erase-install.sh --os=10.14
+    ```
+
+* Run the script with argument `--version=10.14.3` to check for the installer which matches the specified macOS point version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+
+    ```
+    sudo bash erase-install.sh --version=10.14.3
     ```
 
 * Run the script with argument `--build=XYZ123` to check for the installer which matches the specified build ID, rather than the latest production installer or the same build. Note that it will only work if the build is compatible with the device on which you are running the script.
@@ -71,9 +77,12 @@ All possible combinations:
     sudo bash erase-install.sh
     sudo bash erase-install.sh --erase
     sudo bash erase-install.sh --move
-    sudo bash erase-install.sh --version=10.14
-    sudo bash erase-install.sh --version=10.14 --move
-    sudo bash erase-install.sh --version=10.14 --erase
+    sudo bash erase-install.sh --os=10.14
+    sudo bash erase-install.sh --os=10.14 --move
+    sudo bash erase-install.sh --os=10.14 --erase
+    sudo bash erase-install.sh --version=10.14.3
+    sudo bash erase-install.sh --version=10.14.3 --move
+    sudo bash erase-install.sh --version=10.14.3 --erase
     sudo bash erase-install.sh --build=XYZ123
     sudo bash erase-install.sh --build=XYZ123 --move
     sudo bash erase-install.sh --build=XYZ123 --erase
@@ -82,11 +91,13 @@ All possible combinations:
     sudo bash erase-install.sh --samebuild --erase
     sudo bash erase-install.sh --overwrite
     sudo bash erase-install.sh --overwrite --move
-    sudo bash erase-install.sh --overwrite --version=10.14 --move
+    sudo bash erase-install.sh --overwrite --os=10.14 --move
+    sudo bash erase-install.sh --overwrite --version=10.14.3 --move
     sudo bash erase-install.sh --overwrite --build=XYZABC --move
     sudo bash erase-install.sh --overwrite --samebuild --move
     sudo bash erase-install.sh --overwrite --erase
-    sudo bash erase-install.sh --overwrite --version=10.14 --erase
+    sudo bash erase-install.sh --overwrite --os=10.14 --erase
+    sudo bash erase-install.sh --overwrite --version=10.14.3 --erase
     sudo bash erase-install.sh --overwrite --build=XYZABC --erase
     sudo bash erase-install.sh --overwrite --samebuild --erase
     sudo bash erase-install.sh --help
@@ -120,6 +131,10 @@ If you want to pre-cache the installer in `/Applications` for use by another pol
 
 If you want to upgrade to macOS 10.14 while 10.13 installers are still available in the catalog, add this additional flag:
 
-* Parameter 6: `--version=10.14`
+* Parameter 6: `--os=10.14`
+
+Or if you need to specify a particular point release version (say if more than one is available in the catalogue), add this additional flag:
+
+* Parameter 6: `--os=10.14.3`
 
 Once the installer is in place in `/Applications` folder, you can use the `install-macOS.sh` script included here in a different policy to perform an in-place upgrade, without erasing the system. 

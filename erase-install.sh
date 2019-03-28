@@ -33,8 +33,8 @@
 # URL for downloading installinstallmacos.py
 installinstallmacos_URL="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
 
-# Directory in which to place the macOS installer
-installer_directory="/Library/Management/erase-install"
+# Directory in which to place the macOS installer. Overridden with --path
+installer_directory="/Applications"
 
 # place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
@@ -52,20 +52,23 @@ show_help() {
     Usage:
     [sudo] bash erase-install.sh [--samebuild] [--move] [--erase] [--build=XYZ] [--overwrite] [--version=X.Y]
 
-    [no flags]:     Finds latest current production, non-forked version
-                    of macOS, downloads it.
-    --samebuild:    Finds the version of macOS that matches the
-                    existing system version, downloads it.
-    --version=X.Y:  Finds a specific inputted version of macOS if available
-                    and downloads it if so. Will choose the lowest matching build.
-    --build=XYZ:    Finds a specific inputted build of macOS if available
-                    and downloads it if so.
-    --move:         If not erasing, moves the
-                    downloaded macOS installer to $installer_directory
-    --erase:        After download, erases the current system
-                    and reinstalls macOS
-    --overwrite:    Download macOS installer even if an installer
-                    already exists in $installer_directory
+    [no flags]:       Finds latest current production, non-forked version
+                      of macOS, downloads it.
+    --samebuild:      Finds the version of macOS that matches the
+                      existing system version, downloads it.
+    --os=X.Y:         Finds a specific inputted OS version of macOS if available
+                      and downloads it if so. Will choose the lowest matching build.
+    --version=X.Y.Z:  Finds a specific inputted minor version of macOS if available
+                      and downloads it if so. Will choose the lowest matching build.
+    --build=XYZ:      Finds a specific inputted build of macOS if available
+                      and downloads it if so.
+    --move:           If not erasing, moves the
+                      downloaded macOS installer to $installer_directory
+    --path=/path/to:  Overrides the destination of --move to a specified directory
+    --erase:          After download, erases the current system
+                      and reinstalls macOS
+    --overwrite:      Download macOS installer even if an installer
+                      already exists in $installer_directory
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -76,126 +79,44 @@ show_help() {
     exit
 }
 
-############# v 3.4 
-# added bash code to validate versions
-
-versionsComparison () {
-    if [[ $1 == $2 ]]
-    then
-        return 0
-    fi
-    local IFS=.
-    local i ver1=($1) ver2=($2)
-    # fill empty fields in ver1 with zeros
-    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
-    do
-        ver1[i]=0
-    done
-    for ((i=0; i<${#ver1[@]}; i++))
-    do
-        if [[ -z ${ver2[i]} ]]
-        then
-            # fill empty fields in ver2 with zeros
-            ver2[i]=0
-        fi
-        if ((10#${ver1[i]} > 10#${ver2[i]}))
-        then
-            return 1
-        fi
-        if ((10#${ver1[i]} < 10#${ver2[i]}))
-        then
-            return 2
-        fi
-    done
-    return 0
-}
-
-testVersionsComparison () {
-    versionsComparison $1 $2
-    case $? in
-        0) op='='
-        caseexit="0"
-        versionsOK="yes"
-        ;;
-        1) op='>'
-        caseexit="1"
-        versionsOK="yes"
-        ;;
-        2) op='<'
-        caseexit="2"
-        versionsOK="no"
-        ;;
-        *)
-        caseexit="*"
-        versionsOK="no"
-    esac
-    echo "$caseexit:$versionsOK"
-}
-
-#############
-
-
-# Version 3.5
-find_extra_installers () {
-
-# find any pkg files in the extras directory
-extra_installs=$(find "$extras_directory"/*.pkg -maxdepth 1)
-# set install_package_list to blank. 
-install_package_list=()
-
-# need to ignore spaces in pkg names
-old_IFS=$IFS
-IFS=$(echo -en "\n\b")
-
-# loop round list and build array to inject
-for pkg in $extra_installs
-	do
-	echo  name is $pkg
-	install_package_list+=( --installpackage )
-	
-	if [[ $pkg = ${pkg%[[:space:]]*} ]]; then
-   		install_package_list+=( "$pkg" )
-	else
-		# could not get packages with a space in the name to work in the install
-		# so for simplicity rename the file and use the new name
-		packagename_nospace=$(echo $pkg | sed 's/ /_/g')
-		mv "$pkg" "$packagename_nospace"
-   		install_package_list+=( "$packagename_nospace" )
-	fi
-	
-	done
-	
-# reset the IFS
-IFS=${old_IFS}
-
-}
-
 find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    macOSSparseImage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
     if [[ -f "$macOSDMG" ]]; then
-        echo "   [find_existing_installer] Valid installer found at $macOSDMG."
+        echo "   [find_existing_installer] Installer image found at $macOSDMG."
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    elif [[ -f "$macOSSparseImage" ]]; then
+        echo "   [find_existing_installer] Installer sparse image found at $macOSSparseImage."
+        hdiutil attach "$macOSSparseImage"
+        installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     elif [[ -d "$installer_app" ]]; then
         echo "   [find_existing_installer] Installer found at $installer_app."
-        # check installer validity
-        # updated version gathering below v3.4
-        installer_version_main=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
-		installer_subversion=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | awk -F"." '{print $2}')
-	    installer_version=($installer_version_main.$installer_subversion)
-
-
-        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' | sed 's|10\.||')
-        # updated test versions v3.4
-        testVersionsComparison "$installer_version" "$installed_version"
-		if [ "$versionsOK" = "no" ]; then
-            echo "   [find_existing_installer] 10.$installer_version < 10.$installed_version so not valid."
+        # check installer validity:
+        # split the version of the downloaded installer into OS and minor versions
+        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
+        installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
+        installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
+        # split the version of the downloaded installer into OS and minor versions
+        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
+        installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
+        installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
+        if [[ $installer_os_version -lt $installed_os_version ]]; then
+            echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
+        elif [[ $installer_os_version -eq $installed_os_version ]]; then
+            if [[ $installer_minor_version -lt $installed_minor_version ]]; then
+                echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
+            else
+                echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+                installmacOSApp="$installer_app"
+                app_is_in_applications_folder="yes"
+            fi
         else
-            echo "   [find_existing_installer] 10.$installer_version >= 10.$installed_version so valid."
+            echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
             installmacOSApp="$installer_app"
             app_is_in_applications_folder="yes"
         fi
@@ -210,7 +131,7 @@ overwrite_existing_installer() {
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
-    rm -f "$macOSDMG"
+    rm -f "$macOSDMG" "$macOSSparseImage"
     rm -rf "$installer_app"
 }
 
@@ -225,8 +146,20 @@ move_to_applications_folder() {
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
-    rm -f "$macOSDMG"
+    rm -f "$macOSDMG" "$macOSSparseImage"
     echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
+}
+
+find_extra_installers() {
+    # find any pkg files in the extras_directory
+    extra_installs=$(find "$extras_directory"/*.pkg -maxdepth 1)
+    # set install_package_list to blank.
+    install_package_list=()
+
+    find "$extras_directory" -type f -name '*.pkg' | while read file; do
+        echo "   [find_extra_installers] Additional package to install: $file"
+        install_package_list+=("--installpackage \"$file\"")
+    done
 }
 
 run_installinstallmacos() {
@@ -240,7 +173,12 @@ run_installinstallmacos() {
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=''
-    if [[ $prechosen_version ]]; then
+    if [[ $prechosen_os ]]; then
+        echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
+        installinstallmacos_args+="--os=$prechosen_os"
+        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
+
+    elif [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
         installinstallmacos_args+="--version=$prechosen_version"
         [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
@@ -259,7 +197,7 @@ run_installinstallmacos() {
         installinstallmacos_args+="--auto"
     fi
 
-    python "$workdir/installinstallmacos.py" --workdir=$workdir --ignore-cache --compress $installinstallmacos_args
+    python "$workdir/installinstallmacos.py" --workdir=$workdir --ignore-cache --raw $installinstallmacos_args
 
     if [[ $? > 0 ]]; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
@@ -269,11 +207,16 @@ run_installinstallmacos() {
     fi
 
     # Identify the installer dmg
-    macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
+    macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
+    macOSSparseImage=$( find $workdir -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
     if [[ -f "$macOSDMG" ]]; then
         echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    elif [[ -f "$macOSSparseImage" ]]; then
+        echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
+        hdiutil attach "$macOSSparseImage"
+        installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         /usr/bin/pkill jamfHelper
@@ -297,11 +240,20 @@ do
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
+        --path*)
+            installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --os*)
+            prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
         --version*)
-            prechosen_version=$(echo $1 | sed -e 's/^[^=]*=//g')
+            prechosen_version=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --build*)
-            prechosen_build=$(echo $1 | sed -e 's/^[^=]*=//g')
+            prechosen_build=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --workdir*)
+            workdir=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
@@ -314,6 +266,9 @@ echo "   [erase-install] Script execution started: $(date)"
 
 # Display full screen message if this screen is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+
+# ensure installer_directory exists
+/bin/mkdir -p "$installer_directory"
 
 # Look for the installer, download it if it is not present
 echo "   [erase-install] Looking for existing installer"
@@ -357,7 +312,7 @@ if [[ $erase != "yes" ]]; then
     exit
 fi
 
-# 5. Run the installer
+# Run the installer
 echo
 echo "   [main] WARNING! Running $installmacOSApp with eraseinstall option"
 echo
@@ -368,16 +323,18 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     jamfPID=$(echo $!)
 fi
 
-
-# version 3.5 added check for packages then add install_package_list to end of command line
-# if there are none then standard command line is used
+# check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_installers
 
 # vary command line based on installer versions
-if [ "$installer_version_main" = "13" ]; then
-"$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
+installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
+
+if [ "$installer_os_version" == "13" ]; then
+    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-"$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
+
 # Kill Jamf FUD if startosinstall ends before a reboot
 [[ $jamfPID ]] && kill $jamfPID
