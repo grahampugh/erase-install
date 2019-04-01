@@ -267,7 +267,7 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
         "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
         jamfPID=$(echo $!)
     elif [[ ${user_language} = de* ]]; then
-        "$jamfHelper" -windowType fs -title "macOS Wiederherstellen" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "Der Computer wird jetzt zurückgesetzt und neu gestartet." -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+        "$jamfHelper" -windowType fs -title "macOS Wiederherstellen" -alignHeading center -heading "macOS Wiederherstellen" -alignDescription center -description "Der Computer wird jetzt zurückgesetzt und neu gestartet." -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
         jamfPID=$(echo $!)
     fi
 fi
