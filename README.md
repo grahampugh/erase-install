@@ -94,9 +94,9 @@ If the --erase option is used, and additional packages are placed in the folder 
 
 * If the `--erase` option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, these packages will be as part of the erase-install process. These packages must be signed. The path to these packages can be overridden with the `--extras` argument.
 
-```
-sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
-```
+    ```
+    sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
+    ```
 
 ## Requirements for performing the eraseinstall:
 
