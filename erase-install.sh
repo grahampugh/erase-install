@@ -20,9 +20,8 @@
 # Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
 # Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
 # Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
-
-# Version 3.4      25.03.2019     fix version checking
-# Version 3.5      26.03.2019     add extra installs directory and checking. Allowing for the --installpackage option to be used automatically 
+# Version 4.0     01.04.2019      Add --os, --path and --list options
+#                                 Thanks to '@mark lamont' for contributions
 
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
@@ -50,7 +49,8 @@ show_help() {
     [erase-install] by @GrahamRPugh
 
     Usage:
-    [sudo] bash erase-install.sh [--samebuild] [--move] [--erase] [--build=XYZ] [--overwrite] [--version=X.Y]
+    [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
+                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--erase]
 
     [no flags]:       Finds latest current production, non-forked version
                       of macOS, downloads it.
@@ -69,6 +69,7 @@ show_help() {
                       and reinstalls macOS
     --overwrite:      Download macOS installer even if an installer
                       already exists in $installer_directory
+    --list:           List available updates only (don't download anything)
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -173,6 +174,15 @@ run_installinstallmacos() {
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=''
+
+    if [[ $list == "yes" ]]; then
+        echo "   [run_installinstallmacos] List only mode chosen"
+        installinstallmacos_args+="--list"
+    else
+        installinstallmacos_args+="--workdir=$workdir"
+        installinstallmacos_args+=" --ignore-cache --raw "
+    fi
+
     if [[ $prechosen_os ]]; then
         echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
         installinstallmacos_args+="--os=$prechosen_os"
@@ -192,12 +202,17 @@ run_installinstallmacos() {
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
         installinstallmacos_args+="--current"
 
-    else
+    elif [[ ! $list ]]; then
+        #statements
         echo "   [run_installinstallmacos] Getting current production version"
         installinstallmacos_args+="--auto"
     fi
 
-    python "$workdir/installinstallmacos.py" --workdir=$workdir --ignore-cache --raw $installinstallmacos_args
+    python "$workdir/installinstallmacos.py" $installinstallmacos_args
+
+    if [[ $list == "yes" ]]; then
+        exit 0
+    fi
 
     if [[ $? > 0 ]]; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
@@ -232,6 +247,8 @@ erase="no"
 while test $# -gt 0
 do
     case "$1" in
+        -l|--list) list="yes"
+            ;;
         -e|--erase) erase="yes"
             ;;
         -m|--move) move="yes"
@@ -274,7 +291,7 @@ jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/
 echo "   [erase-install] Looking for existing installer"
 find_existing_installer
 
-if [[ $overwrite == "yes" && -d "$installmacOSApp" ]]; then
+if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
 fi
 
