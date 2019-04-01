@@ -22,9 +22,17 @@ There are a number of options that can be specified to automate this script furt
 2. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
 3. `--overwrite` deletes any existing downloaded installer and re-downloads it.
 
+If the --erase option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-install process. These packages must be signed.
+
 ## Full list of Options:
 
-* Run the script with argument to check the available installers. This will download `installinstallmacos.py` and list the available updates, then stop.
+* Run the script with argument `--help` to show the available options, then stop.
+
+    ```
+    sudo bash erase-install.sh --help
+    ```
+
+* Run the script with argument `--list` to check the available installers. This will download `installinstallmacos.py` and list the available updates, then stop.
 
     ```
     sudo bash erase-install.sh --list
@@ -78,42 +86,17 @@ There are a number of options that can be specified to automate this script furt
     sudo bash erase-install.sh --move --path=/path/to/move/to
     ```
 
-* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive
+* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
 
     ```
     sudo bash erase-install.sh --erase
     ```
 
-All possible combinations:
+* If the `--erase` option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, these packages will be as part of the erase-install process. These packages must be signed. The path to these packages can be overridden with the `--extras` argument.
 
-    sudo bash erase-install.sh
-    sudo bash erase-install.sh --erase
-    sudo bash erase-install.sh --move
-    sudo bash erase-install.sh --os=10.14
-    sudo bash erase-install.sh --os=10.14 --move
-    sudo bash erase-install.sh --os=10.14 --erase
-    sudo bash erase-install.sh --version=10.14.3
-    sudo bash erase-install.sh --version=10.14.3 --move
-    sudo bash erase-install.sh --version=10.14.3 --erase
-    sudo bash erase-install.sh --build=XYZ123
-    sudo bash erase-install.sh --build=XYZ123 --move
-    sudo bash erase-install.sh --build=XYZ123 --erase
-    sudo bash erase-install.sh --samebuild
-    sudo bash erase-install.sh --samebuild --move
-    sudo bash erase-install.sh --samebuild --erase
-    sudo bash erase-install.sh --overwrite
-    sudo bash erase-install.sh --overwrite --move
-    sudo bash erase-install.sh --overwrite --os=10.14 --move
-    sudo bash erase-install.sh --overwrite --version=10.14.3 --move
-    sudo bash erase-install.sh --overwrite --build=XYZABC --move
-    sudo bash erase-install.sh --overwrite --samebuild --move
-    sudo bash erase-install.sh --overwrite --erase
-    sudo bash erase-install.sh --overwrite --os=10.14 --erase
-    sudo bash erase-install.sh --overwrite --version=10.14.3 --erase
-    sudo bash erase-install.sh --overwrite --build=XYZABC --erase
-    sudo bash erase-install.sh --overwrite --samebuild --erase
-    sudo bash erase-install.sh --list
-    sudo bash erase-install.sh --help
+```
+sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
+```
 
 ## Requirements for performing the eraseinstall:
 

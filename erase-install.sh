@@ -20,7 +20,7 @@
 # Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
 # Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
 # Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
-# Version 4.0     01.04.2019      Add --os, --path and --list options
+# Version 4.0     01.04.2019      Add --os, --path, --extras, --list options
 #                                 Thanks to '@mark lamont' for contributions
 
 # Requirements:
@@ -35,12 +35,13 @@ installinstallmacos_URL="https://raw.githubusercontent.com/grahampugh/macadmin-s
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
-# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
-# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
-extras_directory="/Library/Management/erase-install/toinstall"
-
 # Temporary working directory
 workdir="/Library/Management/erase-install"
+
+# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
+# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
+extras_directory="$workdir/extras"
+
 
 
 # Functions
@@ -52,24 +53,25 @@ show_help() {
     [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
                 [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--erase]
 
-    [no flags]:       Finds latest current production, non-forked version
+    [no flags]        Finds latest current production, non-forked version
                       of macOS, downloads it.
-    --samebuild:      Finds the version of macOS that matches the
+    --samebuild       Finds the version of macOS that matches the
                       existing system version, downloads it.
-    --os=X.Y:         Finds a specific inputted OS version of macOS if available
+    --os=X.Y          Finds a specific inputted OS version of macOS if available
                       and downloads it if so. Will choose the lowest matching build.
-    --version=X.Y.Z:  Finds a specific inputted minor version of macOS if available
+    --version=X.Y.Z   Finds a specific inputted minor version of macOS if available
                       and downloads it if so. Will choose the lowest matching build.
-    --build=XYZ:      Finds a specific inputted build of macOS if available
+    --build=XYZ       Finds a specific inputted build of macOS if available
                       and downloads it if so.
-    --move:           If not erasing, moves the
+    --move            If not erasing, moves the
                       downloaded macOS installer to $installer_directory
-    --path=/path/to:  Overrides the destination of --move to a specified directory
-    --erase:          After download, erases the current system
+    --path=/path/to   Overrides the destination of --move to a specified directory
+    --extras=/path/to Overrides the path to search for extra packages
+    --erase           After download, erases the current system
                       and reinstalls macOS
-    --overwrite:      Download macOS installer even if an installer
+    --overwrite       Download macOS installer even if an installer
                       already exists in $installer_directory
-    --list:           List available updates only (don't download anything)
+    --list            List available updates only (don't download anything)
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -259,6 +261,9 @@ do
             ;;
         --path*)
             installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --extras*)
+            extra_installs=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --os*)
             prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
