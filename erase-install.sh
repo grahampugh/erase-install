@@ -36,6 +36,8 @@ installer_directory="/Applications"
 # Temporary working directory
 workdir="/Library/Management/erase-install"
 
+# Current logged in user
+current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
 
 # Functions
 show_help() {
@@ -218,8 +220,12 @@ fi
 if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] Starting download process"
     if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-        "$jamfHelper" -windowType hud -windowPosition ul -title "Downloading macOS" -alignHeading center -alignDescription left -description "We need to download the macOS installer to your computer; this will take several minutes." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
-        # jamfPID=$(echo $!)
+        user_language=$(su -l "${current_user}" -c "/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' ~/Library/Preferences/.GlobalPreferences.plist")
+        if [[ ${user_language} = en* ]]; then
+            "$jamfHelper" -windowType hud -windowPosition ul -title "Downloading macOS" -alignHeading center -alignDescription left -description "We need to download the macOS installer to your computer; this will take several minutes." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
+        elif [[ ${user_language} = de* ]]; then
+            "$jamfHelper" -windowType hud -windowPosition ul -title "Download macOS" -alignHeading center -alignDescription left -description "Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
+        fi
     fi
     # now run installinstallmacos
     run_installinstallmacos
@@ -256,8 +262,14 @@ echo
 
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message"
-    "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
-    jamfPID=$(echo $!)
+    user_language=$(su -l "${current_user}" -c "/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' ~/Library/Preferences/.GlobalPreferences.plist")
+    if [[ ${user_language} = en* ]]; then
+        "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+        jamfPID=$(echo $!)
+    elif [[ ${user_language} = de* ]]; then
+        "$jamfHelper" -windowType fs -title "macOS Wiederherstellen" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "Der Computer wird jetzt zurückgesetzt und neu gestartet." -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+        jamfPID=$(echo $!)
+    fi
 fi
 
 "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction
