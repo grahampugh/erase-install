@@ -69,6 +69,10 @@ show_help() {
     exit
 }
 
+macos_vers() {
+    IFS='.' read -r major minor revision < <(sw_vers -productVersion)
+}
+
 find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
@@ -83,11 +87,11 @@ find_existing_installer() {
         echo "   [find_existing_installer] Installer found at $installer_app."
         # check installer validity
         installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
-        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' | sed 's|10\.||')
-        if [[ $installer_version -lt $installed_version ]]; then
-            echo "   [find_existing_installer] 10.$installer_version < 10.$installed_version so not valid."
+        macos_vers
+        if [[ $installer_version -lt $macos_vers ]]; then
+            echo "   [find_existing_installer] 10.$installer_version < 10.$macos_vers so not valid."
         else
-            echo "   [find_existing_installer] 10.$installer_version >= 10.$installed_version so valid."
+            echo "   [find_existing_installer] 10.$installer_version >= 10.$macos_vers so valid."
             installmacOSApp="$installer_app"
             app_is_in_applications_folder="yes"
         fi
