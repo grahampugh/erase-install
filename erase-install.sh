@@ -13,14 +13,6 @@
 #
 ## or just run without an argument to check and download the installer as required and then run it to wipe the drive
 #
-# Version History
-# Version 1.0     29.03.2018      Initial version. Expects a manual choice of installer from installinstallmacos.py
-# Version 2.0     09.07.2018      Automatically selects a non-beta installer
-# Version 3.0     03.09.2018      Changed and additional options for selecting non-standard builds. See README
-# Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
-# Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
-# Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
-#
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
@@ -30,12 +22,49 @@
 # URL for downloading installinstallmacos.py
 installinstallmacos_URL="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
 
-# Directory in which to place the macOS installer
+# Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
 # Temporary working directory
 workdir="/Library/Management/erase-install"
 
+# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
+# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
+extras_directory="$workdir/extras"
+
+# Display downloading and erasing messages if this is running on Jamf Pro
+jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+if [[ -f "$jamfHelper" ]]; then
+    # Jamf Helper localizations - download window
+    jh_dl_title_en="Downloading macOS"
+    jh_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
+    jh_dl_title_de="Download macOS"
+    jh_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
+    # Jamf Helper localizations - erase lockscreen
+    jh_erase_title_en="Erasing macOS"
+    jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
+    jh_erase_title_de="macOS Wiederherstellen"
+    jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
+
+    # Jamf Helper icons for the download and erase windows
+    jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+    jh_erase_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
+
+    # Grab currently logged in user to set the language for Jamf Helper messages
+    current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+    if [[ $language = de* ]]; then
+        user_language="de"
+    else
+        user_language="en"
+    fi
+
+    # set localisation variables
+    jh_dl_title=jh_dl_title_${user_language}
+    jh_dl_desc=jh_dl_desc_${user_language}
+    jh_erase_title=jh_erase_title_${user_language}
+    jh_erase_desc=jh_erase_desc_${user_language}
+fi
 
 # Functions
 show_help() {
@@ -43,22 +72,28 @@ show_help() {
     [erase-install] by @GrahamRPugh
 
     Usage:
-    [sudo] bash erase-install.sh [--samebuild] [--move] [--erase] [--build=XYZ] [--overwrite] [--version=X.Y]
+    [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
+                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--erase]
 
-    [no flags]:     Finds latest current production, non-forked version
-                    of macOS, downloads it.
-    --samebuild:    Finds the version of macOS that matches the
-                    existing system version, downloads it.
-    --version=X.Y:  Finds a specific inputted version of macOS if available
-                    and downloads it if so. Will choose the lowest matching build.
-    --build=XYZ:    Finds a specific inputted build of macOS if available
-                    and downloads it if so.
-    --move:         If not erasing, moves the
-                    downloaded macOS installer to /Applications
-    --erase:        After download, erases the current system
-                    and reinstalls macOS
-    --overwrite:    Download macOS installer even if an installer
-                    already exists in /Applications
+    [no flags]        Finds latest current production, non-forked version
+                      of macOS, downloads it.
+    --samebuild       Finds the version of macOS that matches the
+                      existing system version, downloads it.
+    --os=X.Y          Finds a specific inputted OS version of macOS if available
+                      and downloads it if so. Will choose the lowest matching build.
+    --version=X.Y.Z   Finds a specific inputted minor version of macOS if available
+                      and downloads it if so. Will choose the lowest matching build.
+    --build=XYZ       Finds a specific inputted build of macOS if available
+                      and downloads it if so.
+    --move            If not erasing, moves the
+                      downloaded macOS installer to $installer_directory
+    --path=/path/to   Overrides the destination of --move to a specified directory
+    --extras=/path/to Overrides the path to search for extra packages
+    --erase           After download, erases the current system
+                      and reinstalls macOS
+    --overwrite       Download macOS installer even if an installer
+                      already exists in $installer_directory
+    --list            List available updates only (don't download anything)
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -73,21 +108,40 @@ find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    macOSSparseImage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     # First let's see if this script has been run before and left an installer
     if [[ -f "$macOSDMG" ]]; then
-        echo "   [find_existing_installer] Valid installer found at $macOSDMG."
+        echo "   [find_existing_installer] Installer image found at $macOSDMG."
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    elif [[ -f "$macOSSparseImage" ]]; then
+        echo "   [find_existing_installer] Installer sparse image found at $macOSSparseImage."
+        hdiutil attach "$macOSSparseImage"
+        installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     elif [[ -d "$installer_app" ]]; then
         echo "   [find_existing_installer] Installer found at $installer_app."
-        # check installer validity
-        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion | sed 's|10\.||')
-        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' | sed 's|10\.||')
-        if [[ $installer_version -lt $installed_version ]]; then
-            echo "   [find_existing_installer] 10.$installer_version < 10.$installed_version so not valid."
+        # check installer validity:
+        # split the version of the downloaded installer into OS and minor versions
+        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
+        installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
+        installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
+        # split the version of the downloaded installer into OS and minor versions
+        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
+        installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
+        installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
+        if [[ $installer_os_version -lt $installed_os_version ]]; then
+            echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
+        elif [[ $installer_os_version -eq $installed_os_version ]]; then
+            if [[ $installer_minor_version -lt $installed_minor_version ]]; then
+                echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
+            else
+                echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+                installmacOSApp="$installer_app"
+                app_is_in_applications_folder="yes"
+            fi
         else
-            echo "   [find_existing_installer] 10.$installer_version >= 10.$installed_version so valid."
+            echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
             installmacOSApp="$installer_app"
             app_is_in_applications_folder="yes"
         fi
@@ -102,23 +156,35 @@ overwrite_existing_installer() {
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
-    rm -f "$macOSDMG"
+    rm -f "$macOSDMG" "$macOSSparseImage"
     rm -rf "$installer_app"
 }
 
 move_to_applications_folder() {
     if [[ $app_is_in_applications_folder == "yes" ]]; then
-        echo "   [move_to_applications_folder] Valid installer already in /Applications folder"
+        echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
         return
     fi
-    echo "   [move_to_applications_folder] Moving installer to /Applications folder"
-    cp -R "$installmacOSApp" /Applications/
+    echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
+    cp -R "$installmacOSApp" $installer_directory/
     existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
     if [[ -d "$existingInstaller" ]]; then
         diskutil unmount force "$existingInstaller"
     fi
-    rm -f "$macOSDMG"
-    echo "   [move_to_applications_folder] Installer moved to /Applications folder"
+    rm -f "$macOSDMG" "$macOSSparseImage"
+    echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
+}
+
+find_extra_installers() {
+    # find any pkg files in the extras_directory
+    extra_installs=$(find "$extras_directory"/*.pkg -maxdepth 1)
+    # set install_package_list to blank.
+    install_package_list=()
+
+    find "$extras_directory" -type f -name '*.pkg' | while read file; do
+        echo "   [find_extra_installers] Additional package to install: $file"
+        install_package_list+=("--installpackage \"$file\"")
+    done
 }
 
 run_installinstallmacos() {
@@ -132,7 +198,21 @@ run_installinstallmacos() {
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=''
-    if [[ $prechosen_version ]]; then
+
+    if [[ $list == "yes" ]]; then
+        echo "   [run_installinstallmacos] List only mode chosen"
+        installinstallmacos_args+="--list"
+    else
+        installinstallmacos_args+="--workdir=$workdir"
+        installinstallmacos_args+=" --ignore-cache --raw "
+    fi
+
+    if [[ $prechosen_os ]]; then
+        echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
+        installinstallmacos_args+="--os=$prechosen_os"
+        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
+
+    elif [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
         installinstallmacos_args+="--version=$prechosen_version"
         [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
@@ -146,12 +226,17 @@ run_installinstallmacos() {
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
         installinstallmacos_args+="--current"
 
-    else
+    elif [[ ! $list ]]; then
+        #statements
         echo "   [run_installinstallmacos] Getting current production version"
         installinstallmacos_args+="--auto"
     fi
 
-    python "$workdir/installinstallmacos.py" --workdir=$workdir --ignore-cache --compress $installinstallmacos_args
+    python "$workdir/installinstallmacos.py" $installinstallmacos_args
+
+    if [[ $list == "yes" ]]; then
+        exit 0
+    fi
 
     if [[ $? > 0 ]]; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
@@ -161,11 +246,16 @@ run_installinstallmacos() {
     fi
 
     # Identify the installer dmg
-    macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg'  -print -quit )
+    macOSDMG=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
+    macOSSparseImage=$( find $workdir -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
     if [[ -f "$macOSDMG" ]]; then
         echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
         hdiutil attach "$macOSDMG"
         installmacOSApp=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    elif [[ -f "$macOSSparseImage" ]]; then
+        echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
+        hdiutil attach "$macOSSparseImage"
+        installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         /usr/bin/pkill jamfHelper
@@ -181,6 +271,8 @@ erase="no"
 while test $# -gt 0
 do
     case "$1" in
+        -l|--list) list="yes"
+            ;;
         -e|--erase) erase="yes"
             ;;
         -m|--move) move="yes"
@@ -189,11 +281,23 @@ do
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
+        --path*)
+            installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --extras*)
+            extra_installs=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --os*)
+            prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
         --version*)
-            prechosen_version=$(echo $1 | sed -e 's/^[^=]*=//g')
+            prechosen_version=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --build*)
-            prechosen_build=$(echo $1 | sed -e 's/^[^=]*=//g')
+            prechosen_build=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --workdir*)
+            workdir=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
@@ -204,22 +308,24 @@ done
 echo
 echo "   [erase-install] Script execution started: $(date)"
 
-# Display full screen message if this screen is running on Jamf Pro
-jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+# ensure installer_directory exists
+/bin/mkdir -p "$installer_directory"
 
 # Look for the installer, download it if it is not present
 echo "   [erase-install] Looking for existing installer"
 find_existing_installer
 
-if [[ $overwrite == "yes" && -d "$installmacOSApp" ]]; then
+if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
 fi
 
 if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] Starting download process"
+    # if using Jamf and due to erase, open a helper hud to state that
+    # the download is taking place.
     if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-        "$jamfHelper" -windowType hud -windowPosition ul -title "Downloading macOS" -alignHeading center -alignDescription left -description "We need to download the macOS installer to your computer; this will take several minutes." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
-        # jamfPID=$(echo $!)
+        echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
+        "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
     # now run installinstallmacos
     run_installinstallmacos
@@ -233,7 +339,7 @@ if [[ $erase != "yes" ]]; then
         echo "   [main] Installer is at: $installmacOSApp"
     fi
 
-    # Move to /Applications if move_to_applications_folder flag is included
+    # Move to $installer_directory if move_to_applications_folder flag is included
     if [[ $move == "yes" ]]; then
         move_to_applications_folder
     fi
@@ -249,18 +355,29 @@ if [[ $erase != "yes" ]]; then
     exit
 fi
 
-# 5. Run the installer
+# Run the installer
 echo
 echo "   [main] WARNING! Running $installmacOSApp with eraseinstall option"
 echo
 
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message"
-    "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+    "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
     jamfPID=$(echo $!)
 fi
 
-"$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction
+# check for packages then add install_package_list to end of command line (empty if no packages found)
+find_extra_installers
+
+# vary command line based on installer versions
+installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
+installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
+
+if [ "$installer_os_version" == "13" ]; then
+    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+else
+    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
 [[ $jamfPID ]] && kill $jamfPID

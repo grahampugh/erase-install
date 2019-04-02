@@ -19,12 +19,26 @@ For more information on the forked version of `installinstallmacos.py`, see [gra
 There are a number of options that can be specified to automate this script further:
 
 1. `--erase` runs the `startosinstall` command with the `--eraseinstall` option to wipe the device.
-2. `--move` moved the macOS installer to `/Applications` if it isn't already there.
+2. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
 3. `--overwrite` deletes any existing downloaded installer and re-downloads it.
+
+If the --erase option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-install process. These packages must be signed.
 
 ## Full list of Options:
 
-* Run the script with no arguments to download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.  If an existing installer is found locally on the disk (either in the default location or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again.
+* Run the script with argument `--help` to show the available options, then stop.
+
+    ```
+    sudo bash erase-install.sh --help
+    ```
+
+* Run the script with argument `--list` to check the available installers. This will download `installinstallmacos.py` and list the available updates, then stop.
+
+    ```
+    sudo bash erase-install.sh --list
+    ```
+
+* Run the script with no arguments to download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.  If an existing installer is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again.
 
     ```
     sudo bash erase-install.sh
@@ -42,10 +56,16 @@ There are a number of options that can be specified to automate this script furt
     sudo bash erase-install.sh --samebuild
     ```
 
-* Run the script with argument `--version=10.14` to check for the installer which matches the specified macOS version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
 
     ```
-    sudo bash erase-install.sh --version=10.14
+    sudo bash erase-install.sh --os=10.14
+    ```
+
+* Run the script with argument `--version=10.14.3` to check for the installer which matches the specified macOS point version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+
+    ```
+    sudo bash erase-install.sh --version=10.14.3
     ```
 
 * Run the script with argument `--build=XYZ123` to check for the installer which matches the specified build ID, rather than the latest production installer or the same build. Note that it will only work if the build is compatible with the device on which you are running the script.
@@ -54,42 +74,29 @@ There are a number of options that can be specified to automate this script furt
     sudo bash erase-install.sh --build=XYZ123
     ```
 
-* Run the script with argument `--move` move the downloaded installer to the `/Applications` folder. Note that this argument does not apply in conjunction with the `--erase` flag.
+* Run the script with argument `--move` to move the downloaded installer to the `/Applications` folder. Note that this argument does not apply in conjunction with the `--erase` flag.
 
     ```
     sudo bash erase-install.sh --move
     ```
 
-* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive
+* Run the script with arguments `--move` and `--path=/some/path` to move the downloaded installer to the specified folder. Note that this argument does not apply in conjunction with the `--erase` flag.
+
+    ```
+    sudo bash erase-install.sh --move --path=/path/to/move/to
+    ```
+
+* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
 
     ```
     sudo bash erase-install.sh --erase
     ```
 
-All possible combinations:
+* If the `--erase` option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, these packages will be as part of the erase-install process. These packages must be signed. The path to these packages can be overridden with the `--extras` argument.
 
-    sudo bash erase-install.sh
-    sudo bash erase-install.sh --erase
-    sudo bash erase-install.sh --move
-    sudo bash erase-install.sh --version=10.14
-    sudo bash erase-install.sh --version=10.14 --move
-    sudo bash erase-install.sh --version=10.14 --erase
-    sudo bash erase-install.sh --build=XYZ123
-    sudo bash erase-install.sh --build=XYZ123 --move
-    sudo bash erase-install.sh --build=XYZ123 --erase
-    sudo bash erase-install.sh --samebuild
-    sudo bash erase-install.sh --samebuild --move
-    sudo bash erase-install.sh --samebuild --erase
-    sudo bash erase-install.sh --overwrite
-    sudo bash erase-install.sh --overwrite --move
-    sudo bash erase-install.sh --overwrite --version=10.14 --move
-    sudo bash erase-install.sh --overwrite --build=XYZABC --move
-    sudo bash erase-install.sh --overwrite --samebuild --move
-    sudo bash erase-install.sh --overwrite --erase
-    sudo bash erase-install.sh --overwrite --version=10.14 --erase
-    sudo bash erase-install.sh --overwrite --build=XYZABC --erase
-    sudo bash erase-install.sh --overwrite --samebuild --erase
-    sudo bash erase-install.sh --help
+    ```
+    sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
+    ```
 
 ## Requirements for performing the eraseinstall:
 
@@ -120,6 +127,10 @@ If you want to pre-cache the installer in `/Applications` for use by another pol
 
 If you want to upgrade to macOS 10.14 while 10.13 installers are still available in the catalog, add this additional flag:
 
-* Parameter 6: `--version=10.14`
+* Parameter 6: `--os=10.14`
 
-Once the installer is in place in `/Applications` folder, you can use the `install-macOS.sh` script included here in a different policy to perform an in-place upgrade, without erasing the system. 
+Or if you need to specify a particular point release version (say if more than one is available in the catalogue), add this additional flag:
+
+* Parameter 6: `--os=10.14.3`
+
+Once the installer is in place in `/Applications` folder, you can use the `install-macOS.sh` script included here in a different policy to perform an in-place upgrade, without erasing the system.
