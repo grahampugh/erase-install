@@ -13,18 +13,6 @@
 #
 ## or just run without an argument to check and download the installer as required and then run it to wipe the drive
 #
-# Version History
-# Version 1.0     29.03.2018      Initial version. Expects a manual choice of installer from installinstallmacos.py
-# Version 2.0     09.07.2018      Automatically selects a non-beta installer
-# Version 3.0     03.09.2018      Changed and additional options for selecting non-standard builds. See README
-# Version 3.1     17.09.2018      Added ability to specify a build in the parameters, and we now clear out the cached content
-# Version 3.2     21.09.2018      Added ability to specify a macOS version. And fixed the --overwrite flag.
-# Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
-# Version 4.0     01.04.2019      Add --os, --path, --extras, --list options
-#                                 Thanks to '@mark lamont' for contributions
-# Version 4.1     02.04.2019      Added localisation of Jamf Helper messages
-#                                 Thanks to '@ahousseini' for contributions
-
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
