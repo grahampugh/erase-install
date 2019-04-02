@@ -22,6 +22,8 @@
 # Version 3.3     13.12.2018      Bug fix for --build option, and for exiting gracefully when nothing is downloaded.
 # Version 4.0     01.04.2019      Add --os, --path, --extras, --list options
 #                                 Thanks to '@mark lamont' for contributions
+# Version 4.1     02.04.2019      Added localisation of Jamf Helper messages
+#                                 Thanks to '@ahousseini' for contributions
 
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
@@ -42,7 +44,39 @@ workdir="/Library/Management/erase-install"
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
 extras_directory="$workdir/extras"
 
+# Display downloading and erasing messages if this is running on Jamf Pro
+jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+if [[ -f "$jamfHelper" ]]; then
+    # Jamf Helper localizations - download window
+    jh_dl_title_en="Downloading macOS"
+    jh_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
+    jh_dl_title_de="Download macOS"
+    jh_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
+    # Jamf Helper localizations - erase lockscreen
+    jh_erase_title_en="Erasing macOS"
+    jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
+    jh_erase_title_de="macOS Wiederherstellen"
+    jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
 
+    # Jamf Helper icons for the download and erase windows
+    jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+    jh_erase_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
+
+    # Grab currently logged in user to set the language for Jamf Helper messages
+    current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+    if [[ $language = de* ]]; then
+        user_language="de"
+    else
+        user_language="en"
+    fi
+
+    # set localisation variables
+    jh_dl_title=jh_dl_title_${user_language}
+    jh_dl_desc=jh_dl_desc_${user_language}
+    jh_erase_title=jh_erase_title_${user_language}
+    jh_erase_desc=jh_erase_desc_${user_language}
+fi
 
 # Functions
 show_help() {
@@ -286,9 +320,6 @@ done
 echo
 echo "   [erase-install] Script execution started: $(date)"
 
-# Display full screen message if this screen is running on Jamf Pro
-jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
-
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
 
@@ -302,9 +333,11 @@ fi
 
 if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] Starting download process"
+    # if using Jamf and due to erase, open a helper hud to state that
+    # the download is taking place.
     if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-        "$jamfHelper" -windowType hud -windowPosition ul -title "Downloading macOS" -alignHeading center -alignDescription left -description "We need to download the macOS installer to your computer; this will take several minutes." -lockHUD -icon  "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns" -iconSize 100 &
-        # jamfPID=$(echo $!)
+        echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
+        "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
     # now run installinstallmacos
     run_installinstallmacos
@@ -340,8 +373,8 @@ echo "   [main] WARNING! Running $installmacOSApp with eraseinstall option"
 echo
 
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message"
-    "$jamfHelper" -windowType fs -title "Erasing macOS" -alignHeading center -heading "Erasing macOS" -alignDescription center -description "This computer is now being erased and is locked until rebuilt" -icon "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg" &
+    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+    "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
     jamfPID=$(echo $!)
 fi
 
