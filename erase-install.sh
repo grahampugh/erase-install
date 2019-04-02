@@ -176,6 +176,8 @@ move_to_applications_folder() {
 }
 
 find_extra_packages() {
+    # set install_package_list to blank.
+    install_package_list=()
     while read file; do
         echo "   [find_extra_installers] Additional package to install: $file"
         # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
@@ -367,9 +369,6 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
 fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
-# set install_package_list to blank.
-install_package_list=()
-
 find_extra_packages
 
 # vary command line based on installer versions
