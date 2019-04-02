@@ -175,16 +175,16 @@ move_to_applications_folder() {
     echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
 }
 
-find_extra_installers() {
-    # find any pkg files in the extras_directory
-    extra_installs=$(find "$extras_directory"/*.pkg -maxdepth 1)
-    # set install_package_list to blank.
-    install_package_list=()
-
-    find "$extras_directory" -type f -name '*.pkg' | while read file; do
+find_extra_packages() {
+    while read file; do
         echo "   [find_extra_installers] Additional package to install: $file"
-        install_package_list+=("--installpackage \"$file\"")
-    done
+        # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
+        filename=$(basename "$file")
+        filename_nospaces=$(echo "$filename" | sed 's| |_|g')
+        [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
+        install_package_list+=("--installpackage")
+        install_package_list+=("$extras_directory/$filename_nospaces")
+    done < <(find "$extras_directory" -type f -name '*.pkg')
 }
 
 run_installinstallmacos() {
@@ -285,7 +285,7 @@ do
             installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --extras*)
-            extra_installs=$(echo $1 | sed -e 's|^[^=]*=||g')
+            extras_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --os*)
             prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
@@ -367,16 +367,19 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
 fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
-find_extra_installers
+# set install_package_list to blank.
+install_package_list=()
+
+find_extra_packages
 
 # vary command line based on installer versions
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
 if [ "$installer_os_version" == "13" ]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction ${install_package_list[@]}
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction ${install_package_list[@]}
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
