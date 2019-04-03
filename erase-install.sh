@@ -178,15 +178,15 @@ move_to_applications_folder() {
 find_extra_packages() {
     # set install_package_list to blank.
     install_package_list=()
-    while read file; do
+    for file in "$extras_directory"/*.pkg; do
         echo "   [find_extra_installers] Additional package to install: $file"
         # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
-        filename=$(basename "$file")
-        filename_nospaces=$(echo "$filename" | sed 's| |_|g')
-        [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
+        # filename=$(basename "$file")
+        # filename_nospaces=$(echo "$filename" | sed 's| |_|g')
+        # [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
         install_package_list+=("--installpackage")
-        install_package_list+=("$extras_directory/$filename_nospaces")
-    done < <(find "$extras_directory" -type f -name '*.pkg')
+        install_package_list+=("$file")
+    done
 }
 
 run_installinstallmacos() {
@@ -376,9 +376,9 @@ installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plis
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
 if [ "$installer_os_version" == "13" ]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction ${install_package_list[@]}
+    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction ${install_package_list[@]}
+    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
