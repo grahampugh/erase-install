@@ -178,15 +178,21 @@ move_to_applications_folder() {
 find_extra_packages() {
     # set install_package_list to blank.
     install_package_list=()
-    for file in "$extras_directory"/*.pkg; do
-        echo "   [find_extra_installers] Additional package to install: $file"
-        # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
-        # filename=$(basename "$file")
-        # filename_nospaces=$(echo "$filename" | sed 's| |_|g')
-        # [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
-        install_package_list+=("--installpackage")
-        install_package_list+=("$file")
-    done
+    #test for presence of extras directory and whether it is empty or not
+    if find "$extras_directory" -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
+        echo "Contents detected in $extras_directory"
+        for file in "$extras_directory"/*.pkg; do
+            echo "   [find_extra_installers] Additional package to install: $file"
+            # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
+            # filename=$(basename "$file")
+            # filename_nospaces=$(echo "$filename" | sed 's| |_|g')
+            # [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
+            install_package_list+=("--installpackage")
+            install_package_list+=("$file")
+        done
+    else
+    echo "No contents detected in $extras_directory, skipping installpackage"
+fi
 }
 
 run_installinstallmacos() {
