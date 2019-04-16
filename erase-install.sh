@@ -179,13 +179,11 @@ find_extra_packages() {
     # set install_package_list to blank.
     install_package_list=()
     for file in "$extras_directory"/*.pkg; do
-        echo "   [find_extra_installers] Additional package to install: $file"
-        # installpackage cannot cope with paths in quotes, so we need to replace any spaces in filenames.
-        # filename=$(basename "$file")
-        # filename_nospaces=$(echo "$filename" | sed 's| |_|g')
-        # [[ $filename != $filename_nospaces ]] && mv "$file" "$extras_directory/$filename_nospaces"
-        install_package_list+=("--installpackage")
-        install_package_list+=("$file")
+        if [[ $file != *"/*.pkg" ]]; then
+            echo "   [find_extra_installers] Additional package to install: $file"
+            install_package_list+=("--installpackage")
+            install_package_list+=("$file")
+        fi
     done
 }
 
