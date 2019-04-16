@@ -34,6 +34,7 @@ extras_directory="$workdir/extras"
 
 # Display downloading and erasing messages if this is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+
 if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - download window
     jh_dl_title_en="Downloading macOS"
@@ -77,6 +78,8 @@ show_help() {
 
     [no flags]        Finds latest current production, non-forked version
                       of macOS, downloads it.
+    --seedprogram=... Select a non-standard seed program
+    --catalogurl=...  Select a non-standard catalog URL (overrides seedprogram)
     --samebuild       Finds the version of macOS that matches the
                       existing system version, downloads it.
     --os=X.Y          Finds a specific inputted OS version of macOS if available
@@ -201,10 +204,18 @@ run_installinstallmacos() {
 
     if [[ $list == "yes" ]]; then
         echo "   [run_installinstallmacos] List only mode chosen"
-        installinstallmacos_args+="--list"
+        installinstallmacos_args+="--list "
     else
         installinstallmacos_args+="--workdir=$workdir"
         installinstallmacos_args+=" --ignore-cache --raw "
+    fi
+
+    if [[ $catalogurl ]]; then
+        echo "   [run_installinstallmacos] Non-standard catalog URL selected"
+        installinstallmacos_args+="--catalogurl $catalogurl "
+    elif [[ $seedprogram ]]; then
+        echo "   [run_installinstallmacos] Non-standard seedprogram selected"
+        installinstallmacos_args+="--seedprogram $seedprogram "
     fi
 
     if [[ $prechosen_os ]]; then
@@ -280,6 +291,12 @@ do
         -s|--samebuild) samebuild="yes"
             ;;
         -o|--overwrite) overwrite="yes"
+            ;;
+        --seedprogram*)
+            seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --catalogurl*)
+            catalogurl=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --path*)
             installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
