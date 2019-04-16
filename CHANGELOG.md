@@ -3,11 +3,17 @@ CHANGELOG
 
 # Version History
 
+## 0.4.1
+16.04.2019
+* Bug fix for empty extra packages folder.  
+Thanks to '@Avartharian' for contributions
+* Added `--catalogurl` and `--seedprogram` options
+
 ## 0.4.0
 02.04.2019  
 * Added localisation of Jamf Helper messages.  
 Thanks to '@ahousseini' for contributions
-* Add `--os`, `--path`, `--extras`, `--list` options.  
+* Added `--os`, `--path`, `--extras`, `--list` options.  
 Thanks to '@mark lamont' for contributions
 
 ## 0.3.2
