@@ -179,9 +179,11 @@ find_extra_packages() {
     # set install_package_list to blank.
     install_package_list=()
     for file in "$extras_directory"/*.pkg; do
-        echo "   [find_extra_installers] Additional package to install: $file"
-        install_package_list+=("--installpackage")
-        install_package_list+=("$file")
+        if [[ $file != *"/*.pkg" ]]; then
+            echo "   [find_extra_installers] Additional package to install: $file"
+            install_package_list+=("--installpackage")
+            install_package_list+=("$file")
+        fi
     done
 }
 

@@ -106,3 +106,4 @@ venv.bak/
 # erase-install specific
 content/
 softwareupdate.plist
+temp.sh
