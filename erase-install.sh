@@ -410,13 +410,14 @@ find_extra_packages
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
+[[ $erase == "yes" ]] && installflag="--eraseinstall"
+if [[ $reinstall == "yes" ]]; then
+    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
+    volpath="/Volumes/$volname"
+    installflag="--volume \"$volpath\""
+fi
+
 if [ "$installer_os_version" == "13" ]; then
-    [[ $erase == "yes" ]] && installflag="--eraseinstall"
-    if [[ $reinstall == "yes" ]]; then
-        volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
-        volpath="/Volumes/$volname"
-        installflag="--volume \"$volpath\""
-    fi
     "$installmacOSApp/Contents/Resources/startosinstall" $installflag --applicationpath "$installmacOSApp"  --agreetolicense --nointeraction "${install_package_list[@]}"
 else
     "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
