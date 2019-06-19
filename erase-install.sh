@@ -414,13 +414,13 @@ installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..
 if [[ $reinstall == "yes" ]]; then
     volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
     volpath="/Volumes/$volname"
-    installflag="--volume \"$volpath\""
+    installflag="--volume"
 fi
 
 if [ "$installer_os_version" == "13" ]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" $installflag --applicationpath "$installmacOSApp"  --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" $installflag "$volpath" --applicationpath "$installmacOSApp"  --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" $installflag "$volpath" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
