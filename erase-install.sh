@@ -46,10 +46,16 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
     jh_erase_title_de="macOS Wiederherstellen"
     jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
+    # Jamf Helper localizations - reinstall lockscreen
+    jh_reinstall_title_en="Reinstalling macOS"
+    jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
+    jh_reinstall_title_de="macOS Wiederherstellen"
+    jh_reinstall_desc_de="macOS wird neu installiert und neu gestartet"
 
     # Jamf Helper icons for the download and erase windows
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
     jh_erase_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
+    jh_reinstall_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
 
     # Grab currently logged in user to set the language for Jamf Helper messages
     current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
@@ -65,6 +71,8 @@ if [[ -f "$jamfHelper" ]]; then
     jh_dl_desc=jh_dl_desc_${user_language}
     jh_erase_title=jh_erase_title_${user_language}
     jh_erase_desc=jh_erase_desc_${user_language}
+    jh_reinstall_title=jh_reinstall_title_${user_language}
+    jh_reinstall_desc=jh_reinstall_desc_${user_language}
 fi
 
 # Functions
@@ -74,7 +82,8 @@ show_help() {
 
     Usage:
     [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
-                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--erase]
+                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z]
+                [--erase] [--reinstall]
 
     [no flags]        Finds latest current production, non-forked version
                       of macOS, downloads it.
@@ -94,6 +103,8 @@ show_help() {
     --extras=/path/to Overrides the path to search for extra packages
     --erase           After download, erases the current system
                       and reinstalls macOS
+    --reinstall       After download, reinstalls macOS without erasing the
+                      current system
     --overwrite       Download macOS installer even if an installer
                       already exists in $installer_directory
     --list            List available updates only (don't download anything)
@@ -221,17 +232,17 @@ run_installinstallmacos() {
     if [[ $prechosen_os ]]; then
         echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
         installinstallmacos_args+="--os=$prechosen_os"
-        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
+        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
         installinstallmacos_args+="--version=$prechosen_version"
-        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
+        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
         installinstallmacos_args+="--build=$prechosen_build"
-        [[ $erase == "yes" ]] && installinstallmacos_args+=" --validate"
+        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
@@ -278,6 +289,7 @@ run_installinstallmacos() {
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
+reinstall="no"
 
 while test $# -gt 0
 do
@@ -285,6 +297,8 @@ do
         -l|--list) list="yes"
             ;;
         -e|--erase) erase="yes"
+            ;;
+        -r|--reinstall) reinstall="yes"
             ;;
         -m|--move) move="yes"
             ;;
@@ -340,7 +354,7 @@ if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] Starting download process"
     # if using Jamf and due to erase, open a helper hud to state that
     # the download is taking place.
-    if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
+    if [[ -f "$jamfHelper" && ($erase == "yes" || $reinstall == "yes") ]]; then
         echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
         "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
@@ -350,10 +364,10 @@ if [[ ! -d "$installmacOSApp" ]]; then
     /usr/bin/pkill jamfHelper
 fi
 
-if [[ $erase != "yes" ]]; then
+if [[ $erase != "yes" && || $reinstall != "yes" ]]; then
     appName=$( basename "$installmacOSApp" )
     if [[ -d "$installmacOSApp" ]]; then
-        echo "   [main] Installer is at: $installmacOSApp"
+        echo "   [erase-install] Installer is at: $installmacOSApp"
     fi
 
     # Move to $installer_directory if move_to_applications_folder flag is included
@@ -374,13 +388,19 @@ fi
 
 # Run the installer
 echo
-echo "   [main] WARNING! Running $installmacOSApp with eraseinstall option"
+[[ $erase == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with eraseinstall option"
+[[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
 
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
     jamfPID=$(echo $!)
+elif [[ $reinstall == "yes" ]]; then
+    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+    "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_title}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    jamfPID=$(echo $!)
+    #statements
 fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
@@ -391,9 +411,10 @@ installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plis
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
 if [ "$installer_os_version" == "13" ]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+    [[ $erase == "yes" ]] && installflag="--eraseinstall"
+    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" --eraseinstall --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}" 
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
