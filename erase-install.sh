@@ -417,7 +417,7 @@ if [ "$installer_os_version" == "13" ]; then
         volpath="/Volumes/$volname"
         installflag="--volume \"$volpath\""
     fi
-    "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" $installflag --applicationpath "$installmacOSApp"  --agreetolicense --nointeraction "${install_package_list[@]}"
 else
     "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
