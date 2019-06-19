@@ -364,7 +364,7 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
     /usr/bin/pkill jamfHelper
 fi
 
-if [[ $erase != "yes" && || $reinstall != "yes" ]]; then
+if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     appName=$( basename "$installmacOSApp" )
     if [[ -d "$installmacOSApp" ]]; then
         echo "   [erase-install] Installer is at: $installmacOSApp"
@@ -414,7 +414,7 @@ if [ "$installer_os_version" == "13" ]; then
     [[ $erase == "yes" ]] && installflag="--eraseinstall"
     "$installmacOSApp/Contents/Resources/startosinstall" --applicationpath "$installmacOSApp" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}" 
+    "$installmacOSApp/Contents/Resources/startosinstall" "$installflag" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
