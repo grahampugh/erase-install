@@ -350,7 +350,7 @@ if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
 fi
 
-if [[ ! -d "$installmacOSApp" ]]; then
+if [[ ! -d "$installmacOSApp" || $list ]]; then
     echo "   [erase-install] Starting download process"
     # if using Jamf and due to erase, open a helper hud to state that
     # the download is taking place.
