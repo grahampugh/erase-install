@@ -19,10 +19,11 @@ For more information on the forked version of `installinstallmacos.py`, see [gra
 There are a number of options that can be specified to automate this script further:
 
 1. `--erase` runs the `startosinstall` command with the `--eraseinstall` option to wipe the device.
-2. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
-3. `--overwrite` deletes any existing downloaded installer and re-downloads it.
+2. `--reinstall` runs the `startosinstall` command to reinstall the system OS on the device (without the eraseinstall option). Use this for upgrade/reinstall without losing data.
+3. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
+4. `--overwrite` deletes any existing downloaded installer and re-downloads it.
 
-If the --erase option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-install process. These packages must be signed.
+If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
 
 ## Full list of Options:
 
@@ -98,12 +99,24 @@ If the --erase option is used, and additional packages are placed in the folder 
     sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
     ```
 
+* Run with `--reinstall` argument to check and download the installer as required and then run it to reinstall macOS on the system volume. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
+
+    ```
+    sudo bash erase-install.sh --reinstall
+    ```
+
+* If the `--reinstall` option is used, and additional packages are placed in the folder specified by the variable `extra_installs`, these packages will be as part of the reinstall process. These packages must be signed. The path to these packages can be overridden with the `--extras` argument.
+
+    ```
+    sudo bash erase-install.sh --reinstall --extras=/path/containing/extra/packages
+    ```
+
 ## Requirements for performing the eraseinstall:
 
 * macOS 10.13.4+ is already installed on the device
 * Device file system is APFS
 
-Note that downloading the installer does not require 10.13.4 or APFS, it is just the `starts install --eraseinstall` command that requires it.
+Note that downloading the installer does not require 10.13.4 or APFS, it is just the `startosinstall --eraseinstall` command that requires it.
 
 ## Setting up in Jamf Pro
 
