@@ -403,6 +403,16 @@ elif [[ $reinstall == "yes" ]]; then
     #statements
 fi
 
+# if reinstalling we need to specify a volume name, but not if we are using eraseinstall
+install_args=()
+if [[ $erase == "yes" ]]; then
+    install_args+=("--eraseinstall")
+elif [[ $reinstall == "yes" ]]; then
+    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
+    install_args+=("--volume")
+    install_args+=("/Volumes/$volname")
+fi
+
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
 
@@ -410,17 +420,10 @@ find_extra_packages
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
-[[ $erase == "yes" ]] && installflag="--eraseinstall"
-if [[ $reinstall == "yes" ]]; then
-    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
-    volpath="/Volumes/$volname"
-    installflag="--volume"
-fi
-
-if [ "$installer_os_version" == "13" ]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" $installflag "$volpath" --applicationpath "$installmacOSApp"  --agreetolicense --nointeraction "${install_package_list[@]}"
+if [[ "$installer_os_version" == "13" ]]; then
+    "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --applicationpath "$installmacOSApp" --agreetolicense --nointeraction "${install_package_list[@]}"
 else
-    "$installmacOSApp/Contents/Resources/startosinstall" $installflag "$volpath" --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
 # Kill Jamf FUD if startosinstall ends before a reboot
