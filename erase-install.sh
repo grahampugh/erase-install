@@ -52,10 +52,8 @@ if [[ -f "$jamfHelper" ]]; then
     jh_reinstall_title_de="macOS Wiederherstellen"
     jh_reinstall_desc_de="macOS wird neu installiert und neu gestartet"
 
-    # Jamf Helper icons for the download and erase windows
+    # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
-    jh_erase_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
-    jh_reinstall_icon="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/Lock.jpg"
 
     # Grab currently logged in user to set the language for Jamf Helper messages
     current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
@@ -401,6 +399,10 @@ echo
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
 
+# Jamf Helper icons for erase and re-install windows
+jh_erase_icon="$installmacOSApp/Contents/Resources/InstallAssistant.icns"
+jh_reinstall_icon="$installmacOSApp/Contents/Resources/InstallAssistant.icns"
+
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
@@ -412,14 +414,10 @@ elif [[ $reinstall == "yes" ]]; then
     #statements
 fi
 
-# if reinstalling we need to specify a volume name, but not if we are using eraseinstall
+# set install argument for erase option
 install_args=()
 if [[ $erase == "yes" ]]; then
     install_args+=("--eraseinstall")
-elif [[ $reinstall == "yes" ]]; then
-    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
-    install_args+=("--volume")
-    install_args+=("/Volumes/$volname")
 fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
@@ -429,7 +427,7 @@ find_extra_packages
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
-if [[ "$installer_os_version" == "13" ]]; then
+if [[ "$installer_os_version" == "12" ]]; then
     "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --applicationpath "$installmacOSApp" --agreetolicense --nointeraction "${install_package_list[@]}"
 else
     "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
