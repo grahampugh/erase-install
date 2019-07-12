@@ -131,7 +131,7 @@ If you need a particular fork, create a policy scoped to the devices that requir
 * Parameter 4: `--erase`
 * Parameter 5: `--build=18A389`
 
-## Using the `erase-install.sh` script to cache the installer for use with the `install-macos.sh` script
+## Using the `erase-install.sh` script to cache the installer
 
 If you want to pre-cache the installer in `/Applications` for use by another policy, make a policy named `Download macOS Installer` and set parameters as follows:
 
@@ -146,4 +146,4 @@ Or if you need to specify a particular point release version (say if more than o
 
 * Parameter 6: `--os=10.14.3`
 
-Once the installer is in place in `/Applications` folder, you can use the `install-macOS.sh` script included here in a different policy to perform an in-place upgrade, without erasing the system.
+Once the installer is in place in `/Applications` folder, you can create another policy using the same script to perform an in-place upgrade using the `--reinstall` option, without erasing the system.
