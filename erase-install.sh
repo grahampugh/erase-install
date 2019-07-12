@@ -424,7 +424,8 @@ if [[ $erase == "yes" ]]; then
 elif [[ $reinstall == "yes" && $sip == "disabled" ]]; then
     volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
     install_args+=("--volume")
-    install_args+=("/Volumes/$volname")fi
+    install_args+=("/Volumes/$volname")
+fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
