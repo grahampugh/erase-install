@@ -3,7 +3,17 @@ CHANGELOG
 
 # Version History
 
-## 0.4.1
+## 0.7.0
+12.07.2019
+* Added `--beta` option.
+* Changed behaviour of `--os`, `--version` and auto (i.e. no flag) options to get the latest rather than earliest valid build.
+* Removed `install-macos.sh` script. Use `erase-install.sh` with `--reinstall` option instead.
+
+## 0.6.0
+19.06.2019
+* Added `--reinstall` option, which obsoletes the `install-macos.sh` script.
+
+## 0.5.0
 16.04.2019
 * Bug fix for empty extra packages folder.  
 Thanks to '@Avartharian' for contributions
