@@ -82,7 +82,7 @@ show_help() {
 
     Usage:
     [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
-                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z]
+                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--beta] 
                 [--erase] [--reinstall]
 
     [no flags]        Finds latest current production, non-forked version
@@ -92,15 +92,14 @@ show_help() {
     --samebuild       Finds the version of macOS that matches the
                       existing system version, downloads it.
     --os=X.Y          Finds a specific inputted OS version of macOS if available
-                      and downloads it if so. Will choose the lowest matching build.
+                      and downloads it if so. Will choose the latest matching build.
     --version=X.Y.Z   Finds a specific inputted minor version of macOS if available
-                      and downloads it if so. Will choose the lowest matching build.
+                      and downloads it if so. Will choose the latest matching build.
     --build=XYZ       Finds a specific inputted build of macOS if available
                       and downloads it if so.
     --move            If not erasing, moves the
                       downloaded macOS installer to $installer_directory
     --path=/path/to   Overrides the destination of --move to a specified directory
-    --extras=/path/to Overrides the path to search for extra packages
     --erase           After download, erases the current system
                       and reinstalls macOS
     --reinstall       After download, reinstalls macOS without erasing the
@@ -108,6 +107,9 @@ show_help() {
     --overwrite       Download macOS installer even if an installer
                       already exists in $installer_directory
     --list            List available updates only (don't download anything)
+    --extras=/path/to Overrides the path to search for extra packages
+    --beta            Include beta versions in the search. Works with the no-flag
+                      (i.e. automatic), --os and --version arguments.
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -229,6 +231,11 @@ run_installinstallmacos() {
         installinstallmacos_args+="--seedprogram $seedprogram "
     fi
 
+    if [[ $beta == "yes" ]]; then
+        echo "   [run_installinstallmacos] Beta versions included"
+        installinstallmacos_args+="--beta "
+    fi
+
     if [[ $prechosen_os ]]; then
         echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
         installinstallmacos_args+="--os=$prechosen_os"
@@ -305,6 +312,8 @@ do
         -s|--samebuild) samebuild="yes"
             ;;
         -o|--overwrite) overwrite="yes"
+            ;;
+        --beta) beta="yes"
             ;;
         --seedprogram*)
             seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')
