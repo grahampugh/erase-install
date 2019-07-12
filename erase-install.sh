@@ -80,7 +80,7 @@ show_help() {
 
     Usage:
     [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
-                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--beta] 
+                [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--beta]
                 [--erase] [--reinstall]
 
     [no flags]        Finds latest current production, non-forked version
@@ -414,11 +414,17 @@ elif [[ $reinstall == "yes" ]]; then
     #statements
 fi
 
+# determine SIP status, as the volume is required if SIP is disabled
+[[ $(/usr/bin/csrutil status | grep 'disabled') ]] && sip="disabled" || sip="enabled"
+
 # set install argument for erase option
 install_args=()
 if [[ $erase == "yes" ]]; then
     install_args+=("--eraseinstall")
-fi
+elif [[ $reinstall == "yes" && $sip == "disabled" ]]; then
+    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
+    install_args+=("--volume")
+    install_args+=("/Volumes/$volname")fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
