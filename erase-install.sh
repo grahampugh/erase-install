@@ -36,17 +36,17 @@ extras_directory="$workdir/extras"
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
 if [[ -f "$jamfHelper" ]]; then
-    # Jamf Helper localizations - download window
+    # Jamf Helper localizations - download window
     jh_dl_title_en="Downloading macOS"
     jh_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
     jh_dl_title_de="Download macOS"
     jh_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
-    # Jamf Helper localizations - erase lockscreen
+    # Jamf Helper localizations - erase lockscreen
     jh_erase_title_en="Erasing macOS"
     jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
     jh_erase_title_de="macOS Wiederherstellen"
     jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
-    # Jamf Helper localizations - reinstall lockscreen
+    # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Reinstalling macOS"
     jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
     jh_reinstall_title_de="macOS Wiederherstellen"
