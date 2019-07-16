@@ -45,7 +45,7 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_title_en="Erasing macOS"
     jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
     jh_erase_title_de="macOS Wiederherstellen"
-    jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
+    jh_erase_desc_de="Der Computer wird jetzt zurueckgesetzt und neu gestartet"
     # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Reinstalling macOS"
     jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
