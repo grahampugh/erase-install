@@ -298,7 +298,7 @@ reinstall="no"
 
 while test $# -gt 0
 do
-    case "$1" in
+    case "$4" in
         -l|--list) list="yes"
             ;;
         -e|--erase) erase="yes"
@@ -314,28 +314,28 @@ do
         --beta) beta="yes"
             ;;
         --seedprogram*)
-            seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')
+            seedprogram=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --catalogurl*)
-            catalogurl=$(echo $1 | sed -e 's|^[^=]*=||g')
+            catalogurl=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --path*)
-            installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            installer_directory=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --extras*)
-            extras_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            extras_directory=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --os*)
-            prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_os=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --version*)
-            prechosen_version=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_version=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --build*)
-            prechosen_build=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_build=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         --workdir*)
-            workdir=$(echo $1 | sed -e 's|^[^=]*=||g')
+            workdir=$(echo $4 | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
