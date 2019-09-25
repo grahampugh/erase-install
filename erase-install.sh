@@ -35,6 +35,9 @@ extras_directory="$workdir/extras"
 # Display downloading and erasing messages if this is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
+# Icon to display in confirmation dialog
+confirmationIcon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
+
 if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - download window
     jh_dl_title_en="Downloading macOS"
@@ -345,6 +348,22 @@ done
 
 echo
 echo "   [erase-install] Script execution started: $(date)"
+
+# Make the user confirm they want to wipe their device
+if [[ $erase == "yes" ]]; then
+    confirmation=$("$jamfHelper" -windowType utility -lockHUD -title "Factory Reset" -alignHeading center -alignDescription natural -description "Are you sure you want to WIPE ALL DATA FROM THIS DEVICE and re-install macOS?" -button1 "Cancel" -button2 "Wipe/Reload" -icon "$confirmationIcon" -defaultButton 1 -cancelButton 1 2> /dev/null)
+    buttonClicked="${confirmation:$i-1}"
+
+    if [[ "$buttonClicked" == "0" ]]; then
+        echo "   [erase-install] User DECLINED erase/install"
+        exit 0
+    elif [[ "$buttonClicked" == "2" ]]; then
+        echo "   [erase-install] User CONFIRMED erase/install"
+    else
+        echo "   [erase-install] User FAILED to confirm erase/install"
+        exit 1
+    fi
+fi
 
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
