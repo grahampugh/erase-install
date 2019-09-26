@@ -35,9 +35,6 @@ extras_directory="$workdir/extras"
 # Display downloading and erasing messages if this is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
-# Icon to display in confirmation dialog
-confirmationIcon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
-
 if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - download window
     jh_dl_title_en="Downloading macOS"
@@ -54,9 +51,19 @@ if [[ -f "$jamfHelper" ]]; then
     jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
     jh_reinstall_title_de="macOS Wiederherstellen"
     jh_reinstall_desc_de="macOS wird neu installiert und neu gestartet"
+    # Jamf Helper localizations - confirmation window
+    jh_confirmation_title_en="Erasing macOS"
+    jh_confirmation_desc_en="Are you sure you want to WIPE ALL DATA FROM THIS DEVICE and reinstall macOS?"
+    jh_confirmation_title_de="macOS Wiederherstellen"
+    jh_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT WISCHEN und macOS neu installieren?"
+    jh_confirmation_button_en="Wipe/Reload"
+    jh_confirmation_button_de="Wischen/Nachladen"
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+
+    # Jamf Helper icon for confirmation dialog
+    jh_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 
     # Grab currently logged in user to set the language for Jamf Helper messages
     current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
@@ -74,6 +81,9 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_desc=jh_erase_desc_${user_language}
     jh_reinstall_title=jh_reinstall_title_${user_language}
     jh_reinstall_desc=jh_reinstall_desc_${user_language}
+    jh_confirmation_title=jh_confirmation_title_${user_language}
+    jh_confirmation_desc=jh_confirmation_desc_${user_language}
+    jh_confirmation_button=jh_confirmation_button_${user_language}
 fi
 
 # Functions
@@ -103,6 +113,9 @@ show_help() {
     --path=/path/to   Overrides the destination of --move to a specified directory
     --erase           After download, erases the current system
                       and reinstalls macOS
+    --confirm         Displays a confirmation dialog prior to erasing the current
+                      system and reinstalling macOS. Only applicable with
+                      --erase argument.
     --reinstall       After download, reinstalls macOS without erasing the
                       current system
     --overwrite       Download macOS installer even if an installer
@@ -301,7 +314,7 @@ reinstall="no"
 
 while test $# -gt 0
 do
-    case "$4" in
+    case "$1" in
         -l|--list) list="yes"
             ;;
         -e|--erase) erase="yes"
@@ -314,31 +327,33 @@ do
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
+        -c|--confirm) confirm="yes"
+            ;;
         --beta) beta="yes"
             ;;
         --seedprogram*)
-            seedprogram=$(echo $4 | sed -e 's|^[^=]*=||g')
+            seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --catalogurl*)
-            catalogurl=$(echo $4 | sed -e 's|^[^=]*=||g')
+            catalogurl=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --path*)
-            installer_directory=$(echo $4 | sed -e 's|^[^=]*=||g')
+            installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --extras*)
-            extras_directory=$(echo $4 | sed -e 's|^[^=]*=||g')
+            extras_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --os*)
-            prechosen_os=$(echo $4 | sed -e 's|^[^=]*=||g')
+            prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --version*)
-            prechosen_version=$(echo $4 | sed -e 's|^[^=]*=||g')
+            prechosen_version=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --build*)
-            prechosen_build=$(echo $4 | sed -e 's|^[^=]*=||g')
+            prechosen_build=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --workdir*)
-            workdir=$(echo $4 | sed -e 's|^[^=]*=||g')
+            workdir=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
@@ -349,20 +364,28 @@ done
 echo
 echo "   [erase-install] Script execution started: $(date)"
 
-# Make the user confirm they want to wipe their device
-if [[ $erase == "yes" ]]; then
-    confirmation=$("$jamfHelper" -windowType utility -lockHUD -title "Factory Reset" -alignHeading center -alignDescription natural -description "Are you sure you want to WIPE ALL DATA FROM THIS DEVICE and re-install macOS?" -button1 "Cancel" -button2 "Wipe/Reload" -icon "$confirmationIcon" -defaultButton 1 -cancelButton 1 2> /dev/null)
-    buttonClicked="${confirmation:$i-1}"
+# If configured to do so, display a confirmation window to the user. Note: default button is cancel
+if [[ $confirm == "yes" ]] && [[ -f "$jamfHelper" ]]; then
+    if [[ $erase == "yes" ]]; then
+        confirmation=$("$jamfHelper" -windowType utility -title "${!jh_confirmation_title}" -alignHeading center -alignDescription natural -description "${!jh_confirmation_desc}" \
+            -lockHUD -icon "$jh_confirmation_icon" -button1 "Cancel" -button2 "${!jh_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null)
+        buttonClicked="${confirmation:$i-1}"
 
-    if [[ "$buttonClicked" == "0" ]]; then
-        echo "   [erase-install] User DECLINED erase/install"
-        exit 0
-    elif [[ "$buttonClicked" == "2" ]]; then
-        echo "   [erase-install] User CONFIRMED erase/install"
+        if [[ "$buttonClicked" == "0" ]]; then
+            echo "   [erase-install] User DECLINED erase/install"
+            exit 0
+        elif [[ "$buttonClicked" == "2" ]]; then
+            echo "   [erase-install] User CONFIRMED erase/install"
+        else
+            echo "   [erase-install] User FAILED to confirm erase/install"
+            exit 1
+        fi
     else
-        echo "   [erase-install] User FAILED to confirm erase/install"
-        exit 1
+        echo "   [erase-install] --confirm requires --erase argument; ignoring"
     fi
+elif [[ $confirm == "yes" ]] && [[ ! -f "$jamfHelper" ]]; then
+    echo "   [erase-install] Error; cannot obtain confirmaiton from user without jamfHelper. Cannot continue."
+    exit 1
 fi
 
 # ensure installer_directory exists
