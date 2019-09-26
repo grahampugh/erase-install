@@ -346,6 +346,11 @@ done
 echo
 echo "   [erase-install] Script execution started: $(date)"
 
+# ensure computer does not go to sleep while running this script
+pid=$$
+echo "   [erase-install] Caffeinating this script (pid=$pid)"
+/usr/bin/caffeinate -w $pid
+
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
 
@@ -406,11 +411,9 @@ jh_reinstall_icon="$installmacOSApp/Contents/Resources/InstallAssistant.icns"
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
-    jamfPID=$(echo $!)
 elif [[ $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_title}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
-    jamfPID=$(echo $!)
     #statements
 fi
 
@@ -440,5 +443,7 @@ else
     "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
+# Kill Self Service if running
+/usr/bin/pgrep "Self Service" && /usr/bin/pkill "Self Service"
 # Kill Jamf FUD if startosinstall ends before a reboot
-[[ $jamfPID ]] && kill $jamfPID
+/usr/bin/pgrep "jamfHelper" && /usr/bin/pkill "jamfHelper"
