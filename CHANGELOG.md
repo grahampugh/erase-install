@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.7.1
+26.08.2019
+* Added caffeinate to the script to prevent the computer going to sleep during long download phases etc.
+
 ## 0.7.0
 12.07.2019
 * Added `--beta` option.
