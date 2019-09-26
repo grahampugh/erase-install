@@ -98,7 +98,7 @@ If the `--erase` or `--reinstall` options are used, and additional packages are 
     ```
     sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
     ```
-* If both the `--erase` and `--confirm` options are used, a Jamf Helper confirmation dialog is displayed to the user prior to taking any action.
+* If both the `--erase` and `--confirm` options are used, a Jamf Helper window is displayed and the user is prompted to confirm erasure prior to taking any action. If the user chooses to cancel, the script will exit.
 
     ```
     sudo bash erase-install.sh --erase --confirm
