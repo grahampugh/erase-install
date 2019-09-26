@@ -22,6 +22,7 @@ There are a number of options that can be specified to automate this script furt
 2. `--reinstall` runs the `startosinstall` command to reinstall the system OS on the device (without the eraseinstall option). Use this for upgrade/reinstall without losing data.
 3. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
 4. `--overwrite` deletes any existing downloaded installer and re-downloads it.
+5. `--confirm` used with the `--erase` option, displays a Jamf Helper confirmation dialog to the user prior to taking any action.
 
 If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
 
