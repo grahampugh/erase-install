@@ -18,8 +18,8 @@ For more information on the forked version of `installinstallmacos.py`, see [gra
 
 There are a number of options that can be specified to automate this script further:
 
-1. `--erase` runs the `startosinstall` command with the `--eraseinstall` option to wipe the device.
-2. `--reinstall` runs the `startosinstall` command to reinstall the system OS on the device (without the eraseinstall option). Use this for upgrade/reinstall without losing data.
+1. `--erase` runs the `startosinstall` command with the `--eraseinstall` option to wipe the device. The parameter `--confirm` can be added to present the user with a confirmation dialog which must be accepted to perform the erase process.
+2. `--reinstall` runs the `startosinstall` command to reinstall the system OS on the device (without erasing the drive). Use this for upgrade/reinstall without losing data.
 3. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
 4. `--overwrite` deletes any existing downloaded installer and re-downloads it.
 

@@ -3,8 +3,13 @@ CHANGELOG
 
 # Version History
 
+## 0.8.0
+27.09.2019
+* Fixed caffeinate (forgot to make it a background process)
+* Added 'Confirm' option for erasing. Thanks to '@ryan-alectrona' for the contribution.
+
 ## 0.7.1
-26.08.2019
+26.09.2019
 * Added caffeinate to the script to prevent the computer going to sleep during long download phases etc.
 
 ## 0.7.0
