@@ -45,15 +45,27 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_title_en="Erasing macOS"
     jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
     jh_erase_title_de="macOS Wiederherstellen"
-    jh_erase_desc_de="Der Computer wird jetzt zurueckgesetzt und neu gestartet"
+    jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
     # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Reinstalling macOS"
     jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
     jh_reinstall_title_de="macOS Wiederherstellen"
     jh_reinstall_desc_de="macOS wird neu installiert und neu gestartet"
+    # Jamf Helper localizations - confirmation window
+    jh_confirmation_title_en="Erasing macOS"
+    jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
+    jh_confirmation_title_de="macOS Wiederherstellen"
+    jh_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
+    jh_confirmation_button_en="Yes"
+    jh_confirmation_button_de="Ja"
+    jh_confirmation_cancel_button_en="Cancel"
+    jh_confirmation_cancel_button_de="Abbrechen"
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+
+    # Jamf Helper icon for confirmation dialog
+    jh_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 
     # Grab currently logged in user to set the language for Jamf Helper messages
     current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
@@ -71,6 +83,10 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_desc=jh_erase_desc_${user_language}
     jh_reinstall_title=jh_reinstall_title_${user_language}
     jh_reinstall_desc=jh_reinstall_desc_${user_language}
+    jh_confirmation_title=jh_confirmation_title_${user_language}
+    jh_confirmation_desc=jh_confirmation_desc_${user_language}
+    jh_confirmation_button=jh_confirmation_button_${user_language}
+    jh_confirmation_cancel_button=jh_confirmation_cancel_button_${user_language}
 fi
 
 # Functions
@@ -100,6 +116,9 @@ show_help() {
     --path=/path/to   Overrides the destination of --move to a specified directory
     --erase           After download, erases the current system
                       and reinstalls macOS
+    --confirm         Displays a confirmation dialog prior to erasing the current
+                      system and reinstalling macOS. Only applicable with
+                      --erase argument.
     --reinstall       After download, reinstalls macOS without erasing the
                       current system
     --overwrite       Download macOS installer even if an installer
@@ -311,6 +330,8 @@ do
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
+        -c|--confirm) confirm="yes"
+            ;;
         --beta) beta="yes"
             ;;
         --seedprogram*)
@@ -349,7 +370,7 @@ echo "   [erase-install] Script execution started: $(date)"
 # ensure computer does not go to sleep while running this script
 pid=$$
 echo "   [erase-install] Caffeinating this script (pid=$pid)"
-/usr/bin/caffeinate -w $pid
+/usr/bin/caffeinate -w $pid &
 
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
@@ -403,6 +424,30 @@ echo
 [[ $erase == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with eraseinstall option"
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
+
+# If configured to do so, display a confirmation window to the user. Note: default button is cancel
+if [[ $confirm == "yes" ]] && [[ -f "$jamfHelper" ]]; then
+    if [[ $erase == "yes" ]]; then
+        confirmation=$("$jamfHelper" -windowType utility -title "${!jh_confirmation_title}" -alignHeading center -alignDescription natural -description "${!jh_confirmation_desc}" \
+            -lockHUD -icon "$jh_confirmation_icon" -button1 "${!jh_confirmation_cancel_button}" -button2 "${!jh_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null)
+        buttonClicked="${confirmation:$i-1}"
+
+        if [[ "$buttonClicked" == "0" ]]; then
+            echo "   [erase-install] User DECLINED erase/install"
+            exit 0
+        elif [[ "$buttonClicked" == "2" ]]; then
+            echo "   [erase-install] User CONFIRMED erase/install"
+        else
+            echo "   [erase-install] User FAILED to confirm erase/install"
+            exit 1
+        fi
+    else
+        echo "   [erase-install] --confirm requires --erase argument; ignoring"
+    fi
+elif [[ $confirm == "yes" ]] && [[ ! -f "$jamfHelper" ]]; then
+    echo "   [erase-install] Error: cannot obtain confirmation from user without jamfHelper. Cannot continue."
+    exit 1
+fi
 
 # Jamf Helper icons for erase and re-install windows
 jh_erase_icon="$installmacOSApp/Contents/Resources/InstallAssistant.icns"
