@@ -98,6 +98,11 @@ If the `--erase` or `--reinstall` options are used, and additional packages are 
     ```
     sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
     ```
+* If both the `--erase` and `--confirm` options are used, a Jamf Helper window is displayed and the user is prompted to confirm erasure prior to taking any action. If the user chooses to cancel, the script will exit.
+
+    ```
+    sudo bash erase-install.sh --erase --confirm
+    ```
 
 * Run with `--reinstall` argument to check and download the installer as required and then run it to reinstall macOS on the system volume. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
 
