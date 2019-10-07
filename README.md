@@ -25,6 +25,8 @@ There are a number of options that can be specified to automate this script furt
 
 If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
 
+For macOS 10.15 Catalina or greater, support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option.
+
 ## Full list of Options:
 
 * Run the script with argument `--help` to show the available options, then stop.
@@ -75,7 +77,7 @@ If the `--erase` or `--reinstall` options are used, and additional packages are 
     sudo bash erase-install.sh --build=XYZ123
     ```
 
-* Run the script with argument `--move` to move the downloaded installer to the `/Applications` folder. Note that this argument does not apply in conjunction with the `--erase` flag.
+* Run the script with argument `--move` to move the downloaded installer to the `/Applications` folder. Note that this argument does not apply in conjunction with the `--erase` or `f` flags.
 
     ```
     sudo bash erase-install.sh --move
@@ -116,6 +118,15 @@ If the `--erase` or `--reinstall` options are used, and additional packages are 
     sudo bash erase-install.sh --reinstall --extras=/path/containing/extra/packages
     ```
 
+**Option in Catalina or greater only**
+
+* Run the script with the `--fetch-full-installer` argument to download the latest production installer using `softwareupdate --fetch-full-installer`. This downloads the current latest installer to `/Applications` (no need for the `--move` option).  If an existing installer is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=10.X.Y`, and `--erase` arguments. Also with `--move --path=/path/to/move/to`.
+
+    ```
+    sudo bash erase-install.sh --fetch-full-installer
+    ```
+
+
 ## Requirements for performing the eraseinstall:
 
 * macOS 10.13.4+ is already installed on the device
@@ -149,6 +160,6 @@ If you want to upgrade to macOS 10.14 while 10.13 installers are still available
 
 Or if you need to specify a particular point release version (say if more than one is available in the catalogue), add this additional flag:
 
-* Parameter 6: `--os=10.14.3`
+* Parameter 6: `--version=10.14.3`
 
 Once the installer is in place in `/Applications` folder, you can create another policy using the same script to perform an in-place upgrade using the `--reinstall` option, without erasing the system.
