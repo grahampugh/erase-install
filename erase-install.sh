@@ -390,10 +390,6 @@ pid=$$
 echo "   [erase-install] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -w $pid &
 
-# some cli options vary based on installer versions
-installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
-installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
-
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
 
@@ -413,8 +409,13 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
         echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
         "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
-    # now run installinstallmacos
-    if [[ $ffi && $installer_os_version -ge 15 ]]; then
+    # now run installinstallmacos or softwareupdate
+    # some cli options vary based on installer versions
+    os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
+    os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
+
+    echo "   [erase-install] OS version is $os_version so can run with --fetch-full-installer option"
+    if [[ $ffi && $os_minor_version -ge 15 ]]; then
         run_fetch_full_installer
     else
         run_installinstallmacos
@@ -503,6 +504,10 @@ fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
+
+# some cli options vary based on installer versions
+installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
+installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
 if [[ "$installer_os_version" == "12" ]]; then
     "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --applicationpath "$installmacOSApp" --agreetolicense --nointeraction "${install_package_list[@]}"
