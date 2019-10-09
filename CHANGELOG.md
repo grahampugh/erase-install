@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.9.0
+07.10.2019
+* Added support for `softwareupdate --fetch-full-installer` and `seedutil` for clients running macOS 10.15 or greater.
+
 ## 0.8.0
 27.09.2019
 * Fixed caffeinate (forgot to make it a background process)
