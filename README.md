@@ -25,7 +25,7 @@ There are a number of options that can be specified to automate this script furt
 
 If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
 
-For macOS 10.15 Catalina or greater, support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option.
+For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option. 
 
 ## Full list of Options:
 
@@ -120,7 +120,7 @@ For macOS 10.15 Catalina or greater, support is added for `softwareupdate --fetc
 
 **Option in Catalina or greater only**
 
-* Run the script with the `--fetch-full-installer` argument to download the latest production installer using `softwareupdate --fetch-full-installer`. This downloads the current latest installer to `/Applications` (no need for the `--move` option).  If an existing installer is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=10.X.Y`, and `--erase` arguments. Also with `--move --path=/path/to/move/to`.
+* Run the script with the `--fetch-full-installer` argument to download the latest production installer using `softwareupdate --fetch-full-installer`. This downloads the current latest installer to `/Applications` (the `--move` option does not function here).  If an existing installer is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=10.X.Y`, `--reinstall` and `--erase` arguments.
 
     ```
     sudo bash erase-install.sh --fetch-full-installer

@@ -222,6 +222,8 @@ find_extra_packages() {
 
 run_fetch_full_installer() {
     # for 10.15+ we can use softwareupdate --fetch-full-installer
+    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
+    echo "   [run_fetch_full_installer] Currently enrolled in $current_seed seed program."
     if [[ $seedprogram ]]; then
         echo "   [run_fetch_full_installer] Non-standard seedprogram selected"
         /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram
@@ -231,8 +233,11 @@ run_fetch_full_installer() {
     if [[ $prechosen_version ]]; then
         echo "   [run_fetch_full_installer] Trying to download version $prechosen_version"
         softwareupdate_args+=" --full-installer-version $prechosen_version"
+    else
+        softwareupdate_args+=" --full-installer-version $os_version"
     fi
     # now download the installer
+    echo "   [run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
     /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
 }
 
@@ -390,14 +395,23 @@ pid=$$
 echo "   [erase-install] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -w $pid &
 
+# not giving an option for fetch-full-installer mode for now... /Applications is the path
+if [[ $ffi ]]; then
+    installer_directory="/Applications"
+fi
+
 # ensure installer_directory exists
 /bin/mkdir -p "$installer_directory"
+
+# some cli options vary based on installer versions
+os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
+os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
 # Look for the installer, download it if it is not present
 echo "   [erase-install] Looking for existing installer"
 find_existing_installer
 
-if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
+if [[ $overwrite == "yes" && -d "$installer_app" && ! $list ]]; then
     overwrite_existing_installer
 fi
 
@@ -410,10 +424,6 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
         "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
     # now run installinstallmacos or softwareupdate
-    # some cli options vary based on installer versions
-    os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
-    os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
-
     echo "   [erase-install] OS version is $os_version so can run with --fetch-full-installer option"
     if [[ $ffi && $os_minor_version -ge 15 ]]; then
         run_fetch_full_installer
@@ -431,7 +441,8 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     fi
 
     # Move to $installer_directory if move_to_applications_folder flag is included
-    if [[ $move == "yes" ]]; then
+    # Not allowed for fetch_full_installer option
+    if [[ $move == "yes" && ! $ffi ]]; then
         move_to_applications_folder
     fi
 
