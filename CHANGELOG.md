@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.9.1
+15.11.2019
+* Move a comment that states that --fetch-full-installer is available to the correct place (#31)
+
 ## 0.9.0
 07.10.2019
 * Added support for `softwareupdate --fetch-full-installer` and `seedutil` for clients running macOS 10.15 or greater.
