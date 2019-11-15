@@ -97,7 +97,7 @@ show_help() {
     Usage:
     [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
                 [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--beta]
-                [--erase] [--reinstall]
+                [--fetch-full-installer] [--erase] [--reinstall]
 
     [no flags]        Finds latest current production, non-forked version
                       of macOS, downloads it.
@@ -127,6 +127,10 @@ show_help() {
     --extras=/path/to Overrides the path to search for extra packages
     --beta            Include beta versions in the search. Works with the no-flag
                       (i.e. automatic), --os and --version arguments.
+    --fetch-full-installer
+                      For compatible computers (10.15+) obtain the installer using
+                      'softwareupdate --fetch-full-installer' method instead of
+                      using installinstallmacos.py
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -424,8 +428,8 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
         "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
     fi
     # now run installinstallmacos or softwareupdate
-    echo "   [erase-install] OS version is $os_version so can run with --fetch-full-installer option"
     if [[ $ffi && $os_minor_version -ge 15 ]]; then
+        echo "   [erase-install] OS version is $os_version so can run with --fetch-full-installer option"
         run_fetch_full_installer
     else
         run_installinstallmacos
