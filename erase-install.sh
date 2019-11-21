@@ -189,9 +189,11 @@ find_existing_installer() {
 
 overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
+    existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
-        diskutil unmount force "$existingInstaller"
+        echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
+        existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
+        diskutil unmount force "$existingInstallerMountPoint"
     fi
     rm -f "$macOSDMG" "$macOSSparseImage"
     rm -rf "$installer_app"
@@ -451,9 +453,11 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     fi
 
     # Unmount the dmg
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
+    existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
-        diskutil unmount force "$existingInstaller"
+        echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
+        existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
+        diskutil unmount force "$existingInstallerMountPoint"
     fi
     # Clear the working directory
     rm -rf "$workdir/content"
