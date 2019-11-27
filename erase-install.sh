@@ -47,10 +47,12 @@ if [[ -f "$jamfHelper" ]]; then
     jh_erase_title_de="macOS Wiederherstellen"
     jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
     # Jamf Helper localizations - reinstall lockscreen
-    jh_reinstall_title_en="Reinstalling macOS"
-    jh_reinstall_desc_en="macOS will be reinstalled on this computer, and is locked until complete"
-    jh_reinstall_title_de="macOS Wiederherstellen"
-    jh_reinstall_desc_de="macOS wird neu installiert und neu gestartet"
+    jh_reinstall_title_en="Upgrading macOS"
+    jh_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
+    jh_reinstall_desc_en="This process will take approximately 5-10 minutes. Once completed your computer will reboot and begin the upgrade. No user data will be lost."
+    jh_reinstall_title_de="Upgrading macOS"
+    jh_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
+    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-10 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update. Keine Benutzerdaten werden gelöscht worden."
     # Jamf Helper localizations - confirmation window
     jh_confirmation_title_en="Erasing macOS"
     jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
@@ -60,6 +62,9 @@ if [[ -f "$jamfHelper" ]]; then
     jh_confirmation_button_de="Ja"
     jh_confirmation_cancel_button_en="Cancel"
     jh_confirmation_cancel_button_de="Abbrechen"
+    # Jamf Helper localizations - free space check
+    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 15GB disk space."
+    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 15GB freien Festplattenspeicher nicht möglich."
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -87,6 +92,7 @@ if [[ -f "$jamfHelper" ]]; then
     jh_confirmation_desc=jh_confirmation_desc_${user_language}
     jh_confirmation_button=jh_confirmation_button_${user_language}
     jh_confirmation_cancel_button=jh_confirmation_cancel_button_${user_language}
+    jh_check_desc=jh_check_desc_${user_language}
 fi
 
 # Functions
@@ -141,6 +147,18 @@ show_help() {
     exit
 }
 
+free_space_check() {
+    free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+
+    if [[ $free_disk_space -ge 15000000 ]]; then
+        echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
+    else
+        echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
+        "$jamfHelper" -windowType "utility" -description "${!jh_check_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" -button1 "Ok" -defaultButton "0" -cancelButton "1"
+        exit 1
+    fi
+}
+
 find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
@@ -189,7 +207,7 @@ find_existing_installer() {
 
 overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
+    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
         echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
         existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
@@ -206,9 +224,11 @@ move_to_applications_folder() {
     fi
     echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
     cp -R "$installmacOSApp" $installer_directory/
-    existingInstaller=$( find /Volumes -maxdepth 1 -type d -name *'macOS'* -print -quit )
+    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
-        diskutil unmount force "$existingInstaller"
+        echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
+        existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
+        diskutil unmount force "$existingInstallerMountPoint"
     fi
     rm -f "$macOSDMG" "$macOSSparseImage"
     echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
@@ -465,11 +485,20 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     exit
 fi
 
-# Run the installer
+# Run the installer but only if a user is logged in - startosinstall only works when there is a user logged in
 echo
 [[ $erase == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with eraseinstall option"
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
+
+if ! pgrep -q Finder ; then
+    echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+    echo
+    exit 1
+fi
+
+# also check that there is enough disk space
+free_space_check
 
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
 if [[ $confirm == "yes" ]] && [[ -f "$jamfHelper" ]]; then
@@ -504,7 +533,7 @@ if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
 elif [[ $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_title}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
     #statements
 fi
 
@@ -528,11 +557,16 @@ find_extra_packages
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
+# add forcequitapps option to 10.15 and above (haven't checked to see if it breaks the installer on older OS)
+[[ $installer_os_version >= 15 ]] && install_args+=("--forcequitapps")
+
 if [[ "$installer_os_version" == "12" ]]; then
-    "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --applicationpath "$installmacOSApp" --agreetolicense --nointeraction "${install_package_list[@]}"
-else
-    "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
+    install_args+=("--applicationpath")
+    install_args+=("$installmacOSApp")
 fi
+
+# run it!
+"$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 
 # Kill Self Service if running
 /usr/bin/pgrep "Self Service" && /usr/bin/pkill "Self Service"

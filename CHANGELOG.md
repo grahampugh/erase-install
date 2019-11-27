@@ -3,6 +3,15 @@ CHANGELOG
 
 # Version History
 
+## 0.10.0
+27.11.2019
+* Add a check that there is enough disk space before proceeding  
+* Added --forcequitapps argument for 10.15 and above
+* Check that a user is logged in before proceeding with startosinstall
+* Improved find commands when checking that there is a mounted installer
+* Improved German descriptions for reinstallation 
+Thanks to '@ahousseini' for contributions
+
 ## 0.9.1
 15.11.2019
 * Move a comment that states that --fetch-full-installer is available to the correct place (#31)
