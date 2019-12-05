@@ -259,8 +259,6 @@ run_fetch_full_installer() {
     if [[ $prechosen_version ]]; then
         echo "   [run_fetch_full_installer] Trying to download version $prechosen_version"
         softwareupdate_args+=" --full-installer-version $prechosen_version"
-    else
-        softwareupdate_args+=" --full-installer-version $os_version"
     fi
     # now download the installer
     echo "   [run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
