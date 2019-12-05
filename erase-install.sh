@@ -500,6 +500,10 @@ fi
 
 # Run the installer but only if a user is logged in - startosinstall only works when there is a user logged in
 echo
+if [[ ! -d "$installmacOSApp" ]]; then
+    echo "   [erase-install] ERROR: Lost $installmacOSApp ! "
+    exit 1
+fi
 [[ $erase == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with eraseinstall option"
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
