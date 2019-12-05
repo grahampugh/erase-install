@@ -187,9 +187,15 @@ find_existing_installer() {
         installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
         if [[ $installer_os_version -lt $installed_os_version ]]; then
             echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
+            installmacOSApp="$installer_app"
+            app_is_in_applications_folder="yes"
+            invalid_installer_found="yes"
         elif [[ $installer_os_version -eq $installed_os_version ]]; then
             if [[ $installer_minor_version -lt $installed_minor_version ]]; then
                 echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
+                installmacOSApp="$installer_app"
+                app_is_in_applications_folder="yes"
+                invalid_installer_found="yes"
             else
                 echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
                 installmacOSApp="$installer_app"
@@ -452,6 +458,9 @@ find_existing_installer
 
 if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
+elif [[ $invalid_installer_found == "yes" && ! $list ]]; then
+    echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+    exit 1
 fi
 
 if [[ ! -d "$installmacOSApp" || $list ]]; then
