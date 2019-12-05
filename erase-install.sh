@@ -265,6 +265,21 @@ run_fetch_full_installer() {
     # now download the installer
     echo "   [run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
     /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
+
+    if [[ $? == 0 ]]; then
+        # Identify the installer
+        if find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit ; then
+            installmacOSApp=$( find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit 2>/dev/null )
+        else
+            echo "   [run_installinstallmacos] No install app found. I guess nothing got downloaded."
+            /usr/bin/pkill jamfHelper
+            exit 1
+        fi
+    else
+        echo "   [run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
+        /usr/bin/pkill jamfHelper
+        exit 1
+    fi
 }
 
 run_installinstallmacos() {
