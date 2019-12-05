@@ -452,7 +452,7 @@ os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
 echo "   [erase-install] Looking for existing installer"
 find_existing_installer
 
-if [[ $overwrite == "yes" && -d "$installer_app" && ! $list ]]; then
+if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
 fi
 
