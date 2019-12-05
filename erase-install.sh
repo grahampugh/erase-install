@@ -49,10 +49,10 @@ if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Upgrading macOS"
     jh_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-    jh_reinstall_desc_en="This process will take approximately 5-10 minutes. Once completed your computer will reboot and begin the upgrade. No user data will be lost."
+    jh_reinstall_desc_en="This process will take approximately 5-10 minutes. Once completed your computer will reboot and begin the upgrade."
     jh_reinstall_title_de="Upgrading macOS"
     jh_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
-    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-10 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update. Keine Benutzerdaten werden gelöscht worden."
+    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-10 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
     # Jamf Helper localizations - confirmation window
     jh_confirmation_title_en="Erasing macOS"
     jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
