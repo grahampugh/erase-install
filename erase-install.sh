@@ -572,12 +572,12 @@ find_extra_packages
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
-# add forcequitapps option to 10.15 and above (haven't checked to see if it breaks the installer on older OS)
-[[ $installer_os_version >= 15 ]] && install_args+=("--forcequitapps")
-
 if [[ "$installer_os_version" == "12" ]]; then
     install_args+=("--applicationpath")
     install_args+=("$installmacOSApp")
+elif [[ "$installer_os_version" != "13" && "$installer_os_version" != "14" ]]; then
+    # add forcequitapps option to 10.15 and above (haven't checked to see if it breaks the installer on older OS)
+    install_args+=("--forcequitapps")
 fi
 
 # run it!
