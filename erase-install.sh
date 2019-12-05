@@ -159,6 +159,40 @@ free_space_check() {
     fi
 }
 
+check_installer_is_valid() {
+    echo "   [find_existing_installer] Installer found at $installer_app."
+    # check installer validity:
+    # split the version of the downloaded installer into OS and minor versions
+    installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
+    installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
+    installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
+    # split the version of the downloaded installer into OS and minor versions
+    installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
+    installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
+    installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
+    if [[ $installer_os_version -lt $installed_os_version ]]; then
+        echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
+        installmacOSApp="$installer_app"
+        app_is_in_applications_folder="yes"
+        invalid_installer_found="yes"
+    elif [[ $installer_os_version -eq $installed_os_version ]]; then
+        if [[ $installer_minor_version -lt $installed_minor_version ]]; then
+            echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
+            installmacOSApp="$installer_app"
+            app_is_in_applications_folder="yes"
+            invalid_installer_found="yes"
+        else
+            echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+            installmacOSApp="$installer_app"
+            app_is_in_applications_folder="yes"
+        fi
+    else
+        echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+        installmacOSApp="$installer_app"
+        app_is_in_applications_folder="yes"
+    fi
+}
+
 find_existing_installer() {
     installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
@@ -175,37 +209,7 @@ find_existing_installer() {
         hdiutil attach "$macOSSparseImage"
         installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     elif [[ -d "$installer_app" ]]; then
-        echo "   [find_existing_installer] Installer found at $installer_app."
-        # check installer validity:
-        # split the version of the downloaded installer into OS and minor versions
-        installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
-        installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
-        installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
-        # split the version of the downloaded installer into OS and minor versions
-        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
-        installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
-        installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
-        if [[ $installer_os_version -lt $installed_os_version ]]; then
-            echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
-            installmacOSApp="$installer_app"
-            app_is_in_applications_folder="yes"
-            invalid_installer_found="yes"
-        elif [[ $installer_os_version -eq $installed_os_version ]]; then
-            if [[ $installer_minor_version -lt $installed_minor_version ]]; then
-                echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
-                installmacOSApp="$installer_app"
-                app_is_in_applications_folder="yes"
-                invalid_installer_found="yes"
-            else
-                echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
-                installmacOSApp="$installer_app"
-                app_is_in_applications_folder="yes"
-            fi
-        else
-            echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
-            installmacOSApp="$installer_app"
-            app_is_in_applications_folder="yes"
-        fi
+        check_installer_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
     fi
@@ -274,8 +278,14 @@ run_fetch_full_installer() {
         # Identify the installer
         if find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit ; then
             installmacOSApp=$( find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit 2>/dev/null )
+            check_installer_is_valid
+            if [[ $invalid_installer_found == "yes" ]]; then
+                echo "   [run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
+                /usr/bin/pkill jamfHelper
+                exit 1
+            fi
         else
-            echo "   [run_installinstallmacos] No install app found. I guess nothing got downloaded."
+            echo "   [run_fetch_full_installer] No install app found. I guess nothing got downloaded."
             /usr/bin/pkill jamfHelper
             exit 1
         fi
