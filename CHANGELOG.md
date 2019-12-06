@@ -9,8 +9,10 @@ CHANGELOG
 * Added --forcequitapps argument for 10.15 and above
 * Check that a user is logged in before proceeding with startosinstall
 * Improved find commands when checking that there is a mounted installer
-* Improved German descriptions for reinstallation 
-Thanks to '@ahousseini' for contributions
+* Improved German descriptions for reinstallation
+* Improved checks for successful downloads from the --fetch_full_installer option
+
+Thanks to '@ahousseini' for various contributions to this release
 
 ## 0.9.1
 15.11.2019
