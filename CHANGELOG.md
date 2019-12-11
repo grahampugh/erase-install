@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.10.1
+11.12.2019
+* Removed check that a user is logged in before proceeding with startosinstall - apparently not necessary after all, and caused at least one user's workflow to break (#33).
+
 ## 0.10.0
 27.11.2019
 * Add a check that there is enough disk space before proceeding  
