@@ -596,8 +596,7 @@ installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..
 if [[ "$installer_os_version" == "12" ]]; then
     install_args+=("--applicationpath")
     install_args+=("$installmacOSApp")
-elif [[ "$installer_os_version" != "13" && "$installer_os_version" != "14" ]]; then
-    # add forcequitapps option to 10.15 and above (haven't checked to see if it breaks the installer on older OS)
+elif [[ "$installer_os_version" != "13" && "$installer_os_version" != "14" && "${installed_os_version}" -ge "15" ]]; then
     install_args+=("--forcequitapps")
 fi
 
