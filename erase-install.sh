@@ -596,7 +596,7 @@ installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..
 if [[ "$installer_os_version" == "12" ]]; then
     install_args+=("--applicationpath")
     install_args+=("$installmacOSApp")
-elif [[ "$installer_os_version" != "13" && "$installer_os_version" != "14" && "$installed_os_version" -ge "15" ]]; then
+elif [[ "$installed_os_version" -ge "15" ]]; then
     install_args+=("--forcequitapps")
 fi
 
