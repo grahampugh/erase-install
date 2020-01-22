@@ -101,7 +101,7 @@ show_help() {
     [erase-install] by @GrahamRPugh
 
     Usage:
-    [sudo] ./erase-install.sh [--list] [--samebuild] [--move] [--path=/path/to]
+    [sudo] ./erase-install.sh [--list] [--samebuild] [--sameos] [--move] [--path=/path/to]
                 [--build=XYZ] [--overwrite] [--os=X.Y] [--version=X.Y.Z] [--beta]
                 [--fetch-full-installer] [--erase] [--reinstall]
 
@@ -109,7 +109,9 @@ show_help() {
                       of macOS, downloads it.
     --seedprogram=... Select a non-standard seed program
     --catalogurl=...  Select a non-standard catalog URL (overrides seedprogram)
-    --samebuild       Finds the version of macOS that matches the
+    --samebuild       Finds the build of macOS that matches the
+                      existing system version, downloads it.
+    --sameos          Finds the version of macOS that matches the
                       existing system version, downloads it.
     --os=X.Y          Finds a specific inputted OS version of macOS if available
                       and downloads it if so. Will choose the latest matching build.
@@ -166,7 +168,7 @@ check_installer_is_valid() {
     installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
     installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
     installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
-    # split the version of the downloaded installer into OS and minor versions
+    # split the version of the currently installed macOS into OS and minor versions
     installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
     installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
     installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
@@ -348,6 +350,14 @@ run_installinstallmacos() {
         echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
         installinstallmacos_args+="--current"
 
+    elif [[ $sameos == "yes" ]]; then
+        # split the version of the downloaded installer into OS and minor versions
+        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
+        installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
+        echo "   [run_installinstallmacos] Checking that current OS $installed_os_version is available"
+        installinstallmacos_args+="--os=10.$installed_os_version"
+        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
+
     elif [[ ! $list ]]; then
         #statements
         echo "   [run_installinstallmacos] Getting current production version"
@@ -403,6 +413,8 @@ do
         -m|--move) move="yes"
             ;;
         -s|--samebuild) samebuild="yes"
+            ;;
+        -t|--sameos) sameos="yes"
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
@@ -601,7 +613,7 @@ elif [[ "$installer_os_version" != "13" && "$installer_os_version" != "14" ]]; t
     install_args+=("--forcequitapps")
 fi
 
-# run it!
+# run it!
 "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 
 # Kill Self Service if running

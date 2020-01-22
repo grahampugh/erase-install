@@ -25,7 +25,7 @@ There are a number of options that can be specified to automate this script furt
 
 If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
 
-For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option. 
+For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option.
 
 ## Full list of Options:
 
@@ -59,13 +59,19 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
     sudo bash erase-install.sh --samebuild
     ```
 
-* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+* Run the script with argument `--sameos` to check for the installer which matches the currently installed macOS major version. This basically filters by version, and looks for the latest build matching the version. Useful if you want to avoid upgrading during erase-install, but don't want to have to specify a particular OS.
+
+    ```
+    sudo bash erase-install.sh --sameos
+    ```
+
+* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the latest build matching the version. Useful during Golden Master periods.
 
     ```
     sudo bash erase-install.sh --os=10.14
     ```
 
-* Run the script with argument `--version=10.14.3` to check for the installer which matches the specified macOS point version. This basically filters by version, and looks for the lowest build matching the version. Useful during Golden Master periods.
+* Run the script with argument `--version=10.14.3` to check for the installer which matches the specified macOS point version. This basically filters by version, and looks for the lowest build matching the version.
 
     ```
     sudo bash erase-install.sh --version=10.14.3
@@ -127,7 +133,7 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
     ```
 
 
-## Requirements for performing the eraseinstall:
+## Requirements for performing the erase-install:
 
 * macOS 10.13.4+ is already installed on the device
 * Device file system is APFS

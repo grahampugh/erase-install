@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.11.0
+22.01.2020
+* Added the `--sameos` option, so you can have a single command which will always try to reinstall whatever macOS (major) version is currently installed on the host
+
 ## 0.10.0
 27.11.2019
 * Add a check that there is enough disk space before proceeding  
