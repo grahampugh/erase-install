@@ -529,7 +529,7 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     exit
 fi
 
-# Run the installer but only if a user is logged in - startosinstall only works when there is a user logged in
+# Run the installer
 echo
 if [[ ! -d "$installmacOSApp" ]]; then
     echo "   [erase-install] ERROR: Can't find the installer! "
@@ -539,11 +539,11 @@ fi
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $installmacOSApp with reinstall option"
 echo
 
-if ! pgrep -q Finder ; then
-    echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
-    echo
-    exit 1
-fi
+# if ! pgrep -q Finder ; then
+#     echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+#     echo
+#     exit 1
+# fi
 
 # also check that there is enough disk space
 free_space_check
