@@ -3,6 +3,9 @@ CHANGELOG
 
 # Version History
 
+## 0.11.1
+03.02.2020
+* Restricted the add forcequitapps install_args option to macOS 10.15 or greater, as this is not functional with older versions (#35). Thanks to '@ahousseini' for the contribution.
 
 ## 0.11.0
 22.01.2020
