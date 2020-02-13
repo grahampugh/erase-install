@@ -3,13 +3,19 @@ CHANGELOG
 
 # Version History
 
+## 0.12.0
+13.02.2020
+* Removed downloaded OS validity check for modes where the installer is not required for reinstall or eraseinstall, to prevent unnecessary exit failures.
+* Fixed a problem preveting `--move` from working when overwriting a valid installer.
+* Other small bugfixes.
+
 ## 0.11.1
 03.02.2020
 * Restricted the add forcequitapps install_args option to macOS 10.15 or greater, as this is not functional with older versions (#35). Thanks to '@ahousseini' for the contribution.
 
 ## 0.11.0
 22.01.2020
-* Added the `--sameos` option, so you can have a single command which will always try to reinstall whatever macOS (major) version is currently installed on the host
+* Added the `--sameos` option, so you can have a single command which will always try to reinstall whatever macOS (major) version is currently installed on the host.
 
 ## 0.10.1
 11.12.2019

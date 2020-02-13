@@ -149,6 +149,14 @@ show_help() {
     exit
 }
 
+kill_process() {
+    process="$1"
+    if /usr/bin/pgrep "$process" >/dev/null ; then 
+        /usr/bin/pkill "$process" && echo "   [erase-install] '$process' ended" || \
+        echo "   [erase-install] '$process' could not be killed"
+    fi
+}
+
 free_space_check() {
     free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
 
@@ -162,7 +170,7 @@ free_space_check() {
 }
 
 check_installer_is_valid() {
-    echo "   [find_existing_installer] Installer found at $installer_app."
+    echo "   [check_installer_is_valid] Installer found at $installer_app."
     # check installer validity:
     # split the version of the downloaded installer into OS and minor versions
     installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
@@ -173,23 +181,23 @@ check_installer_is_valid() {
     installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
     installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
     if [[ $installer_os_version -lt $installed_os_version ]]; then
-        echo "   [find_existing_installer] $installer_version < $installed_version so not valid."
+        echo "   [check_installer_is_valid] $installer_version < $installed_version so not valid."
         installmacOSApp="$installer_app"
         app_is_in_applications_folder="yes"
         invalid_installer_found="yes"
     elif [[ $installer_os_version -eq $installed_os_version ]]; then
         if [[ $installer_minor_version -lt $installed_minor_version ]]; then
-            echo "   [find_existing_installer] $installer_version.$installer_minor_version < $installed_version so not valid."
+            echo "   [check_installer_is_valid] $installer_version.$installer_minor_version < $installed_version so not valid."
             installmacOSApp="$installer_app"
             app_is_in_applications_folder="yes"
             invalid_installer_found="yes"
         else
-            echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+            echo "   [check_installer_is_valid] $installer_version.$installer_minor_version >= $installed_version so valid."
             installmacOSApp="$installer_app"
             app_is_in_applications_folder="yes"
         fi
     else
-        echo "   [find_existing_installer] $installer_version.$installer_minor_version >= $installed_version so valid."
+        echo "   [check_installer_is_valid] $installer_version.$installer_minor_version >= $installed_version so valid."
         installmacOSApp="$installer_app"
         app_is_in_applications_folder="yes"
     fi
@@ -227,6 +235,7 @@ overwrite_existing_installer() {
     fi
     rm -f "$macOSDMG" "$macOSSparseImage"
     rm -rf "$installer_app"
+    app_is_in_applications_folder=""
 }
 
 move_to_applications_folder() {
@@ -278,22 +287,25 @@ run_fetch_full_installer() {
 
     if [[ $? == 0 ]]; then
         # Identify the installer
-        if find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit ; then
-            installmacOSApp=$( find /Applications -maxdepth 1 -name 'Install_macOS*.app' -type d -print -quit 2>/dev/null )
+        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
+            installmacOSApp=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            # if we actually want to use this installer we should check that it's valid
+            if [[ $erase == "yes" || $reinstall == "yes" ]]; then 
             check_installer_is_valid
             if [[ $invalid_installer_found == "yes" ]]; then
                 echo "   [run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                /usr/bin/pkill jamfHelper
+                kill_process jamfHelper
                 exit 1
+            fi
             fi
         else
             echo "   [run_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            /usr/bin/pkill jamfHelper
+            kill_process jamfHelper
             exit 1
         fi
     else
         echo "   [run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        /usr/bin/pkill jamfHelper
+        kill_process jamfHelper
         exit 1
     fi
 }
@@ -390,7 +402,7 @@ run_installinstallmacos() {
         installmacOSApp=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
-        /usr/bin/pkill jamfHelper
+        kill_process jamfHelper
         exit
     fi
 }
@@ -480,7 +492,7 @@ find_existing_installer
 
 if [[ $overwrite == "yes" && -d "$installmacOSApp" && ! $list ]]; then
     overwrite_existing_installer
-elif [[ $invalid_installer_found == "yes" && ! $list ]]; then
+elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") ]]; then
     echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
     exit 1
 fi
@@ -501,7 +513,7 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
-    /usr/bin/pkill jamfHelper
+    kill_process "jamfHelper"
 fi
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
@@ -513,18 +525,24 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Move to $installer_directory if move_to_applications_folder flag is included
     # Not allowed for fetch_full_installer option
     if [[ $move == "yes" && ! $ffi ]]; then
+        echo "   [erase-install] Invoking --move option"
         move_to_applications_folder
     fi
 
     # Unmount the dmg
-    existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
-    if [[ -d "$existingInstaller" ]]; then
-        echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
-        existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
-        diskutil unmount force "$existingInstallerMountPoint"
+    if [[ ! $ffi ]]; then
+        existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
+        if [[ -d "$existingInstaller" ]]; then
+            echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
+            existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
+            diskutil unmount force "$existingInstallerMountPoint"
+        fi
     fi
     # Clear the working directory
+    echo "   [erase-install] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"
+    # kill caffeinate
+    kill_process "caffeinate"
     echo
     exit
 fi
@@ -615,7 +633,7 @@ fi
 # run it!
 "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 
-# Kill Self Service if running
-/usr/bin/pgrep "Self Service" && /usr/bin/pkill "Self Service"
-# Kill Jamf FUD if startosinstall ends before a reboot
-/usr/bin/pgrep "jamfHelper" && /usr/bin/pkill "jamfHelper"
+# kill Self Service if running
+kill_process "Self Service"
+# kill Jamf FUD if startosinstall ends before a reboot
+kill_process "jamfHelper"
