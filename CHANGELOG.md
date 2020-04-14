@@ -3,6 +3,10 @@ CHANGELOG
 
 # Version History
 
+## 0.12.1
+14.04.2020
+* Use `--forcequitapps` when *using* the macOS Catalina installer, rather than just when *running* on a macOS Catalina client (issue #25).
+
 ## 0.12.0
 13.02.2020
 * Removed downloaded OS validity check for modes where the installer is not required for reinstall or eraseinstall, to prevent unnecessary exit failures.
