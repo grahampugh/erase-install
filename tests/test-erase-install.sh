@@ -1,5 +1,10 @@
 #!/bin/bash
 
+## test-erase-install is identical to the erase-install script 
+## but will not actually run startosinstall or quit the Jamf Helper.
+## It's intended for use in testing out the script.
+## To quit the Jamf Helper type Cmd-Q.
+
 # erase-install
 # by Graham Pugh.
 #
@@ -435,8 +440,6 @@ do
             ;;
         --beta) beta="yes"
             ;;
-        --preservecontainer) preservecontainer="yes"
-            ;;
         -f|--fetch-full-installer) ffi="yes"
             ;;
         --seedprogram*)
@@ -622,11 +625,6 @@ fi
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
 
-# add --preservecontainer to the install arguments if specified
-if [[ "$installer_os_version" -ge "14" && $preservecontainer == "yes" ]]; then
-    install_args+=("--preservecontainer")
-fi
-
 # some cli options vary based on installer versions
 installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
 installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
@@ -639,9 +637,9 @@ elif [[ "$installer_os_version" -ge "15" ]]; then
 fi
 
 # run it!
-"$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
+# "$installmacOSApp/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 
 # kill Self Service if running
-kill_process "Self Service"
+# kill_process "Self Service"
 # kill Jamf FUD if startosinstall ends before a reboot
 kill_process "jamfHelper"
