@@ -3,6 +3,13 @@ CHANGELOG
 
 # Version History
 
+## 0.13.0
+04.05.2020
+* Adds `--preservecontainer` option for workflows that need to retain a container when performing `eraseinstall`.
+* Adds additional flags to `caffeinate` to attempt to more robustly prevent device sleeping.
+* Fix for missing heading in the full screen display of the `--reinstall` option.
+* Added a test script `tests/test-erase-install.sh` for testing out functionality.
+
 ## 0.12.1
 14.04.2020
 * Use `--forcequitapps` when *using* the macOS Catalina installer, rather than just when *running* on a macOS Catalina client (issue #25).
