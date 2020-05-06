@@ -22,10 +22,12 @@ There are a number of options that can be specified to automate this script furt
 2. `--reinstall` runs the `startosinstall` command to reinstall the system OS on the device (without erasing the drive). Use this for upgrade/reinstall without losing data.
 3. `--move` moved the macOS installer to `/Applications` or to a specified path if it isn't already there.
 4. `--overwrite` deletes any existing downloaded installer and re-downloads it.
+5. `--update` downloads an installer only if it is newer than the cached one.
+6. `--replace_invalid` downloads an installer only if the cached one is invalid for use on this system (usually because the version of the cached installer is older than the current system)
 
-If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be as part of the erase-/re-install process. These packages must be signed.
+If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be installed as part of the erase-/re-install process. These packages must be signed.
 
-For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option.
+For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option. It can be used in conjunction with the `--overwrite`, `--reinstall`, and `--erase` erase options.
 
 ## Full list of Options:
 
@@ -47,11 +49,24 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
     sudo bash erase-install.sh
     ```
 
-* Run the script with argument `--overwrite` to remove any existing macOS installer found in `/Applications` and download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.
+* Run the script with argument `--overwrite` to remove any existing macOS installer found in `/Applications` or the working directory, and download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.
 
     ```
     sudo bash erase-install.sh --overwrite
     ```
+
+* Run the script with argument `--replace_invalid` to remove any existing macOS installer found in `/Applications` or the working directory that is older than the current system, and download the latest production installer. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.
+
+    ```
+    sudo bash erase-install.sh --replace_invalid
+    ```
+
+* Run the script with argument `--update` to remove any existing macOS installer found in `/Applications` and download the latest production installer, but only if the latest poduction installer is newer than the cached one. By default, this is stored in a DMG in the working directory of the `installinstallmacos.py` script.
+
+    ```
+    sudo bash erase-install.sh --update
+    ```
+
 
 * Run the script with argument `--samebuild` to check for the installer which matches the current system macOS build (using `sw_vers`), rather than the latest production installer. This allows the reinstallation of a forked or beta version that is already installed on the system volume.
 
@@ -95,7 +110,7 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
     sudo bash erase-install.sh --move --path=/path/to/move/to
     ```
 
-* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
+* Run with `--erase` argument to check and download the installer as required and then run it to wipe the drive. Can be used in conjunction with the `--os`, `--version`, `--build`, `--sameos`, `--samebuild`, `--overwrite`, `--replace_invalid` and `--update` flags.
 
     ```
     sudo bash erase-install.sh --erase
@@ -106,13 +121,14 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
     ```
     sudo bash erase-install.sh --erase --extras=/path/containing/extra/packages
     ```
+
 * If both the `--erase` and `--confirm` options are used, a Jamf Helper window is displayed and the user is prompted to confirm erasure prior to taking any action. If the user chooses to cancel, the script will exit.
 
     ```
     sudo bash erase-install.sh --erase --confirm
     ```
 
-* Run with `--reinstall` argument to check and download the installer as required and then run it to reinstall macOS on the system volume. Can be used in conjunction with the `--os`, `--version`, `--build`, `--samebuild` and `--overwrite` flags.
+* Run with `--reinstall` argument to check and download the installer as required and then run it to reinstall macOS on the system volume. Can be used in conjunction with the `--os`, `--version`, `--build`, `--sameos`, `--samebuild`, `--overwrite`, `--replace_invalid` and `--update` flags.
 
     ```
     sudo bash erase-install.sh --reinstall
@@ -158,7 +174,7 @@ If you need a particular fork, create a policy scoped to the devices that requir
 If you want to pre-cache the installer in `/Applications` for use by another policy, make a policy named `Download macOS Installer` and set parameters as follows:
 
 * Parameter 4: `--move`
-* Parameter 5: `--overwrite`
+* Parameter 5: `--overwrite` to replace any cached installer, or `--update` to only replace  any cached installer if a newer one is available, or `--replace_invalid` to only update a cached installer if it is no longer valid on this system.
 
 If you want to upgrade to macOS 10.14 while 10.13 installers are still available in the catalog, add this additional flag:
 

@@ -3,6 +3,11 @@ CHANGELOG
 
 # Version History
 
+## 0.14.0
+06.05.2020
+* Adds `--replace_invalid` option for the option to overwrite a cached installer if it is not valid for use with `--erase` or `--reinstall`.
+* Adds `--update` option for the option to overwrite a cached installer if a newer installer is available.
+
 ## 0.13.0
 04.05.2020
 * Adds `--preservecontainer` option for workflows that need to retain a container when performing `eraseinstall`.
