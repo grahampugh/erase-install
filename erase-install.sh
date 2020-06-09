@@ -691,6 +691,7 @@ if [[ "$installer_os_version" == "12" ]]; then
     install_args+=("$installmacOSApp")
 elif [[ "$installer_os_version" -ge "15" ]]; then
     install_args+=("--forcequitapps")
+    install_args+=("--allowremoval")
 fi
 
 # run it!
