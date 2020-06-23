@@ -278,6 +278,7 @@ run_fetch_full_installer() {
     if [[ $seedprogram ]]; then
         echo "   [run_fetch_full_installer] Non-standard seedprogram selected"
         /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram
+        /usr/sbin/softwareupdate -l -a
     fi
 
     softwareupdate_args=''
@@ -481,6 +482,38 @@ do
         --preservecontainer) preservecontainer="yes"
             ;;
         -f|--fetch-full-installer) ffi="yes"
+            ;;
+        --seedprogram)
+            shift
+            seedprogram="$1"
+            ;;
+        --catalogurl)
+            shift
+            catalogurl="$1"
+            ;;
+        --path)
+            shift
+            installer_directory="$1"
+            ;;
+        --extras)
+            shift
+            extras_directory="$1"
+            ;;
+        --os)
+            shift
+            prechosen_os="$1"
+            ;;
+        --version)
+            shift
+            prechosen_version="$1"
+            ;;
+        --build)
+            shift
+            prechosen_build="$1"
+            ;;
+        --workdir)
+            shift
+            workdir="$1"
             ;;
         --seedprogram*)
             seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')

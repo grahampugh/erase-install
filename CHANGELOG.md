@@ -2,6 +2,12 @@
 
 ## Version History
 
+## 0.15.1
+
+23.06.2020
+
+- Parameters can now be supplied as `--argument value` as an alternative to `--argument=value` to provide more consistency with the included tools (`installinstallmacos.py` and `softwareupdate`).
+
 ## 0.15.0
 
 09.06.2020
