@@ -184,33 +184,28 @@ check_installer_is_valid() {
     if [[ $installer_os_version -lt $installed_os_version ]]; then
         echo "   [check_installer_is_valid] $installer_version < $installed_version so not valid."
         installmacOSApp="$installer_app"
-        app_is_in_applications_folder="yes"
         invalid_installer_found="yes"
     elif [[ $installer_os_version -eq $installed_os_version ]]; then
         if [[ $installer_minor_version -lt $installed_minor_version ]]; then
             echo "   [check_installer_is_valid] $installer_version < $installed_version so not valid."
             installmacOSApp="$installer_app"
-            app_is_in_applications_folder="yes"
             invalid_installer_found="yes"
         else
             echo "   [check_installer_is_valid] $installer_version >= $installed_version so valid."
             installmacOSApp="$installer_app"
-            app_is_in_applications_folder="yes"
         fi
     else
         echo "   [check_installer_is_valid] $installer_version > $installed_version so valid."
         installmacOSApp="$installer_app"
-        app_is_in_applications_folder="yes"
     fi
 }
 
 find_existing_installer() {
-    installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     # Search for an existing download
+    # First let's see if this script has been run before and left an installer
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     macOSSparseImage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
-
-    # First let's see if this script has been run before and left an installer
+    installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     if [[ -f "$macOSDMG" ]]; then
         echo "   [find_existing_installer] Installer image found at $macOSDMG."
         hdiutil attach "$macOSDMG"
@@ -223,6 +218,7 @@ find_existing_installer() {
         check_installer_is_valid
     elif [[ -d "$installer_app" ]]; then
         echo "   [find_existing_installer] Installer found at $installer_app."
+        app_is_in_applications_folder="yes"
         check_installer_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
