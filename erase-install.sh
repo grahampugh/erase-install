@@ -205,7 +205,7 @@ find_existing_installer() {
     # First let's see if this script has been run before and left an installer
     macOSDMG=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     macOSSparseImage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
-    installer_app=$( find "$installer_directory/"*macOS*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     if [[ -f "$macOSDMG" ]]; then
         echo "   [find_existing_installer] Installer image found at $macOSDMG."
         hdiutil attach "$macOSDMG"
