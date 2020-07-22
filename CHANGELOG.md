@@ -6,6 +6,12 @@ No date
 
 - If there are any changes since the last tag, click [here][untagged] to see the changes.
 
+## [0.15.3]
+
+22.07.2020
+
+- Fixed another small piece of failed logic around the check for whether there is already an installer which was finding other apps with `macOS` in the name. Now, only apps with `Install macOS*.app` will be found.
+
 ## [0.15.2]
 
 14.07.2020
@@ -174,6 +180,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.2...HEAD
+[0.15.3]: https://github.com/grahampugh/erase-install/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/grahampugh/erase-install/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/grahampugh/erase-install/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/grahampugh/erase-install/compare/v0.14.0...v0.15.0
