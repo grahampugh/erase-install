@@ -322,7 +322,8 @@ check_newer_available() {
     iim_downloaded=1
 
     # run installinstallmacos.py with list and then interrogate the plist
-    python "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
+    [[ ! -f "$python_path" ]] && python_path=$(which python)
+    "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
     i=0
     newer_version_found="no"
     while available_version=$( /usr/libexec/PlistBuddy -c "Print :result:$i:version" "$workdir/softwareupdate.plist" 2>/dev/null); do
@@ -413,7 +414,7 @@ run_installinstallmacos() {
         installinstallmacos_args+="--auto"
     fi
 
-    python "$workdir/installinstallmacos.py" $installinstallmacos_args
+    python "$workdir/installinstallmacos.py" --warnings $installinstallmacos_args
 
     if [[ $list == "yes" ]]; then
         exit 0
@@ -491,6 +492,10 @@ do
             shift
             installer_directory="$1"
             ;;
+        --pythonpath)
+            shift
+            python_path="$1"
+            ;;
         --extras)
             shift
             extras_directory="$1"
@@ -519,6 +524,9 @@ do
             ;;
         --path*)
             installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            ;;
+        --pythonpath*)
+            python_path=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --extras*)
             extras_directory=$(echo $1 | sed -e 's|^[^=]*=||g')

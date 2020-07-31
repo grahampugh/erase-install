@@ -4,7 +4,12 @@
 
 No date
 
-- If there are any changes since the last tag, click [here][untagged] to see the changes.
+## [0.15.4]
+
+31.07.2020
+
+- Added `--pythonpath` option so that you can select a different python with which to run `installinstallmacos.py`. Default is `$(which python)`.
+- `installinstallmacos.py` now has a `--warnings` option about whether to show the Notes/Warnings in the list output or not. This has been hard-coded into `erase-install.sh` to maintain current behaviour.
 
 ## [0.15.3]
 
@@ -180,6 +185,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.2...HEAD
+[0.15.4]: https://github.com/grahampugh/erase-install/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/grahampugh/erase-install/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/grahampugh/erase-install/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/grahampugh/erase-install/compare/v0.15.0...v0.15.1
