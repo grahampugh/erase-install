@@ -318,7 +318,7 @@ check_newer_available() {
         mkdir -p $workdir
     fi
     echo "   [check_newer_available] Downloading installinstallmacos.py to $workdir"
-    curl -s $installinstallmacos_URL > "$workdir/installinstallmacos.py"
+    curl -H 'Cache-Control: no-cache' -s $installinstallmacos_URL > "$workdir/installinstallmacos.py"
     iim_downloaded=1
 
     # run installinstallmacos.py with list and then interrogate the plist
