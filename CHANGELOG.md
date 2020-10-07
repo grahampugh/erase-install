@@ -4,6 +4,13 @@
 
 No date
 
+## [0.15.5]
+
+07.10.2020
+
+- Version comparisons are now done based on `BuildVersion` instead of `ProductVersion` so as not to rely on Major/Minor/Point comparisons (thanks to Greg Neagle's MacSysAdmin 2020 presentation about Big Sur for tips on this).
+- code clean up using ShellCheck.
+
 ## [0.15.4]
 
 31.07.2020
@@ -184,7 +191,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.2...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.5...HEAD
+[0.15.5]: https://github.com/grahampugh/erase-install/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/grahampugh/erase-install/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/grahampugh/erase-install/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/grahampugh/erase-install/compare/v0.15.1...v0.15.2

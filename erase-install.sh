@@ -173,29 +173,14 @@ free_space_check() {
 check_installer_is_valid() {
     echo "   [check_installer_is_valid] Checking validity of $installer_app."
     # check installer validity:
-    # split the version of the downloaded installer into OS and minor versions
-    installer_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTPlatformVersion )
-    installer_os_version=$( echo "$installer_version" | cut -d '.' -f 2 )
-    installer_minor_version=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" CFBundleShortVersionString | cut -d '.' -f 2 )
-    # split the version of the currently installed macOS into OS and minor versions
-    installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
-    installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
-    installed_minor_version=$( echo "$installed_version" | cut -d '.' -f 3 )
-    if [[ $installer_os_version -lt $installed_os_version ]]; then
-        echo "   [check_installer_is_valid] $installer_version < $installed_version so not valid."
+    installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+    system_build=$( /usr/bin/sw_vers -buildVersion )
+    if [[ $installer_build < $system_build ]]; then
+        echo "   [check_installer_is_valid] $installer_build < $system_build so not valid."
         installmacOSApp="$installer_app"
         invalid_installer_found="yes"
-    elif [[ $installer_os_version -eq $installed_os_version ]]; then
-        if [[ $installer_minor_version -lt $installed_minor_version ]]; then
-            echo "   [check_installer_is_valid] $installer_version < $installed_version so not valid."
-            installmacOSApp="$installer_app"
-            invalid_installer_found="yes"
-        else
-            echo "   [check_installer_is_valid] $installer_version >= $installed_version so valid."
-            installmacOSApp="$installer_app"
-        fi
     else
-        echo "   [check_installer_is_valid] $installer_version > $installed_version so valid."
+        echo "   [check_installer_is_valid] $installer_build >= $system_build so valid."
         installmacOSApp="$installer_app"
     fi
 }
@@ -227,7 +212,7 @@ find_existing_installer() {
 
 overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
+    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
         echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
         existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
@@ -245,7 +230,7 @@ move_to_applications_folder() {
     fi
     echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
     cp -R "$installmacOSApp" $installer_directory/
-    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
+    existingInstaller=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
     if [[ -d "$existingInstaller" ]]; then
         echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
         existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
@@ -325,25 +310,16 @@ check_newer_available() {
     [[ ! -f "$python_path" ]] && python_path=$(which python)
     "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
     i=0
-    newer_version_found="no"
-    while available_version=$( /usr/libexec/PlistBuddy -c "Print :result:$i:version" "$workdir/softwareupdate.plist" 2>/dev/null); do
-        # split the version of the currently installed macOS into OS and minor versions
-        available_os_version=$( echo "$available_version" | cut -d '.' -f 2 )
-        available_minor_version=$( echo "$available_version" | cut -d '.' -f 3 )
-        if [[ $available_os_version -gt $installer_os_version ]]; then
-            echo "   [check_newer_available] $available_version > $installer_version"
-            newer_version_found="yes"
+    newer_build_found="no"
+    while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
+        if [[ $available_build > $installer_build ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build"
+            newer_build_found="yes"
             break
-        elif [[ $available_os_version -eq $installer_os_version ]]; then
-            if [[ $installer_minor_version -gt $installer_minor_version ]]; then
-                echo "   [check_newer_available] $available_version > $installer_version"
-                newer_version_found="yes"
-                break
-            fi
         fi
         i=$((i+1))
     done
-    [[ $newer_version_found != "yes" ]] && echo "   [check_newer_available] No newer versions found"
+    [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
 }
 
 run_installinstallmacos() {
@@ -397,15 +373,15 @@ run_installinstallmacos() {
         [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ $samebuild == "yes" ]]; then
-        echo "   [run_installinstallmacos] Checking that current build $installed_build is available"
+        echo "   [run_installinstallmacos] Checking that current build $system_build is available"
         installinstallmacos_args+="--current"
 
     elif [[ $sameos == "yes" ]]; then
-        # split the version of the downloaded installer into OS and minor versions
-        installed_version=$( /usr/bin/sw_vers | grep ProductVersion | awk '{ print $NF }' )
-        installed_os_version=$( echo "$installed_version" | cut -d '.' -f 2 )
-        echo "   [run_installinstallmacos] Checking that current OS $installed_os_version is available"
-        installinstallmacos_args+="--os=10.$installed_os_version"
+        system_version=$( /usr/bin/sw_vers -productVersion )
+        system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
+        system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
+        echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
+        installinstallmacos_args+="--os=$system_os_major.$system_os_version"
         [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=" --validate"
 
     elif [[ ! $list ]]; then
@@ -420,9 +396,9 @@ run_installinstallmacos() {
         exit 0
     fi
 
-    if [[ $? > 0 ]]; then
+    if [[ $? -gt 0 ]]; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
-        [[ $jamfPID ]] && kill $jamfPID
+        kill_process jamfHelper
         echo
         exit 1
     fi
@@ -581,7 +557,7 @@ if [[ $invalid_installer_found == "yes" && -d "$installmacOSApp" && $replace_inv
 elif [[ $update_installer == "yes" && -d "$installmacOSApp" && $overwrite != "yes" ]]; then
     echo "   [erase-install] Checking for newer installer"
     check_newer_available
-    if [[ $newer_installer_found == "yes" ]]; then 
+    if [[ $newer_build_found == "yes" ]]; then 
         echo "   [erase-install] Newer installer found so overwriting existing installer"
         overwrite_existing_installer
     fi
@@ -612,7 +588,7 @@ if [[ ! -d "$installmacOSApp" || $list ]]; then
 fi
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
-    appName=$( basename "$installmacOSApp" )
+    # appName=$( basename "$installmacOSApp" )
     if [[ -d "$installmacOSApp" ]]; then
         echo "   [erase-install] Installer is at: $installmacOSApp"
     fi
@@ -626,7 +602,7 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
 
     # Unmount the dmg
     if [[ ! $ffi ]]; then
-        existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name Install*.app -print -quit 2>/dev/null )
+        existingInstaller=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         if [[ -d "$existingInstaller" ]]; then
             echo "   [erase-install] Mounted installer will be unmounted: $existingInstaller"
             existingInstallerMountPoint=$(echo "$existingInstaller" | cut -d/ -f 1-3)
@@ -699,7 +675,7 @@ elif [[ $reinstall == "yes" ]]; then
 fi
 
 # determine SIP status, as the volume is required if SIP is disabled
-[[ $(/usr/bin/csrutil status | grep 'disabled') ]] && sip="disabled" || sip="enabled"
+/usr/bin/csrutil status | grep -q 'disabled' && sip="disabled" || sip="enabled"
 
 # set install argument for erase option
 install_args=()
@@ -714,19 +690,20 @@ fi
 # check for packages then add install_package_list to end of command line (empty if no packages found)
 find_extra_packages
 
-# add --preservecontainer to the install arguments if specified
-if [[ "$installer_os_version" -ge "14" && $preservecontainer == "yes" ]]; then
+# some cli options vary based on installer versions
+installer_build=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTSDKBuild )
+
+# add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
+if [[ "$installer_build" > "18A" && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
 
-# some cli options vary based on installer versions
-installer_version=$( /usr/bin/defaults read "$installmacOSApp/Contents/Info.plist" DTPlatformVersion )
-installer_os_version=$( echo "$installer_version" | sed 's|^10\.||' | sed 's|\..*||' )
-
-if [[ "$installer_os_version" == "12" ]]; then
+# OS X 10.12 (Darwin 16) requires the --applicationpath option
+if [[ $installer_build < "17A" ]]; then
     install_args+=("--applicationpath")
     install_args+=("$installmacOSApp")
-elif [[ "$installer_os_version" -ge "15" ]]; then
+# macOS 10.15 (Darwin 19) and above require the --forcequitapps and --allowremoval options
+elif [[ $installer_build > "19A" ]]; then
     install_args+=("--forcequitapps")
     install_args+=("--allowremoval")
 fi
