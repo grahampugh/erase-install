@@ -4,6 +4,14 @@
 
 No date
 
+## [0.16.0]
+
+18.11.2020
+
+- Added the `--pkg` option allowing the download of an `InstallAssistant` package, utilising an update alresdy made to the `installinstallmacos.py` fork. For Big Sur or greater only. This will probably need some more error checking.
+- Added the `--keep-pkg` option which prevents the deletion of the package if the `--move` option is used to extract the package to `/Applications`. By default, the package will be deleted on successful extraction.
+- Added the `--force-curl` and `--no-curl` options, allowing the control of whether to download `installinstallmacos.py`. This is in anticipation of a Makefile and package release of `erase-install.sh`.
+
 ## [0.15.5]
 
 07.10.2020
@@ -191,7 +199,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.5...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/grahampugh/erase-install/compare/v0.15.5...v0.16.0
 [0.15.5]: https://github.com/grahampugh/erase-install/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/grahampugh/erase-install/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/grahampugh/erase-install/compare/v0.15.2...v0.15.3

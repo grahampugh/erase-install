@@ -12,7 +12,7 @@ So, if run without any options, the script will do the following:
 
 1. Check if an installer is already present in the working directory of this script from a previous run.
 2. If not, check if an existing macOS installer is present in the `/Applications` folder. If present, checks that it isn't older than the current installed version.
-3. If no valid installer is found, a forked version of `installinstallmacos.py` is downloaded. This is used to download the current macOS installer that is valid for this device (determined by Board ID and Model Identifier). The installer is compressed and placed in a `.dmg` in the working directory.
+3. If no valid installer is found, a forked version of `installinstallmacos.py` is downloaded (if not previously downloaded or installed in the working directory). This is used to download the current macOS installer that is valid for this device (determined by Board ID and Model Identifier). The installer is compressed and placed in a `.dmg` in the working directory.
 
 For more information on the forked version of `installinstallmacos.py`, see [grahampugh/macadmin-scripts](https://github.com/grahampugh/macadmin-scripts)
 
@@ -28,6 +28,8 @@ There are a number of options that can be specified to automate this script furt
 If the `--erase` or `--reinstall` options are used, and additional packages are placed in the folder specified by the variable `extra_installs`, which can be overridden with the `--extras` argument, these packages will be installed as part of the erase-/re-install process. These packages must be signed.
 
 For macOS 10.15 Catalina or greater, experimental support is added for `softwareupdate --fetch-full-installer`. This new functionality can be used to replace the use of `installinstallmacos.py` using the `--fetch-full-installer` option. It will set the seed catalog supplied with the `--seedprogram` argument, using macOS's built in `seedutil` command. The `--fetch-full-installer` option can be used in conjunction with the `--overwrite`, `--reinstall`, and `--erase` options.
+
+For macOS 11 Big Sur or greater, experimental support is added for downloading a macOS Installer pkg. This is taken from Armin Briegel's adaptation of `installinstallmacos.py` at [scriptingosx/fetch-installer-pkg](https://github.com/scriptingosx/fetch-installer-pkg). Use the `--pkg` option to download a package. This can be used in conjunction with `--move` (will extract the package so that you end up with an Installer application in `/Applications`), `--erase` and `reinstall`.
 
 ## Full list of Options:
 
@@ -145,6 +147,14 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
 
   ```
   sudo bash erase-install.sh --fetch-full-installer
+  ```
+
+**Option in Big Sur or greater only**
+
+- Run the script with the `--pkg` argument to download the latest production installer as a package. This downloads the current latest installer as a package in the working directory. If an existing installer or package is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=11.X.Y`, `--reinstall` and `--erase` arguments.
+
+  ```
+  sudo bash erase-install.sh --pkg
   ```
 
 ## Requirements for performing the erase-install:
