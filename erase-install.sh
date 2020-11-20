@@ -175,14 +175,33 @@ check_installer_is_valid() {
     # check installer validity:
     installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
     system_build=$( /usr/bin/sw_vers -buildVersion )
-    if [[ "$installer_build" < "$system_build" ]]; then
-        echo "   [check_installer_is_valid] $installer_build < $system_build so not valid."
-        install_macos_app="$installer_app"
+
+    # we need to break the build into component parts to compare versions
+    # 1. Darwin version is older in the installer than on the system
+    if [[ ${installer_build:0:2} -lt ${system_build:0:2} ]]; then 
         invalid_installer_found="yes"
+    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
+        invalid_installer_found="yes"
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == ${system_build:2:1} ]]; then
+        installer_build_minor=${installer_build:3:5}
+        system_build_minor=${system_build:3:5}
+        # 3. Darwin version and build letter (minor version) matches but build version numbers are older in the installer than on the system
+       if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
+            invalid_installer_found="yes"
+        # 4. Darwin version, build letter (minor version) and build version numbers matches but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
+        elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
+            invalid_installer_found="yes"
+        fi
+    fi
+
+    if [[ "$invalid_installer_found" == "yes" ]]; then
+        echo "   [check_installer_is_valid] $installer_build < $system_build so not valid."
     else
         echo "   [check_installer_is_valid] $installer_build >= $system_build so valid."
-        install_macos_app="$installer_app"
     fi
+
+    installmacOSApp="$installer_app"
 }
 
 check_installassistant_pkg_is_valid() {
@@ -631,7 +650,7 @@ elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "
         echo "   [erase-install] Newer installer found so overwriting existing installer"
         overwrite_existing_installer
     fi
-elif [[ $update_installer == "yes" && ($pkg_installer && ! -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
+elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
     echo "   [erase-install] Checking for newer installer"
     check_newer_available
     if [[ $newer_build_found == "yes" ]]; then 
@@ -640,9 +659,9 @@ elif [[ $update_installer == "yes" && ($pkg_installer && ! -f "$installassistant
     fi
 elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
     overwrite_existing_installer
-elif [[ $overwrite == "yes" && ($pkg_installer && ! -f "$installassistant_pkg") && ! $list ]]; then
+elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") && ! $list ]]; then
     echo "   [erase-install] Deleting invalid installer package"
-    rm -f "$install_macos_app"
+    rm -f "$installassistant_pkg"
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") ]]; then
     echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
     exit 1

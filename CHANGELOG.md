@@ -11,6 +11,7 @@ No date
 - Added the `--pkg` option allowing the download of an `InstallAssistant` package, utilising an update alresdy made to the `installinstallmacos.py` fork. For Big Sur or greater only. This will probably need some more error checking.
 - Added the `--keep-pkg` option which prevents the deletion of the package if the `--move` option is used to extract the package to `/Applications`. By default, the package will be deleted on successful extraction.
 - Added the `--force-curl` and `--no-curl` options, allowing the control of whether to download `installinstallmacos.py`. This is in anticipation of a Makefile and package release of `erase-install.sh`.
+- Added `Makefile`. This allows you to build a self-contained package containing `erase-install.sh` and `installinstallmacos.py` so that curl is not used during the run of `erase-install.sh` to update `installinstallmacos.py`. This requires `munkipkg` and expects to find the `grahampugh` fork of `installinstallmacos.py` in `../macadmins-scripts`. Make sure you don't bundle in Greg Neagle's version of `installinstallmacos.py` inadvertently (or this script will fail). A package will be provided on GitHub for this and subsequent versions. Note that `erase-install.sh` is installed into `/Library/Management/erase-install`. I deliberately have not put `erase-install.sh` into the PATH.
 
 ## [0.15.5]
 
