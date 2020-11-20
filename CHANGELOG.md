@@ -4,6 +4,12 @@
 
 No date
 
+## [0.15.6]
+
+20.11.2020
+
+- Fixed comparison of build numbers when checking the installed build is newer than the build in the downloaded installer.
+
 ## [0.15.5]
 
 07.10.2020
