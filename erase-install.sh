@@ -585,6 +585,8 @@ do
             ;;
         --no-curl) no_curl="yes"
             ;;
+        --skip-validation) skip_validation="yes"
+            ;;
         --seedprogram)
             shift
             seedprogram="$1"
@@ -705,7 +707,7 @@ elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
 elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") && ! $list ]]; then
     echo "   [erase-install] Deleting invalid installer package"
     rm -f "$installassistant_pkg"
-elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") ]]; then
+elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
     exit 1
 fi
