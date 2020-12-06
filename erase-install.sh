@@ -261,6 +261,8 @@ check_installassistant_pkg_is_valid() {
         echo "   [check_installassistant_pkg_is_valid] $installer_pkg_build >= $system_build so valid."
         installassistant_pkg="$installer_pkg"
     fi
+
+    installmacOSApp="$installer_app"
 }
 
 find_existing_installer() {

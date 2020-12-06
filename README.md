@@ -197,3 +197,11 @@ Once the installer is in place in `/Applications` folder, you can create another
 ## Note about supplying values to parameters/options
 
 `erase-install.sh` allows you to specify values to command line options in two ways, either with a space or with an equals sign, e.g. `--version 10.14.3` or `--version=10.14.3`. If using Script Parameters in Jamf Pro, please ensure you use the equals sign, e.g. `--version=10.14.3`.
+
+## Running latest version as one line command
+
+You can run directly from GitHub using below one line command from CLI/Terminal or with a remote management tool that allows script execution.  The `sudo` command can be left off if executing from root prompt or through remote management tool that executes commands with root privilage.
+
+  ```
+  curl -s https://raw.githubusercontent.com/grahampugh/erase-install/master/erase-install.sh | sudo bash /dev/stdin <arguments>
+  ```
