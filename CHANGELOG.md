@@ -4,6 +4,16 @@
 
 No date
 
+## [0.16.0]
+
+18.11.2020
+
+- Added the `--pkg` option allowing the download of an `InstallAssistant` package, utilising an update alresdy made to the `installinstallmacos.py` fork. For Big Sur or greater only. This will probably need some more error checking.
+- Added the `--keep-pkg` option which prevents the deletion of the package if the `--move` option is used to extract the package to `/Applications`. By default, the package will be deleted on successful extraction.
+- Added the `--force-curl` and `--no-curl` options, allowing the control of whether to download `installinstallmacos.py`. This is in anticipation of a Makefile and package release of `erase-install.sh`.
+- Added `Makefile`. This allows you to build a self-contained package containing `erase-install.sh` and `installinstallmacos.py` so that curl is not used during the run of `erase-install.sh` to update `installinstallmacos.py`. This requires `munkipkg` and expects to find the `grahampugh` fork of `installinstallmacos.py` in `../macadmins-scripts`. Make sure you don't bundle in Greg Neagle's version of `installinstallmacos.py` inadvertently (or this script will fail). A package will be provided on GitHub for this and subsequent versions. Note that `erase-install.sh` is installed into `/Library/Management/erase-install`. I deliberately have not put `erase-install.sh` into the PATH.
+- Added the `--user` and `--stdinpass` arguments when running on a Silicon Mac. Silicon Macs require an admin user and password to run `startosinstall`.
+
 ## [0.15.6]
 
 20.11.2020
@@ -197,7 +207,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.15.5...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/grahampugh/erase-install/compare/v0.15.6...v0.16.0
+[0.15.6]: https://github.com/grahampugh/erase-install/compare/v0.15.5...v0.15.6
 [0.15.5]: https://github.com/grahampugh/erase-install/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/grahampugh/erase-install/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/grahampugh/erase-install/compare/v0.15.2...v0.15.3

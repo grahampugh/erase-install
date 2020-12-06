@@ -103,6 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# DS_Store
+.DS_Store
+
 # erase-install specific
 content/
 softwareupdate.plist
