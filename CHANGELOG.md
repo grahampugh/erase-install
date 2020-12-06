@@ -13,6 +13,7 @@ No date
 - Added the `--force-curl` and `--no-curl` options, allowing the control of whether to download `installinstallmacos.py`. This is in anticipation of a Makefile and package release of `erase-install.sh`.
 - Added `Makefile`. This allows you to build a self-contained package containing `erase-install.sh` and `installinstallmacos.py` so that curl is not used during the run of `erase-install.sh` to update `installinstallmacos.py`. This requires `munkipkg` and expects to find the `grahampugh` fork of `installinstallmacos.py` in `../macadmins-scripts`. Make sure you don't bundle in Greg Neagle's version of `installinstallmacos.py` inadvertently (or this script will fail). A package will be provided on GitHub for this and subsequent versions. Note that `erase-install.sh` is installed into `/Library/Management/erase-install`. I deliberately have not put `erase-install.sh` into the PATH.
 - Added the `--user` and `--stdinpass` arguments when running on a Silicon Mac. Silicon Macs require an admin user and password to run `startosinstall`.
+- Now treats `10.x` or `11`+ as major versions for OS comparisons.
 
 ## [0.15.6]
 

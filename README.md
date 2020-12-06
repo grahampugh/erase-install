@@ -6,6 +6,22 @@ by Graham Pugh
 
 `erase-install.sh` is a script to erase a Mac directly from the system volume, utilising the `eraseinstall` option of `startosinstall`, which is built into macOS installer applications since version 10.13.4.
 
+## Installation
+
+The `erase-install.sh` script can be downloaded directly from GitHub. If run as a standalone script, it will download `installinstallmacos.py` if required for the workflow.  
+
+You can also run the script directly from GitHub using the following command from Terminal or with a remote management tool that allows script execution.  The `sudo` command can be left off if executing from root prompt or through remote management tool that executes commands with root privilage.
+
+```
+curl -s https://raw.githubusercontent.com/grahampugh/erase-install/master/erase-install.sh | sudo bash /dev/stdin <arguments>
+```
+
+Alternatively, a (signed) package is available which already contains `installinstallmacos.py`, avoiding the need to download it during script operation. See [Releases](https://github.com/grahampugh/erase-install/releases).
+
+You can make your own version of this package by cloning this repo, plus the [grahampugh/macadmins-scripts](https://github.com/grahampugh/macadmin-scripts) and [MunkiPkg](https://www.munki.org/munki-pkg/) and running the `make` command.
+
+## Usage
+
 If run without any options, the script will **not perform the erase**. This means that the script can also be used to pre-cache the installer, or simply to make it available for the user.
 
 So, if run without any options, the script will do the following:
@@ -81,7 +97,7 @@ For macOS 11 Big Sur or greater, experimental support is added for downloading a
   sudo bash erase-install.sh --sameos
   ```
 
-* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the latest build matching the version. Useful during Golden Master periods.
+* Run the script with argument `--os=10.14` to check for the installer which matches the specified macOS major version. This basically filters by version, and looks for the latest build matching the version. Useful during Golden Master periods. Note that for macOS 11+, `--os=11` is treated as the major version rather than `10.x`.
 
   ```
   sudo bash erase-install.sh --os=10.14
@@ -198,10 +214,3 @@ Once the installer is in place in `/Applications` folder, you can create another
 
 `erase-install.sh` allows you to specify values to command line options in two ways, either with a space or with an equals sign, e.g. `--version 10.14.3` or `--version=10.14.3`. If using Script Parameters in Jamf Pro, please ensure you use the equals sign, e.g. `--version=10.14.3`.
 
-## Running latest version as one line command
-
-You can run directly from GitHub using below one line command from CLI/Terminal or with a remote management tool that allows script execution.  The `sudo` command can be left off if executing from root prompt or through remote management tool that executes commands with root privilage.
-
-  ```
-  curl -s https://raw.githubusercontent.com/grahampugh/erase-install/master/erase-install.sh | sudo bash /dev/stdin <arguments>
-  ```

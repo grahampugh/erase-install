@@ -498,7 +498,11 @@ run_installinstallmacos() {
         system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
         system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
         echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
-        installinstallmacos_args+="--os=$system_os_major.$system_os_version "
+        if [[ $system_os_major == "10" ]]; then
+            installinstallmacos_args+="--os=$system_os_major.$system_os_version "
+        else
+            installinstallmacos_args+="--os=$system_os_major "
+        fi
         if [[ $skip_validation != "yes" ]]; then
             [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
         fi
