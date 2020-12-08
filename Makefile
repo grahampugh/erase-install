@@ -14,6 +14,7 @@ default : $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg
 
 $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg: $(objects)
 	cd $(CURDIR)/pkg && $(MUNKIPKG) erase-install
+	open $(CURDIR)/pkg/erase-install/build
 
 
 $(PKG_ROOT)/Library/Management/erase-install/erase-install.sh:

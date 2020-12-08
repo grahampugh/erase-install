@@ -448,6 +448,7 @@ run_installinstallmacos() {
     if [[ $list == "yes" ]]; then
         echo "   [run_installinstallmacos] List only mode chosen"
         installinstallmacos_args+="--list "
+        installinstallmacos_args+="--warnings "
     else
         installinstallmacos_args+="--workdir=$workdir "
         installinstallmacos_args+="--ignore-cache "
@@ -472,24 +473,23 @@ run_installinstallmacos() {
         installinstallmacos_args+="--beta "
     fi
 
-    if [[ $skip_validation != "yes" ]]; then
-        if [[ $prechosen_os ]]; then
-            echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
-            installinstallmacos_args+="--os=$prechosen_os "
-            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+    if [[ $prechosen_os ]]; then
+        echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
+        installinstallmacos_args+="--os=$prechosen_os "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
 
-        elif [[ $prechosen_version ]]; then
-            echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
-            installinstallmacos_args+="--version=$prechosen_version "
-            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+    elif [[ $prechosen_version ]]; then
+        echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
+        installinstallmacos_args+="--version=$prechosen_version "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
 
-        elif [[ $prechosen_build ]]; then
-            echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
-            installinstallmacos_args+="--build=$prechosen_build "
-            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+    elif [[ $prechosen_build ]]; then
+        echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
+        installinstallmacos_args+="--build=$prechosen_build "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
     fi
 
-    elif [[ $samebuild == "yes" ]]; then
+    if [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $system_build is available"
         installinstallmacos_args+="--current "
 
@@ -507,23 +507,20 @@ run_installinstallmacos() {
             [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
         fi
 
-    elif [[ ! $list ]]; then
-        #statements
+    elif [[ ! $list  == "yes" ]]; then
         echo "   [run_installinstallmacos] Getting current production version"
         installinstallmacos_args+="--auto "
     fi
 
-    python "$workdir/installinstallmacos.py" --warnings $installinstallmacos_args
-
-    if [[ $list == "yes" ]]; then
-        exit 0
-    fi
-
-    if [[ $? -gt 0 ]]; then
+    if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
         echo
         exit 1
+    fi
+
+    if [[ $list == "yes" ]]; then
+        exit 0
     fi
 
     # Identify the installer dmg
