@@ -4,6 +4,13 @@
 
 No date
 
+- New `--current-user` option to use the current logged in user for `startosinstall` authorisation on M1/DTK Macs.
+- New `--user` option to specify a user for `startosinstall` authorisation on M1/DTK Macs.
+- Now checks whether the specified user is an administrator.
+- Now checks if the given password is correct.
+- Now quits `caffeinate` before beginning `startosinstall`.
+- Script version number is now displayed when running the script. I just have to remember to update it...
+
 ## [0.16.1]
 
 10.12.2020
@@ -215,7 +222,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/grahampugh/erase-install/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/grahampugh/erase-install/compare/v0.15.6...v0.16.0
 [0.15.6]: https://github.com/grahampugh/erase-install/compare/v0.15.5...v0.15.6
 [0.15.5]: https://github.com/grahampugh/erase-install/compare/v0.15.4...v0.15.5

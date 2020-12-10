@@ -11,13 +11,12 @@
 #
 # See README.md for details on use.
 #
-## or just run without an argument to check and download the installer as required and then run it to wipe the drive
-#
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
 #
-# NOTE: at present this script downloads a forked version of Greg's script so that it can properly automate the download process
+# Version:
+version="0.6.1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -152,8 +151,8 @@ show_help() {
 
 kill_process() {
     process="$1"
-    if /usr/bin/pgrep "$process" >/dev/null ; then 
-        /usr/bin/pkill "$process" && echo "   [erase-install] '$process' ended" || \
+    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
+        /usr/bin/pkill -a "$process" && echo "   [erase-install] '$process' ended" || \
         echo "   [erase-install] '$process' could not be killed"
     fi
 }
@@ -179,20 +178,44 @@ user_does_not_exist() {
 EOT
 }
 
+check_password() {
+    # Check that the password entered matches actual password
+    # thanks to Dan Snelson for the idea
+    user="$1"
+    password="$2"
+	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+	if [[ -z "${password_matches}" ]]; then
+		echo "   [check_password] Success: the password entered is the correct login password for $user."
+	else
+		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+        /usr/bin/osascript <<EOT
+            display dialog "User $user does not exist!" buttons {"OK"} default button 1 with icon 2
+EOT
+    exit 1
+	fi
+}
+
 get_user_details() {
     # Apple Silicon devices require a username and password to run startosinstall
     # get account name (short name)
+    if [[ $use_current_user == "yes" ]]; then
+        account_shortname="$current_user"
+    fi
+
     if [[ $account_shortname == "" ]]; then
         account_shortname=$(ask_for_shortname)
     fi
 
-    if ! /usr/bin/id "$account_shortname" >/dev/null 2>&1; then
+    # check that this user exists and is admin
+    if ! /usr/bin/id -Gn "$account_shortname" >/dev/null 2>&1 | grep -q -w admin ; then
         echo "$account_shortname Account does not exist!"
         user_does_not_exist "$account_shortname"
         exit 1
     fi
 
+    # get password and check that the password is correct
     account_password=$(ask_for_password)
+    check_password "$account_shortname" "$account_password"
 }
 
 free_space_check() {
@@ -262,7 +285,7 @@ check_installassistant_pkg_is_valid() {
         installassistant_pkg="$installer_pkg"
     fi
 
-    installmacOSApp="$installer_app"
+    install_macos_app="$installer_app"
 }
 
 find_existing_installer() {
@@ -597,6 +620,10 @@ do
             ;;
         --skip-validation) skip_validation="yes"
             ;;
+        --current-user) use_current_user="yes"
+            ;;
+        --user) account_shortname="yes"
+            ;;
         --seedprogram)
             shift
             seedprogram="$1"
@@ -667,7 +694,7 @@ do
 done
 
 echo
-echo "   [erase-install] Script execution started: $(date)"
+echo "   [erase-install] v$version script execution started: $(date)"
 
 # ensure computer does not go to sleep while running this script
 pid=$$
@@ -781,12 +808,6 @@ fi
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $install_macos_app with reinstall option"
 echo
 
-# if ! pgrep -q Finder ; then
-#     echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
-#     echo
-#     exit 1
-# fi
-
 # also check that there is enough disk space
 free_space_check
 
@@ -855,9 +876,14 @@ if [[  ${installer_build:0:2} -ge 19 ]]; then
 fi
 
 # Silicon Macs require a username and password to run startosinstall
+# So we need to be logged in to proceed
 arch=$(/usr/bin/arch)
-
 if [ "$arch" == "arm64" ]; then
+    if ! pgrep -q Finder ; then
+        echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+        echo
+        exit 1
+    fi
     get_user_details
 fi
 
@@ -874,9 +900,12 @@ elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
     #statements
 fi
 
+# kill caffeinate - let's assume that startosinstall can withstand sleep settings
+kill_process "caffeinate"
+
 # run it!
 if [ "$arch" == "arm64" ]; then
-    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
 else
     "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
