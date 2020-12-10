@@ -506,11 +506,18 @@ run_installinstallmacos() {
         if [[ $skip_validation != "yes" ]]; then
             [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
         fi
+    fi
 
-    elif [[ ! $list  == "yes" ]]; then
+    if [[ $list != "yes" && ! $prechosen_os && ! $prechosen_version && ! $prechosen_build && ! $samebuild ]]; then
         echo "   [run_installinstallmacos] Getting current production version"
         installinstallmacos_args+="--auto "
     fi
+
+    # TEST 
+    echo
+    echo "   [run_installinstallmacos] This command is now being run:"
+    echo
+    echo "   installinstallmacos.py $installinstallmacos_args"
 
     if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."

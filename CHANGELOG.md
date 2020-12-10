@@ -4,6 +4,12 @@
 
 No date
 
+## [0.16.1]
+
+10.12.2020
+
+- Bug fix: `--auto` was being incorrectly assigned when using `--os`, `--build` etc.
+
 ## [0.16.0]
 
 10.12.2020
