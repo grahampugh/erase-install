@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.6.1"
+version="0.6.2b1-20201211"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
