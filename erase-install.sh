@@ -373,15 +373,31 @@ find_extra_packages() {
     done
 }
 
+set_seedprogram() {
+    if [[ $seedprogram ]]; then
+        echo "   [set_seedprogram] $seedprogram seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
+    else
+        echo "   [set_seedprogram] Standard seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
+    fi
+    sleep 5
+    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
+    echo "   [set_seedprogram] Currently enrolled in $current_seed seed program."
+}
+
+list_full_installers() {
+    # for 10.15.7 and above we can use softwareupdate --list-full-installers
+    set_seedprogram
+    echo
+    /usr/sbin/softwareupdate --list-full-installers
+}
+
 run_fetch_full_installer() {
     # for 10.15+ we can use softwareupdate --fetch-full-installer
-    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
-    echo "   [run_fetch_full_installer] Currently enrolled in $current_seed seed program."
-    if [[ $seedprogram ]]; then
-        echo "   [run_fetch_full_installer] Non-standard seedprogram selected"
-        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram
-        /usr/sbin/softwareupdate -l -a
-    fi
+    set_seedprogram
 
     softwareupdate_args=''
     if [[ $prechosen_version ]]; then
@@ -586,6 +602,8 @@ do
     case "$1" in
         -l|--list) list="yes"
             ;;
+        -lfi|--list-full-installers) list_installers="yes"
+            ;;
         -e|--erase) erase="yes"
             ;;
         -r|--reinstall) reinstall="yes"
@@ -695,6 +713,13 @@ done
 
 echo
 echo "   [erase-install] v$version script execution started: $(date)"
+
+# if getting a list from softwareupdate then we don't need to make any OS checks
+if [[ $list_installers ]]; then
+    list_full_installers
+    echo
+    exit
+fi
 
 # ensure computer does not go to sleep while running this script
 pid=$$

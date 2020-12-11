@@ -10,6 +10,7 @@ No date
 - Now checks if the given password is correct.
 - Now quits `caffeinate` before beginning `startosinstall`.
 - Script version number is now displayed when running the script. I just have to remember to update it...
+- added `--list-full-installers` option which runs `softwareupdate --list-full-installers` according to the seedprogram selected.
 
 ## [0.16.1]
 
