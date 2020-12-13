@@ -4,6 +4,10 @@
 
 No date
 
+## [0.16.2b1]
+
+13.12.2020
+
 - New `--current-user` option to use the current logged in user for `startosinstall` authorisation on M1/DTK Macs.
 - New `--user` option to specify a user for `startosinstall` authorisation on M1/DTK Macs.
 - Now checks whether the specified user is an administrator.
