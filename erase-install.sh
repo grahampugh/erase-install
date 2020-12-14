@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.16.2b1"
+version="0.16.2b2"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -48,10 +48,10 @@ if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Upgrading macOS"
     jh_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-    jh_reinstall_desc_en="This process will take approximately 5-10 minutes. Once completed your computer will reboot and begin the upgrade."
+    jh_reinstall_desc_en="This process will take between 5-30 minutes. Once completed your computer will reboot and begin the upgrade."
     jh_reinstall_title_de="Upgrading macOS"
     jh_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
-    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-10 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
+    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
     # Jamf Helper localizations - confirmation window
     jh_confirmation_title_en="Erasing macOS"
     jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
@@ -160,26 +160,34 @@ kill_process() {
 ask_for_shortname() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "Please enter an administrator account name to start the reinstallation process" default answer "" buttons {"Enter"} default button 1 with icon 2)
-EOT
-}
-
-ask_for_password() {
-    # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "Please enter the password for the $account_shortname account" default answer "" with hidden answer buttons {"Enter"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "Please enter an administrator account name to start the reinstallation process" default answer "" buttons {"Enter", "Cancel"} default button 1 with icon 2)
 EOT
 }
 
 user_does_not_exist() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        display dialog "User $1 does not exist!" buttons {"OK"} default button 1 with icon 2
+        display dialog "User $account_shortname does not exist!" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+user_has_no_secure_token() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        display dialog "User $account_shortname has no secure token! Please login as one of the following users and try again: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+ask_for_password() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        set nameentry to text returned of (display dialog "Please enter the password for the $account_shortname account" default answer "" with hidden answer buttons {"Enter", "Cancel"} default button 1 with icon 2)
 EOT
 }
 
 check_password() {
     # Check that the password entered matches actual password
+    # required for Silicon Macs
     # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
@@ -203,18 +211,40 @@ get_user_details() {
     fi
 
     if [[ $account_shortname == "" ]]; then
-        account_shortname=$(ask_for_shortname)
+        if ! account_shortname=$(ask_for_shortname) ; then
+            echo "   [get_user_details] Use cancelled."
+            exit 1
+        fi
     fi
 
-    # check that this user exists and is admin
-    if ! /usr/bin/id -Gn "$account_shortname" >/dev/null 2>&1 | grep -q -w admin ; then
-        echo "$account_shortname Account does not exist!"
-        user_does_not_exist "$account_shortname"
+    # check that this user exists, is admin, and has a Secure Token
+    if ! /usr/bin/id -Gn "$account_shortname" | grep -q -w admin ; then
+        echo "   [get_user_details] $account_shortname account does not exist or is not an administrator!"
+        user_does_not_exist
+        exit 1
+    fi
+
+    # check that the user has a Secure Token
+    user_has_secure_token=0
+    enabled_users=""
+    while read -r line ; do
+        enabled_users+="$(echo $line | cut -d, -f1) "
+        if [[ "$account_shortname" == "$(echo $line | cut -d, -f1)" ]]; then
+            echo "   [get_user_details] $account_shortname has Secure Token"
+            user_has_secure_token=1
+        fi
+    done <<< "$(/usr/bin/fdesetup list)"
+    if [[ $enabled_users != "" && $user_has_secure_token = 0 ]]; then
+        echo "   [get_user_details] $account_shortname has no Secure Token"
+        user_has_no_secure_token
         exit 1
     fi
 
     # get password and check that the password is correct
-    account_password=$(ask_for_password)
+    if ! account_password=$(ask_for_password) ; then
+        echo "   [get_user_details] Use cancelled."
+        exit 1
+    fi
     check_password "$account_shortname" "$account_password"
 }
 
@@ -245,13 +275,16 @@ check_installer_is_valid() {
     # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
         invalid_installer_found="yes"
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == ${system_build:2:1} ]]; then
-        installer_build_minor=${installer_build:3:5}
-        system_build_minor=${system_build:3:5}
-        # 3. Darwin version and build letter (minor version) matches but build version numbers are older in the installer than on the system
-       if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
+    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
+        invalid_installer_found="yes"
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
+        installer_build_minor=${installer_build:5:2}
+        system_build_minor=${system_build:5:2}
+        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
+        if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
             invalid_installer_found="yes"
-        # 4. Darwin version, build letter (minor version) and build version numbers matches but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
+        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
             invalid_installer_found="yes"
         fi
@@ -636,6 +669,8 @@ do
             ;;
         --no-curl) no_curl="yes"
             ;;
+        --no-fs) no_fs="yes"
+            ;;
         --skip-validation) skip_validation="yes"
             ;;
         --current-user) use_current_user="yes"
@@ -912,27 +947,32 @@ if [ "$arch" == "arm64" ]; then
     get_user_details
 fi
 
+# kill caffeinate - let's assume that startosinstall can withstand sleep settings
+kill_process "caffeinate"
+
 # Jamf Helper icons for erase and re-install windows
 jh_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 
+# if no_fs is set, show a utility window instead of the full screen display (for test purposes)
+[[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
+
+# show the full screen display
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
+    PID=$!
 elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
-    #statements
+    PID=$!
 fi
-
-# kill caffeinate - let's assume that startosinstall can withstand sleep settings
-kill_process "caffeinate"
 
 # run it!
 if [ "$arch" == "arm64" ]; then
-    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
 else
-    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
+    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
 fi
 
 # kill Self Service if running

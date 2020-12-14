@@ -4,15 +4,19 @@
 
 No date
 
-## [0.16.2b1]
+## [0.16.2b2]
 
-13.12.2020
+15.12.2020
 
 - New `--current-user` option to use the current logged in user for `startosinstall` authorisation on M1/DTK Macs.
 - New `--user` option to specify a user for `startosinstall` authorisation on M1/DTK Macs.
 - Now checks whether the specified user is an administrator.
+- Now checks whether the specified user has a Secure Token.
 - Now checks if the given password is correct.
+- New `--no-fs` option for replacing the full-screen display with a utility window (for testing purposes).
 - Now quits `caffeinate` before beginning `startosinstall`.
+- Now correctly identifies Apple Silicon Mac DeviceIDs for compatibility checks.
+- Now makes more reliable version comparisons using `BuildVersion` by splitting the check into more sections (`AABCCDDE` instead of `AABCCCCD`).
 - Script version number is now displayed when running the script. I just have to remember to update it...
 - added `--list-full-installers` option which runs `softwareupdate --list-full-installers` according to the seedprogram selected.
 
