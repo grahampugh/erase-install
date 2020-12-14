@@ -960,11 +960,11 @@ jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 # show the full screen display
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
     PID=$!
 elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
     PID=$!
 fi
 
