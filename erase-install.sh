@@ -278,6 +278,8 @@ check_installer_is_valid() {
     fi
     diskutil unmount force "/Volumes/Shared Support"
 
+    system_build=$( /usr/bin/sw_vers -buildVersion )
+
     # we need to break the build into component parts to compare versions
     # 1. Darwin version is older in the installer than on the system
     if [[ ${installer_build:0:2} -lt ${system_build:0:2} ]]; then 
