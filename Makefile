@@ -5,6 +5,7 @@ PKG_BUILD := $(CURDIR)/pkg/erase-install/build
 PKG_VERSION := $(shell defaults read $(CURDIR)/pkg/erase-install/build-info.plist version)
 
 objects = $(PKG_ROOT)/Library/Management/erase-install/erase-install.sh \
+    $(PKG_ROOT)/Library/Management/erase-install/tests/test-erase-install.sh \
 	$(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py
 
 
@@ -18,10 +19,17 @@ $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg: $(objects)
 
 
 $(PKG_ROOT)/Library/Management/erase-install/erase-install.sh:
-	@echo "Copying erase-install into /Library/Management/erase-install"
+	@echo "Copying erase-install.sh into /Library/Management/erase-install"
 	mkdir -p "$(PKG_ROOT)/Library/Management/erase-install"
 	cp "$(CURDIR)/erase-install.sh" "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
 	chmod 755 "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
+
+
+$(PKG_ROOT)/Library/Management/erase-install/tests/test-erase-install.sh:
+	@echo "Copying test-erase-install.sh into /Library/Management/erase-install/tests"
+	mkdir -p "$(PKG_ROOT)/Library/Management/erase-install/tests"
+	cp "$(CURDIR)/tests/test-erase-install.sh" "$(PKG_ROOT)/Library/Management/erase-install/tests/test-erase-install.sh"
+	chmod 755 "$(PKG_ROOT)/Library/Management/erase-install/tests/test-erase-install.sh"
 
 
 $(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py:
@@ -32,4 +40,5 @@ $(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py:
 clean :
 	@echo "Cleaning up package root"
 	rm "$(PKG_ROOT)/Library/Management/erase-install/"* ||:
+	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/tests" ||:
 	rm $(CURDIR)/pkg/erase-install/build/*.pkg ||:

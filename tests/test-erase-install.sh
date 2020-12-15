@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# TEST VERSION OF erase-install THAT IS IDENTICAL BUT DOES NOT PERFORM startosinstall
+
 # erase-install
 # by Graham Pugh.
 #
@@ -11,13 +13,12 @@
 #
 # See README.md for details on use.
 #
-## or just run without an argument to check and download the installer as required and then run it to wipe the drive
-#
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
 #
-# NOTE: at present this script downloads a forked version of Greg's script so that it can properly automate the download process
+# Version:
+version="0.17.0b1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -49,10 +50,10 @@ if [[ -f "$jamfHelper" ]]; then
     # Jamf Helper localizations - reinstall lockscreen
     jh_reinstall_title_en="Upgrading macOS"
     jh_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-    jh_reinstall_desc_en="This process will take approximately 5-10 minutes. Once completed your computer will reboot and begin the upgrade."
+    jh_reinstall_desc_en="This process will take between 5-30 minutes. Once completed your computer will reboot and begin the upgrade."
     jh_reinstall_title_de="Upgrading macOS"
     jh_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
-    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-10 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
+    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
     # Jamf Helper localizations - confirmation window
     jh_confirmation_title_en="Erasing macOS"
     jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
@@ -152,10 +153,101 @@ show_help() {
 
 kill_process() {
     process="$1"
-    if /usr/bin/pgrep "$process" >/dev/null ; then 
-        /usr/bin/pkill "$process" && echo "   [erase-install] '$process' ended" || \
+    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
+        /usr/bin/pkill -a "$process" && echo "   [erase-install] '$process' ended" || \
         echo "   [erase-install] '$process' could not be killed"
     fi
+}
+
+ask_for_shortname() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        set nameentry to text returned of (display dialog "Please enter an administrator account name to start the reinstallation process" default answer "" buttons {"Enter", "Cancel"} default button 1 with icon 2)
+EOT
+}
+
+user_does_not_exist() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        display dialog "User $account_shortname does not exist!" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+user_has_no_secure_token() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        display dialog "User $account_shortname has no secure token! Please login as one of the following users and try again: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+ask_for_password() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        set nameentry to text returned of (display dialog "Please enter the password for the $account_shortname account" default answer "" with hidden answer buttons {"Enter", "Cancel"} default button 1 with icon 2)
+EOT
+}
+
+check_password() {
+    # Check that the password entered matches actual password
+    # required for Silicon Macs
+    # thanks to Dan Snelson for the idea
+    user="$1"
+    password="$2"
+	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+	if [[ -z "${password_matches}" ]]; then
+		echo "   [check_password] Success: the password entered is the correct login password for $user."
+	else
+		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+        /usr/bin/osascript <<EOT
+            display dialog "User $user does not exist!" buttons {"OK"} default button 1 with icon 2
+EOT
+    exit 1
+	fi
+}
+
+get_user_details() {
+    # Apple Silicon devices require a username and password to run startosinstall
+    # get account name (short name)
+    if [[ $use_current_user == "yes" ]]; then
+        account_shortname="$current_user"
+    fi
+
+    if [[ $account_shortname == "" ]]; then
+        if ! account_shortname=$(ask_for_shortname) ; then
+            echo "   [get_user_details] Use cancelled."
+            exit 1
+        fi
+    fi
+
+    # check that this user exists, is admin, and has a Secure Token
+    if ! /usr/bin/id -Gn "$account_shortname" | grep -q -w admin ; then
+        echo "   [get_user_details] $account_shortname account does not exist or is not an administrator!"
+        user_does_not_exist
+        exit 1
+    fi
+
+    # check that the user has a Secure Token
+    user_has_secure_token=0
+    enabled_users=""
+    while read -r line ; do
+        enabled_users+="$(echo $line | cut -d, -f1) "
+        if [[ "$account_shortname" == "$(echo $line | cut -d, -f1)" ]]; then
+            echo "   [get_user_details] $account_shortname has Secure Token"
+            user_has_secure_token=1
+        fi
+    done <<< "$(/usr/bin/fdesetup list)"
+    if [[ $enabled_users != "" && $user_has_secure_token = 0 ]]; then
+        echo "   [get_user_details] $account_shortname has no Secure Token"
+        user_has_no_secure_token
+        exit 1
+    fi
+
+    # get password and check that the password is correct
+    if ! account_password=$(ask_for_password) ; then
+        echo "   [get_user_details] Use cancelled."
+        exit 1
+    fi
+    check_password "$account_shortname" "$account_password"
 }
 
 free_space_check() {
@@ -165,7 +257,9 @@ free_space_check() {
         echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
     else
         echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
-        "$jamfHelper" -windowType "utility" -description "${!jh_check_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" -button1 "Ok" -defaultButton "0" -cancelButton "1"
+        if [[ -f "$jamfHelper" ]]; then
+            "$jamfHelper" -windowType "utility" -description "${!jh_check_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" -button1 "Ok" -defaultButton "0" -cancelButton "1"
+        fi
         exit 1
     fi
 }
@@ -173,7 +267,19 @@ free_space_check() {
 check_installer_is_valid() {
     echo "   [check_installer_is_valid] Checking validity of $installer_app."
     # check installer validity:
-    installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+    # The Build version in the app Info.plist is often older than the advertised build, so it's not a great validity
+    # check if running --erase, where we might be using the same build.
+    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml.
+    # This may not have always been the case, so we include a fallback to the Info.plist file just in case. 
+    hdiutil attach "$installer_app/Contents/SharedSupport/SharedSupport.dmg"
+    build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
+    if [[ -f "$build_xml" ]]; then
+        installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+    else
+        installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+    fi
+    diskutil unmount force "/Volumes/Shared Support"
+
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
     # we need to break the build into component parts to compare versions
@@ -183,13 +289,16 @@ check_installer_is_valid() {
     # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
         invalid_installer_found="yes"
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == ${system_build:2:1} ]]; then
-        installer_build_minor=${installer_build:3:5}
-        system_build_minor=${system_build:3:5}
-        # 3. Darwin version and build letter (minor version) matches but build version numbers are older in the installer than on the system
-       if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
+    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
+        invalid_installer_found="yes"
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
+        installer_build_minor=${installer_build:5:2}
+        system_build_minor=${system_build:5:2}
+        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
+        if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
             invalid_installer_found="yes"
-        # 4. Darwin version, build letter (minor version) and build version numbers matches but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
+        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
             invalid_installer_found="yes"
         fi
@@ -201,11 +310,11 @@ check_installer_is_valid() {
         echo "   [check_installer_is_valid] $installer_build >= $system_build so valid."
     fi
 
-    installmacOSApp="$installer_app"
+    install_macos_app="$installer_app"
 }
 
 check_installassistant_pkg_is_valid() {
-    echo "   [check_installer_is_valid] Checking validity of $installer_pkg."
+    echo "   [check_installassistant_pkg_is_valid] Checking validity of $installer_pkg."
     # check InstallAssistant pkg validity
     # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
     # Extracting an actual version from the package is slow as the entire package must be unpackaged
@@ -222,6 +331,8 @@ check_installassistant_pkg_is_valid() {
         echo "   [check_installassistant_pkg_is_valid] $installer_pkg_build >= $system_build so valid."
         installassistant_pkg="$installer_pkg"
     fi
+
+    install_macos_app="$installer_app"
 }
 
 find_existing_installer() {
@@ -234,7 +345,7 @@ find_existing_installer() {
 
     if [[ -f "$macos_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $macos_dmg."
-        hdiutil attach "$macos_dmg"
+        hdiutil attach -noverify -quiet "$macos_dmg"
         installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -f "$macos_sparseimage" ]]; then
@@ -309,15 +420,31 @@ find_extra_packages() {
     done
 }
 
+set_seedprogram() {
+    if [[ $seedprogram ]]; then
+        echo "   [set_seedprogram] $seedprogram seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
+    else
+        echo "   [set_seedprogram] Standard seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
+    fi
+    sleep 5
+    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
+    echo "   [set_seedprogram] Currently enrolled in $current_seed seed program."
+}
+
+list_full_installers() {
+    # for 10.15.7 and above we can use softwareupdate --list-full-installers
+    set_seedprogram
+    echo
+    /usr/sbin/softwareupdate --list-full-installers
+}
+
 run_fetch_full_installer() {
     # for 10.15+ we can use softwareupdate --fetch-full-installer
-    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
-    echo "   [run_fetch_full_installer] Currently enrolled in $current_seed seed program."
-    if [[ $seedprogram ]]; then
-        echo "   [run_fetch_full_installer] Non-standard seedprogram selected"
-        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram
-        /usr/sbin/softwareupdate -l -a
-    fi
+    set_seedprogram
 
     softwareupdate_args=''
     if [[ $prechosen_version ]]; then
@@ -407,6 +534,7 @@ run_installinstallmacos() {
     if [[ $list == "yes" ]]; then
         echo "   [run_installinstallmacos] List only mode chosen"
         installinstallmacos_args+="--list "
+        installinstallmacos_args+="--warnings "
     else
         installinstallmacos_args+="--workdir=$workdir "
         installinstallmacos_args+="--ignore-cache "
@@ -434,19 +562,20 @@ run_installinstallmacos() {
     if [[ $prechosen_os ]]; then
         echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
         installinstallmacos_args+="--os=$prechosen_os "
-        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
 
     elif [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
         installinstallmacos_args+="--version=$prechosen_version "
-        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
 
     elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
         installinstallmacos_args+="--build=$prechosen_build "
-        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
+    fi
 
-    elif [[ $samebuild == "yes" ]]; then
+    if [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $system_build is available"
         installinstallmacos_args+="--current "
 
@@ -455,26 +584,36 @@ run_installinstallmacos() {
         system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
         system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
         echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
-        installinstallmacos_args+="--os=$system_os_major.$system_os_version "
-        [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+        if [[ $system_os_major == "10" ]]; then
+            installinstallmacos_args+="--os=$system_os_major.$system_os_version "
+        else
+            installinstallmacos_args+="--os=$system_os_major "
+        fi
+        if [[ $skip_validation != "yes" ]]; then
+            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+        fi
+    fi
 
-    elif [[ ! $list ]]; then
-        #statements
+    if [[ $list != "yes" && ! $prechosen_os && ! $prechosen_version && ! $prechosen_build && ! $samebuild ]]; then
         echo "   [run_installinstallmacos] Getting current production version"
         installinstallmacos_args+="--auto "
     fi
 
-    python "$workdir/installinstallmacos.py" --warnings $installinstallmacos_args
+    # TEST 
+    echo
+    echo "   [run_installinstallmacos] This command is now being run:"
+    echo
+    echo "   installinstallmacos.py $installinstallmacos_args"
 
-    if [[ $list == "yes" ]]; then
-        exit 0
-    fi
-
-    if [[ $? -gt 0 ]]; then
+    if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
         echo
         exit 1
+    fi
+
+    if [[ $list == "yes" ]]; then
+        exit 0
     fi
 
     # Identify the installer dmg
@@ -510,6 +649,8 @@ do
     case "$1" in
         -l|--list) list="yes"
             ;;
+        -lfi|--list-full-installers) list_installers="yes"
+            ;;
         -e|--erase) erase="yes"
             ;;
         -r|--reinstall) reinstall="yes"
@@ -541,6 +682,14 @@ do
         --force-curl) force_installinstallmacos="yes"
             ;;
         --no-curl) no_curl="yes"
+            ;;
+        --no-fs) no_fs="yes"
+            ;;
+        --skip-validation) skip_validation="yes"
+            ;;
+        --current-user) use_current_user="yes"
+            ;;
+        --user) account_shortname="yes"
             ;;
         --seedprogram)
             shift
@@ -612,7 +761,14 @@ do
 done
 
 echo
-echo "   [erase-install] Script execution started: $(date)"
+echo "   [erase-install] v$version script execution started: $(date)"
+
+# if getting a list from softwareupdate then we don't need to make any OS checks
+if [[ $list_installers ]]; then
+    list_full_installers
+    echo
+    exit
+fi
 
 # ensure computer does not go to sleep while running this script
 pid=$$
@@ -662,7 +818,7 @@ elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
 elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") && ! $list ]]; then
     echo "   [erase-install] Deleting invalid installer package"
     rm -f "$installassistant_pkg"
-elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") ]]; then
+elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
     exit 1
 fi
@@ -726,12 +882,6 @@ fi
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $install_macos_app with reinstall option"
 echo
 
-# if ! pgrep -q Finder ; then
-#     echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
-#     echo
-#     exit 1
-# fi
-
 # also check that there is enough disk space
 free_space_check
 
@@ -759,19 +909,6 @@ elif [[ $confirm == "yes" ]] && [[ ! -f "$jamfHelper" ]]; then
     exit 1
 fi
 
-# Jamf Helper icons for erase and re-install windows
-jh_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
-jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
-
-if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType fs -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
-elif [[ $reinstall == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType fs -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
-    #statements
-fi
-
 # determine SIP status, as the volume is required if SIP is disabled
 /usr/bin/csrutil status | grep -q 'disabled' && sip="disabled" || sip="enabled"
 
@@ -792,24 +929,68 @@ find_extra_packages
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
 
 # add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
-if [[ "$installer_build" > "18A" && $preservecontainer == "yes" ]]; then
+if [[ ${installer_build:0:2} -gt 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
 
 # OS X 10.12 (Darwin 16) requires the --applicationpath option
-if [[ $installer_build < "17A" ]]; then
+if [[ ${installer_build:0:2} -lt 17 ]]; then
     install_args+=("--applicationpath")
     install_args+=("$install_macos_app")
-# macOS 10.15 (Darwin 19) and above require the --forcequitapps and --allowremoval options
-elif [[ $installer_build > "19A" ]]; then
-    install_args+=("--forcequitapps")
+fi
+
+# macOS 11 (Darwin 20) and above requires the --allowremoval option
+if [[ ${installer_build:0:2} -eq 19 ]]; then
     install_args+=("--allowremoval")
 fi
 
-# run it!
-# "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --agreetolicense --nointeraction "${install_package_list[@]}"
+# macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
+if [[  ${installer_build:0:2} -ge 19 ]]; then    
+    install_args+=("--forcequitapps")
+fi
 
-# # kill Self Service if running
-# kill_process "Self Service"
-# # kill Jamf FUD if startosinstall ends before a reboot
-# kill_process "jamfHelper"
+# Silicon Macs require a username and password to run startosinstall
+# So we need to be logged in to proceed
+arch=$(/usr/bin/arch)
+if [ "$arch" == "arm64" ]; then
+    if ! pgrep -q Finder ; then
+        echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+        echo
+        exit 1
+    fi
+    get_user_details
+fi
+
+# kill caffeinate - let's assume that startosinstall can withstand sleep settings
+kill_process "caffeinate"
+
+# Jamf Helper icons for erase and re-install windows
+jh_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
+jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
+
+# if no_fs is set, show a utility window instead of the full screen display (for test purposes)
+[[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
+
+# show the full screen display
+if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
+    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+    "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
+    PID=$!
+elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
+    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+    "$jamfHelper" -windowType $window_type -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    PID=$!
+fi
+
+# run it! (COMMENTED OUT IN TEST VERSION)
+# if [ "$arch" == "arm64" ]; then
+#     "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+# else
+#     "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+# fi
+sleep 30
+
+# kill Self Service if running
+kill_process "Self Service"
+# kill Jamf FUD if startosinstall ends before a reboot
+kill_process "jamfHelper"

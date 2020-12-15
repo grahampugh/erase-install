@@ -4,7 +4,7 @@
 
 No date
 
-## [0.16.2b2]
+## [0.17.0b1]
 
 15.12.2020
 
@@ -15,10 +15,12 @@ No date
 - Now checks if the given password is correct.
 - New `--no-fs` option for replacing the full-screen display with a utility window (for testing purposes).
 - Now quits `caffeinate` before beginning `startosinstall`.
-- Now correctly identifies Apple Silicon Mac DeviceIDs for compatibility checks.
+- Now correctly identifies Apple Silicon Mac Device IDs for compatibility checks.
+- Now gets the installer version from `/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml` as this is a more reliable build number than the one in `Info.plist`.
 - Now makes more reliable version comparisons using `BuildVersion` by splitting the check into more sections (`AABCCDDE` instead of `AABCCCCD`).
 - Script version number is now displayed when running the script. I just have to remember to update it...
 - added `--list-full-installers` option which runs `softwareupdate --list-full-installers` according to the seedprogram selected.
+- `test-erase-install.sh` script is now included in the installer package.
 
 ## [0.16.1]
 

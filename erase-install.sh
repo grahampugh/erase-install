@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.16.2b2"
+version="0.17.0b1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -265,8 +265,18 @@ free_space_check() {
 check_installer_is_valid() {
     echo "   [check_installer_is_valid] Checking validity of $installer_app."
     # check installer validity:
-    installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
-    system_build=$( /usr/bin/sw_vers -buildVersion )
+    # The Build version in the app Info.plist is often older than the advertised build, so it's not a great validity
+    # check if running --erase, where we might be using the same build.
+    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml.
+    # This may not have always been the case, so we include a fallback to the Info.plist file just in case. 
+    hdiutil attach "$installer_app/Contents/SharedSupport/SharedSupport.dmg"
+    build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
+    if [[ -f "$build_xml" ]]; then
+        installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+    else
+        installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+    fi
+    diskutil unmount force "/Volumes/Shared Support"
 
     # we need to break the build into component parts to compare versions
     # 1. Darwin version is older in the installer than on the system
