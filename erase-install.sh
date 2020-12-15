@@ -174,7 +174,7 @@ EOT
 user_has_no_secure_token() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        display dialog "User $account_shortname has no secure token! Please login as one of the following users and try again: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
+        display dialog "User $account_shortname has no Secure Token! Please login as one of the following users and try again: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
 EOT
 }
 
@@ -197,7 +197,7 @@ check_password() {
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         /usr/bin/osascript <<EOT
-            display dialog "User $user does not exist!" buttons {"OK"} default button 1 with icon 2
+            display dialog "ERROR: The password entered is NOT the login password for $user." buttons {"OK"} default button 1 with icon 2
 EOT
     exit 1
 	fi
