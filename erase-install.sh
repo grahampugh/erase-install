@@ -269,7 +269,7 @@ check_installer_is_valid() {
     # check if running --erase, where we might be using the same build.
     # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml.
     # This may not have always been the case, so we include a fallback to the Info.plist file just in case. 
-    hdiutil attach "$installer_app/Contents/SharedSupport/SharedSupport.dmg"
+    hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg"
     build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
     if [[ -f "$build_xml" ]]; then
         installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
