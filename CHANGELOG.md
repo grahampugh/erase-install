@@ -4,7 +4,7 @@
 
 No date
 
-## [0.17.0b1]
+## [0.17.0]
 
 15.12.2020
 
@@ -234,6 +234,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.1...HEAD
+[0.17.0]: https://github.com/grahampugh/erase-install/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/grahampugh/erase-install/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/grahampugh/erase-install/compare/v0.15.6...v0.16.0
 [0.15.6]: https://github.com/grahampugh/erase-install/compare/v0.15.5...v0.15.6
