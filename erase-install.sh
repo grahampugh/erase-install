@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.17.0"
+version="0.17.1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -217,9 +217,9 @@ get_user_details() {
         fi
     fi
 
-    # check that this user exists, is admin, and has a Secure Token
-    if ! /usr/bin/id -Gn "$account_shortname" | grep -q -w admin ; then
-        echo "   [get_user_details] $account_shortname account does not exist or is not an administrator!"
+    # check that this user exists, and has a Secure Token
+    if ! /usr/bin/id -Gn "$account_shortname" | grep -q -w staff ; then
+        echo "   [get_user_details] $account_shortname account does not exist or is not a standard user!"
         user_does_not_exist
         exit 1
     fi
@@ -689,6 +689,8 @@ do
             ;;
         --user) account_shortname="yes"
             ;;
+        --test-run) test_run="yes"
+            ;;
         --seedprogram)
             shift
             seedprogram="$1"
@@ -821,6 +823,19 @@ elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "
     exit 1
 fi
 
+# Silicon Macs require a username and password to run startosinstall
+# We therefore need to be logged in to proceed, if we are going to erase or reinstall
+# This goes before the download so users aren't waiting for the prompt for username
+arch=$(/usr/bin/arch)
+if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
+    if ! pgrep -q Finder ; then
+        echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+        echo
+        exit 1
+    fi
+    get_user_details
+fi
+
 if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; then
     echo "   [erase-install] Starting download process"
     # if using Jamf and due to erase, open a helper hud to state that
@@ -870,7 +885,8 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     exit
 fi
 
-# Run the installer
+## Steps beyond here are to run startosinstall
+
 echo
 if [[ ! -d "$install_macos_app" ]]; then
     echo "   [erase-install] ERROR: Can't find the installer! "
@@ -880,7 +896,7 @@ fi
 [[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $install_macos_app with reinstall option"
 echo
 
-# also check that there is enough disk space
+# check that there is enough disk space
 free_space_check
 
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
@@ -947,18 +963,6 @@ if [[  ${installer_build:0:2} -ge 19 ]]; then
     install_args+=("--forcequitapps")
 fi
 
-# Silicon Macs require a username and password to run startosinstall
-# So we need to be logged in to proceed
-arch=$(/usr/bin/arch)
-if [ "$arch" == "arm64" ]; then
-    if ! pgrep -q Finder ; then
-        echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
-        echo
-        exit 1
-    fi
-    get_user_details
-fi
-
 # kill caffeinate - let's assume that startosinstall can withstand sleep settings
 kill_process "caffeinate"
 
@@ -972,22 +976,32 @@ jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 # show the full screen display
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -alignHeading center -heading "${!jh_erase_title}" -alignDescription center -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -heading "${!jh_erase_title}" -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
     PID=$!
 elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!jh_reinstall_title}" -alignHeading center -heading "${!jh_reinstall_heading}" -alignDescription center -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!jh_reinstall_title}" -heading "${!jh_reinstall_heading}" -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
     PID=$!
 fi
 
 # run it!
-if [ "$arch" == "arm64" ]; then
-    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+if [[ $test_run != "yes" ]]; then
+    if [ "$arch" == "arm64" ]; then
+        "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+    else
+        "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+    fi
+    # kill Self Service if running
+    kill_process "Self Service"
 else
-    "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+    echo "   [erase-install] Run without '--test-run' to run this command:"
+    if [ "$arch" == "arm64" ]; then
+        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
+    else
+        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+    fi
+    sleep 30
 fi
 
-# kill Self Service if running
-kill_process "Self Service"
 # kill Jamf FUD if startosinstall ends before a reboot
 kill_process "jamfHelper"

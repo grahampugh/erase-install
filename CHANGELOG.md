@@ -4,6 +4,15 @@
 
 No date
 
+## [0.17.1]
+
+05.01.2021
+
+- Added `--test-run` option which runs everything except the `startosinstall` command. Useful for testing new workflows.
+- Moved the prompt for user details for Apple Silicon Macs up the script so users don't get prompted later.
+- No longer checks to see if the user is an administrator as this is apparently not a criterion - only Secure Token matters.
+- Bug fix: remove alignment flags in the jamfHelper commands to solve a product issue with jamfHelper on Apple Silicon Macs.
+
 ## [0.17.0]
 
 15.12.2020
@@ -234,6 +243,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.1...HEAD
+[0.17.1]: https://github.com/grahampugh/erase-install/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/grahampugh/erase-install/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/grahampugh/erase-install/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/grahampugh/erase-install/compare/v0.15.6...v0.16.0
