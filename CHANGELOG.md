@@ -6,7 +6,9 @@ No date
 
 ## [0.17.2]
 
-- Testing moving `caffeinate` to the end of the script but using multiple `--pidtosignal` commands to kill caffeinate when `startosinstall` is run.
+06.01.2021
+
+- Testing moving `caffeinate` to the end of the script but using a second `--pidtosignal` argument in `startosinstall` to kill caffeinate. It is not documented that `--pidtosignal` can be called multiple times, so this is experimental, but seems necessary on Big Sur as the "preparing upgrade" step is much longer than with previous OSs.
 
 ## [0.17.1]
 
