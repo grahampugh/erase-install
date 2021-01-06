@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.17.1"
+version="0.17.2"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -774,6 +774,7 @@ fi
 pid=$$
 echo "   [erase-install] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -dimsu -w $pid &
+caffeinate_pid=$!
 
 # not giving an option for fetch-full-installer mode for now... /Applications is the path
 if [[ $ffi ]]; then
@@ -963,9 +964,6 @@ if [[  ${installer_build:0:2} -ge 19 ]]; then
     install_args+=("--forcequitapps")
 fi
 
-# kill caffeinate - let's assume that startosinstall can withstand sleep settings
-kill_process "caffeinate"
-
 # Jamf Helper icons for erase and re-install windows
 jh_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
@@ -996,12 +994,15 @@ if [[ $test_run != "yes" ]]; then
 else
     echo "   [erase-install] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
-        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
+        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
     else
-        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+        echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction "${install_package_list[@]}"
     fi
-    sleep 30
+    sleep 120
 fi
 
 # kill Jamf FUD if startosinstall ends before a reboot
 kill_process "jamfHelper"
+
+# kill caffeinate
+kill_process "caffeinate"

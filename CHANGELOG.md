@@ -4,6 +4,10 @@
 
 No date
 
+## [0.17.2]
+
+- Testing moving `caffeinate` to the end of the script but using multiple `--pidtosignal` commands to kill caffeinate when `startosinstall` is run.
+
 ## [0.17.1]
 
 05.01.2021
@@ -243,6 +247,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v0.16.1...HEAD
+[0.17.2]: https://github.com/grahampugh/erase-install/compare/v0.17.1...v0.17.2
 [0.17.1]: https://github.com/grahampugh/erase-install/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/grahampugh/erase-install/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/grahampugh/erase-install/compare/v0.16.0...v0.16.1
