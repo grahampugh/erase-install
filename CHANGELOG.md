@@ -4,6 +4,12 @@
 
 No date
 
+## [0.17.3]
+
+17.01.2021
+
+- For Catalina and earlier, do OS validation only as far as the minor release. This allows for the mismatch between advertised build and `DTSDKBuild`.
+
 ## [0.17.2]
 
 06.01.2021
