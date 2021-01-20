@@ -16,7 +16,7 @@
 # Device file system is APFS
 #
 # Version:
-version="0.17.2"
+version="0.17.3"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -62,8 +62,8 @@ if [[ -f "$jamfHelper" ]]; then
     jh_confirmation_cancel_button_en="Cancel"
     jh_confirmation_cancel_button_de="Abbrechen"
     # Jamf Helper localizations - free space check
-    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 15GB disk space."
-    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 15GB freien Festplattenspeicher nicht möglich."
+    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 45GB disk space."
+    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 45GB freien Festplattenspeicher nicht möglich."
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -251,7 +251,7 @@ get_user_details() {
 free_space_check() {
     free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
 
-    if [[ $free_disk_space -ge 15000000 ]]; then
+    if [[ $free_disk_space -ge 45000000 ]]; then
         echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
     else
         echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
@@ -265,18 +265,23 @@ free_space_check() {
 check_installer_is_valid() {
     echo "   [check_installer_is_valid] Checking validity of $installer_app."
     # check installer validity:
-    # The Build version in the app Info.plist is often older than the advertised build, so it's not a great validity
+    # The Build version in the app Info.plist is often older than the advertised build, 
+    # so it's not a great check for validity
     # check if running --erase, where we might be using the same build.
-    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml.
-    # This may not have always been the case, so we include a fallback to the Info.plist file just in case. 
-    hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg"
-    build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
-    if [[ -f "$build_xml" ]]; then
-        installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
+    # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
+    if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
+        if [[ -f "$build_xml" ]]; then
+            echo "   [check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
+            installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+            sleep 1
+            diskutil unmount force "/Volumes/Shared Support"
+        fi
     else
+        echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
         installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
     fi
-    diskutil unmount force "/Volumes/Shared Support"
 
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
@@ -289,23 +294,23 @@ check_installer_is_valid() {
         invalid_installer_found="yes"
     # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
-        invalid_installer_found="yes"
+        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
         # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
         if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
-            invalid_installer_found="yes"
+        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
         # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
-            invalid_installer_found="yes"
+        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
         fi
     fi
 
     if [[ "$invalid_installer_found" == "yes" ]]; then
-        echo "   [check_installer_is_valid] $installer_build < $system_build so not valid."
+        echo "   [check_installer_is_valid] Installer: $installer_build ; System: $system_build : invalid build."
     else
-        echo "   [check_installer_is_valid] $installer_build >= $system_build so valid."
+        echo "   [check_installer_is_valid] Installer: $installer_build ; System: $system_build : valid build."
     fi
 
     install_macos_app="$installer_app"
@@ -632,7 +637,7 @@ run_installinstallmacos() {
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         kill_process jamfHelper
-        exit
+        exit 1
     fi
 }
 
@@ -932,7 +937,7 @@ install_args=()
 if [[ $erase == "yes" ]]; then
     install_args+=("--eraseinstall")
 elif [[ $reinstall == "yes" && $sip == "disabled" ]]; then
-    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
+    volname=$(diskutil info -plist / | grep -A1 "VolumeName" | tail -n 1 | awk -F '<string>|</string>' '{ print $2; exit; }')
     install_args+=("--volume")
     install_args+=("/Volumes/$volname")
 fi
