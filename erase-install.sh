@@ -62,8 +62,8 @@ if [[ -f "$jamfHelper" ]]; then
     jh_confirmation_cancel_button_en="Cancel"
     jh_confirmation_cancel_button_de="Abbrechen"
     # Jamf Helper localizations - free space check
-    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 45GB disk space."
-    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 45GB freien Festplattenspeicher nicht möglich."
+    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 30GB disk space."
+    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 30GB freien Festplattenspeicher nicht möglich."
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -251,7 +251,7 @@ get_user_details() {
 free_space_check() {
     free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
 
-    if [[ $free_disk_space -ge 45000000 ]]; then
+    if [[ $free_disk_space -ge 30000000 ]]; then
         echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
     else
         echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
