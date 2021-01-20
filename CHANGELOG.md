@@ -6,9 +6,12 @@ No date
 
 ## [0.17.3]
 
-17.01.2021
+20.01.2021
 
-- For Catalina and earlier, do OS validation only as far as the minor release. This allows for the mismatch between advertised build and `DTSDKBuild`.
+- For Catalina and earlier, do OS validation only as far as the minor release. This allows for the mismatch between advertised build and `DTSDKBuild` (fixes Issue #53).
+- Fix for when `VolumeName` is not `Macintosh HD` or any two-word name (fixes Issue #58).
+- Added exit 1 code if script exists due to not successfully downloading an installer (fixes Issue #52).
+- Increase munimum disk space required to 45GB, which is Apple's recommendation for macOS Big Sur (see [HT211238](https://support.apple.com/en-us/HT211238)).
 
 ## [0.17.2]
 

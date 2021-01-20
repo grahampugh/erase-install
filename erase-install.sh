@@ -62,8 +62,8 @@ if [[ -f "$jamfHelper" ]]; then
     jh_confirmation_cancel_button_en="Cancel"
     jh_confirmation_cancel_button_de="Abbrechen"
     # Jamf Helper localizations - free space check
-    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 15GB disk space."
-    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 15GB freien Festplattenspeicher nicht möglich."
+    jh_check_desc_en="The macOS upgrade cannot be installed on a computer with less than 45GB disk space."
+    jh_check_desc_de="Die Installation von macOS ist auf einem Computer mit weniger als 45GB freien Festplattenspeicher nicht möglich."
 
     # Jamf Helper icon for download window
     jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -251,7 +251,7 @@ get_user_details() {
 free_space_check() {
     free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
 
-    if [[ $free_disk_space -ge 15000000 ]]; then
+    if [[ $free_disk_space -ge 45000000 ]]; then
         echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
     else
         echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
@@ -637,7 +637,7 @@ run_installinstallmacos() {
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         kill_process jamfHelper
-        exit
+        exit 1
     fi
 }
 
@@ -937,7 +937,7 @@ install_args=()
 if [[ $erase == "yes" ]]; then
     install_args+=("--eraseinstall")
 elif [[ $reinstall == "yes" && $sip == "disabled" ]]; then
-    volname=$(diskutil info / | grep "Volume Name" | awk '{ print $(NF-1),$NF; }')
+    volname=$(diskutil info -plist / | grep -A1 "VolumeName" | tail -n 1 | awk -F '<string>|</string>' '{ print $2; exit; }')
     install_args+=("--volume")
     install_args+=("/Volumes/$volname")
 fi
