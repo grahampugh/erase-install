@@ -8,9 +8,9 @@ by Graham Pugh
 
 ## Installation
 
-The `erase-install.sh` script can be downloaded directly from GitHub. If run as a standalone script, it will download `installinstallmacos.py` if required for the workflow.  
+The `erase-install.sh` script can be downloaded directly from GitHub. If run as a standalone script, it will download `installinstallmacos.py` if required for the workflow.
 
-You can also run the script directly from GitHub using the following command from Terminal or with a remote management tool that allows script execution.  The `sudo` command can be left off if executing from root prompt or through remote management tool that executes commands with root privilage.
+You can also run the script directly from GitHub using the following command from Terminal or with a remote management tool that allows script execution. The `sudo` command can be left off if executing from root prompt or through remote management tool that executes commands with root privilage.
 
 ```
 curl -s https://raw.githubusercontent.com/grahampugh/erase-install/master/erase-install.sh | sudo bash /dev/stdin <arguments>
@@ -48,6 +48,7 @@ For macOS 10.15 Catalina or greater, experimental support is added for `software
 For macOS 11 Big Sur or greater, experimental support is added for downloading a macOS Installer pkg. This is taken from Armin Briegel's adaptation of `installinstallmacos.py` at [scriptingosx/fetch-installer-pkg](https://github.com/scriptingosx/fetch-installer-pkg). Use the `--pkg` option to download a package. This can be used in conjunction with `--move` (will extract the package so that you end up with an Installer application in `/Applications`), `--erase` and `reinstall`.
 
 In the event that the `installinstallmacos.py` script that's downloaded via this script isn't working or is out of date, using the option `--force-curl` will force a redownload when `erase-install` runs.
+
 ## Full list of Options:
 
 - Run the script with argument `--help` to show the available options, then stop.
@@ -214,4 +215,3 @@ Once the installer is in place in `/Applications` folder, you can create another
 ## Note about supplying values to parameters/options
 
 `erase-install.sh` allows you to specify values to command line options in two ways, either with a space or with an equals sign, e.g. `--version 10.14.3` or `--version=10.14.3`. If using Script Parameters in Jamf Pro, please ensure you use the equals sign, e.g. `--version=10.14.3`.
-
