@@ -14,7 +14,13 @@
 # Requirements:
 # macOS 10.13.4+ is already installed on the device (for eraseinstall option)
 # Device file system is APFS
-#
+
+# shellcheck disable=SC2034
+# this is due to the dynamic variable assignments used in the localization strings
+# shellcheck disable=SC2001
+# this is to use sed in the case statements
+
+
 # Version:
 version="0.17.4"
 
@@ -174,7 +180,9 @@ get_user_details() {
     user_has_secure_token=0
     enabled_users=""
     while read -r line ; do
-        enabled_users+="$(echo $line | cut -d, -f1) "
+        # shellcheck disable=SC2086
+        enabled_users+="$(echo $line | cut -d, -f1) "  
+        # shellcheck disable=SC2086
         if [[ "$account_shortname" == "$(echo $line | cut -d, -f1)" ]]; then
             echo "   [get_user_details] $account_shortname has Secure Token"
             user_has_secure_token=1
@@ -374,7 +382,7 @@ find_extra_packages() {
 set_seedprogram() {
     if [[ $seedprogram ]]; then
         echo "   [set_seedprogram] $seedprogram seed program selected"
-        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll $seedprogram >/dev/null
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll "$seedprogram" >/dev/null
         # /usr/sbin/softwareupdate -l -a >/dev/null
     else
         echo "   [set_seedprogram] Standard seed program selected"
@@ -404,8 +412,10 @@ run_fetch_full_installer() {
     fi
     # now download the installer
     echo "   [run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
+    # shellcheck disable=SC2086
     /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
 
+    # shellcheck disable=SC2181
     if [[ $? == 0 ]]; then
         # Identify the installer
         if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
@@ -556,6 +566,7 @@ run_installinstallmacos() {
     echo
     echo "   installinstallmacos.py $installinstallmacos_args"
 
+    # shellcheck disable=SC2086
     if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
@@ -731,8 +742,8 @@ do
             ;;
         --pkg) pkg_installer="yes"
             ;;
-        # --keep-pkg) keep_pkg="yes"
-        #     ;;
+        --keep-pkg) keep_pkg="yes"
+            ;;
         --force-curl) force_installinstallmacos="yes"
             ;;
         --no-curl) no_curl="yes"
@@ -788,31 +799,31 @@ do
             workdir="$1"
             ;;
         --seedprogram*)
-            seedprogram=$(echo $1 | sed -e 's|^[^=]*=||g')
+            seedprogram=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --catalogurl*)
-            catalogurl=$(echo $1 | sed -e 's|^[^=]*=||g')
+            catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --path*)
-            installer_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --pythonpath*)
-            python_path=$(echo $1 | sed -e 's|^[^=]*=||g')
+            python_path=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --extras*)
-            extras_directory=$(echo $1 | sed -e 's|^[^=]*=||g')
+            extras_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --os*)
-            prechosen_os=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_os=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --version*)
-            prechosen_version=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_version=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --build*)
-            prechosen_build=$(echo $1 | sed -e 's|^[^=]*=||g')
+            prechosen_build=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --workdir*)
-            workdir=$(echo $1 | sed -e 's|^[^=]*=||g')
+            workdir=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
@@ -1045,6 +1056,7 @@ fi
 # run it!
 if [[ $test_run != "yes" ]]; then
     if [ "$arch" == "arm64" ]; then
+        # shellcheck disable=SC2086
         "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
     else
         "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"

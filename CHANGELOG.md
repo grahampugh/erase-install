@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Untagged]
+## [Untagged]
 
 No date
 
