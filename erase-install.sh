@@ -816,7 +816,7 @@ do
         --test-run) test_run="yes"
             ;;
         --check-power) 
-            wait_for_power="yes"
+            check_power="yes"
             ;;
         --power-wait-limit) 
             shift
@@ -935,7 +935,7 @@ os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
 # check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     free_space_check
-    check_power_status
+    [[ "$check_power" == "yes" ]] && check_power_status
 fi
 
 # Look for the installer, download it if it is not present
