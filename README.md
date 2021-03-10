@@ -159,6 +159,8 @@ In the event that the `installinstallmacos.py` script that's downloaded via this
   sudo bash erase-install.sh --reinstall --extras=/path/containing/extra/packages
   ```
 
+-- If the `--check-power` option is used, the script will check if the computer is connected to AC power. If it isn't, it will wait for a default of 60 seconds for power to be added, and otherwise fail. The default time to wait can be altered by setting the `--power-wait-limit` option, e.g. `--power-wait-limit 180` for 3 minutes.
+
 ### Option in Catalina or greater only
 
 - Run the script with the `--fetch-full-installer` argument to download the latest production installer using `softwareupdate --fetch-full-installer`. This downloads the current latest installer to `/Applications` (the `--move` option does not function here). If an existing installer is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=10.X.Y`, `--reinstall` and `--erase` arguments.

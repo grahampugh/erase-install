@@ -4,6 +4,13 @@
 
 No date
 
+## [0.18.0]
+
+10.03.2021
+
+- Add `--check-power` option. Set this to check for AC power. Also `--power-wait-limit` sets a time limit to wait for power (default is 60 seconds).
+- Merge in upstream changes to `installinstallmacos.py`. This improves download resumption.
+
 ## [0.17.4]
 
 03.03.2021
