@@ -18,11 +18,15 @@
 # shellcheck disable=SC2034
 # this is due to the dynamic variable assignments used in the localization strings
 # shellcheck disable=SC2001
-# this is to use sed in the case statements
+# this is to use sed in the case statements
 
 
 # Version:
-version="0.18.0"
+version="0.19.0"
+
+# all output is written also to a log file
+LOG_FILE=/var/log/erase-install.log
+exec > >(tee ${LOG_FILE}) 2>&1
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
@@ -40,73 +44,106 @@ extras_directory="$workdir/extras"
 # Display downloading and erasing messages if this is running on Jamf Pro
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
-if [[ -f "$jamfHelper" ]]; then
-    # Jamf Helper localizations - download window
-    jh_dl_title_en="Downloading macOS"
-    jh_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
-    jh_dl_title_de="Download macOS"
-    jh_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
-    # Jamf Helper localizations - erase lockscreen
-    jh_erase_title_en="Erasing macOS"
-    jh_erase_desc_en="This computer is now being erased and is locked until rebuilt"
-    jh_erase_title_de="macOS Wiederherstellen"
-    jh_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
-    # Jamf Helper localizations - reinstall lockscreen
-    jh_reinstall_title_en="Upgrading macOS"
-    jh_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-    jh_reinstall_desc_en="This process will take between 5-30 minutes. Once completed your computer will reboot and begin the upgrade."
-    jh_reinstall_title_de="Upgrading macOS"
-    jh_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
-    jh_reinstall_desc_de="Dieser Prozess benötigt ungefähr 5-30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
-    # Jamf Helper localizations - confirmation window
-    jh_confirmation_title_en="Erasing macOS"
-    jh_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
-    jh_confirmation_title_de="macOS Wiederherstellen"
-    jh_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
-    jh_confirmation_button_en="Yes"
-    jh_confirmation_button_de="Ja"
-    jh_confirmation_cancel_button_en="Cancel"
-    jh_confirmation_cancel_button_de="Abbrechen"
-    # Jamf Helper localizations - free space check
-    jh_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
-    jh_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
-    # Jamf Helper localizations - power check
-    jh_power_title_en="Waiting for AC Power Connection"
-    jh_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
-    jh_power_title_de="Warten auf AC-Netzteil"
-    jh_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
+# Dialogue localizations - download window
+dialog_dl_title_en="Downloading macOS"
+dialog_dl_title_de="Download macOS"
+dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
+dialog_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
 
-    # Jamf Helper icon for download window
-    jh_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+# Dialogue localizations - erase lockscreen
+dialog_erase_title_en="Erasing macOS"
+dialog_erase_title_de="macOS Wiederherstellen"
+dialog_erase_desc_en="This computer is now being erased and is locked until rebuilt"
+dialog_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
 
-    # Jamf Helper icon for confirmation dialog
-    jh_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
+# Dialogue localizations - reinstall lockscreen
+dialog_reinstall_title_en="Upgrading macOS"
+dialog_reinstall_title_de="Upgrading macOS"
+dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
+dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
+dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
+dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 
-    # Grab currently logged in user to set the language for Jamf Helper messages
-    current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
-    if [[ $language = de* ]]; then
-        user_language="de"
-    else
-        user_language="en"
-    fi
+# Dialogue localizations - confirmation window
+dialog_confirmation_title_en="Erasing macOS"
+dialog_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
+dialog_confirmation_title_de="macOS Wiederherstellen"
+dialog_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
 
-    # set localisation variables
-    jh_dl_title=jh_dl_title_${user_language}
-    jh_dl_desc=jh_dl_desc_${user_language}
-    jh_erase_title=jh_erase_title_${user_language}
-    jh_erase_desc=jh_erase_desc_${user_language}
-    jh_reinstall_title=jh_reinstall_title_${user_language}
-    jh_reinstall_heading=jh_reinstall_heading_${user_language}
-    jh_reinstall_desc=jh_reinstall_desc_${user_language}
-    jh_confirmation_title=jh_confirmation_title_${user_language}
-    jh_confirmation_desc=jh_confirmation_desc_${user_language}
-    jh_confirmation_button=jh_confirmation_button_${user_language}
-    jh_confirmation_cancel_button=jh_confirmation_cancel_button_${user_language}
-    jh_check_desc=jh_check_desc_${user_language}
-    jh_power_desc=jh_power_desc_${user_language}
-    jh_power_title=jh_power_title_${user_language}
+# Dialogue buttons
+dialog_confirmation_button_en="Yes"
+dialog_confirmation_button_de="Ja"
+dialog_cancel_button_en="Cancel"
+dialog_cancel_button_de="Abbrechen"
+dialog_enter_button_en="Enter"
+dialog_enter_button_de="Eingeben"
+
+# Dialogue localizations - free space check
+dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
+dialog_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
+
+# Dialogue localizations - power check
+dialog_power_title_en="Waiting for AC Power Connection"
+dialog_power_title_de="Warten auf AC-Netzteil"
+dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
+dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
+
+# Dialogue localizations - ask for short name
+dialog_short_name_en="Please enter an account name to start the reinstallation process"
+dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
+
+# Dialogue localizations - ask for password
+dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
+dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
+
+# Dialogue localizations - invalid user
+dialog_invalid_user_en="This account cannot be used to to perform the reinstall"
+dialog_invalid_user_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
+
+# Dialogue localizations - invalid password
+dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
+dialog_invalid_password_de="ERROR: Das eingegebene Kennwort ist NICHT das Anmeldekennwort für"
+
+# Dialogue localizations - not a volume owner
+dialog_get_password_en="Please enter the password for the account"
+dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
+
+# icon for download window
+dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+
+# icon for confirmation dialog
+dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
+
+# Grab currently logged in user to set the language for Dialogue messages
+current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+if [[ $language = de* ]]; then
+    user_language="de"
+else
+    user_language="en"
 fi
+
+# set localisation variables
+dialog_dl_title=dialog_dl_title_${user_language}
+dialog_dl_desc=dialog_dl_desc_${user_language}
+dialog_erase_title=dialog_erase_title_${user_language}
+dialog_erase_desc=dialog_erase_desc_${user_language}
+dialog_reinstall_title=dialog_reinstall_title_${user_language}
+dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
+dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
+dialog_confirmation_title=dialog_confirmation_title_${user_language}
+dialog_confirmation_desc=dialog_confirmation_desc_${user_language}
+dialog_confirmation_button=dialog_confirmation_button_${user_language}
+dialog_cancel_button=dialog_cancel_button_${user_language}
+dialog_enter_button=dialog_enter_button_${user_language}
+dialog_check_desc=dialog_check_desc_${user_language}
+dialog_power_desc=dialog_power_desc_${user_language}
+dialog_power_title=dialog_power_title_${user_language}
+dialog_short_name=dialog_short_name_${user_language}
+dialog_invalid_user=dialog_invalid_user_${user_language}
+dialog_get_password=dialog_get_password_${user_language}
+dialog_invalid_password=dialog_invalid_password_${user_language}
+dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
 kill_process() {
     process="$1"
@@ -119,35 +156,35 @@ kill_process() {
 ask_for_shortname() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "Please enter an account name to start the reinstallation process" default answer "" buttons {"Enter", "Cancel"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 EOT
 }
 
-user_does_not_exist() {
+invalid_user() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        display dialog "User $account_shortname does not exist!" buttons {"OK"} default button 1 with icon 2
+        display dialog "$account_shortname: ${!dialog_invalid_user}" buttons {"OK"} default button 1 with icon 2
 EOT
 }
 
-user_has_no_secure_token() {
+user_not_volume_owner() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        display dialog "User $account_shortname has no Secure Token! Please login as one of the following users and try again: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
+        display dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
 EOT
 }
 
 ask_for_password() {
     # required for Silicon Macs
     /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "Please enter the password for the $account_shortname account" default answer "" with hidden answer buttons {"Enter", "Cancel"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 EOT
 }
 
 check_password() {
     # Check that the password entered matches actual password
-    # required for Silicon Macs
-    # thanks to Dan Snelson for the idea
+    # required for Silicon Macs
+    # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
 	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
@@ -156,7 +193,7 @@ check_password() {
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         /usr/bin/osascript <<EOT
-            display dialog "ERROR: The password entered is NOT the login password for $user." buttons {"OK"} default button 1 with icon 2
+            display dialog "${!dialog_invalid_user} $user." buttons {"OK"} default button 1 with icon 2
 EOT
     exit 1
 	fi
@@ -176,28 +213,45 @@ get_user_details() {
         fi
     fi
 
-    # check that this user exists, and has a Secure Token
-    if ! /usr/bin/id -Gn "$account_shortname" | grep -q -w staff ; then
-        echo "   [get_user_details] $account_shortname account does not exist or is not a standard user!"
-        user_does_not_exist
+    # check that this user exists and is in the staff group (so not some system user)
+    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" staff ; then
+        echo "   [get_user_details] $account_shortname account cannot be used to perform reinstallation!"
+        invalid_user
         exit 1
     fi
 
-    # check that the user has a Secure Token
-    user_has_secure_token=0
+    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
+    if [[ $erase == "yes" ]]; then
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
+            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
+                echo "   [get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
+                promoted_user="$account_shortname"
+            else
+                echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
+                invalid_user
+                exit 1
+            fi
+        fi
+    fi
+
+    # check that the user is a Volume Owner
+    user_is_volume_owner=0
+    users=$(/usr/sbin/diskutil apfs listUsers /)
     enabled_users=""
     while read -r line ; do
-        # shellcheck disable=SC2086
-        enabled_users+="$(echo $line | cut -d, -f1) "  
-        # shellcheck disable=SC2086
-        if [[ "$account_shortname" == "$(echo $line | cut -d, -f1)" ]]; then
-            echo "   [get_user_details] $account_shortname has Secure Token"
-            user_has_secure_token=1
+        user=$(/usr/bin/cut -d, -f1 <<< "$line")
+        guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+        if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
+            enabled_users+="$user "  
+            if [[ "$account_shortname" == "$user" ]]; then
+                echo "   [get_user_details] $account_shortname is a Volume Owner"
+                user_is_volume_owner=1
+            fi
         fi
     done <<< "$(/usr/bin/fdesetup list)"
-    if [[ $enabled_users != "" && $user_has_secure_token = 0 ]]; then
-        echo "   [get_user_details] $account_shortname has no Secure Token"
-        user_has_no_secure_token
+    if [[ $enabled_users != "" && $user_is_volume_owner = 0 ]]; then
+        echo "   [get_user_details] $account_shortname is not a Volume Owner"
+        user_not_volume_owner
         exit 1
     fi
 
@@ -241,11 +295,11 @@ check_power_status() {
         echo "   [check_power_status] WARNING - No AC power detected"
         if [[ "$power_wait_timer" -gt 0 ]]; then
             if [[ -f "$jamfHelper" ]]; then
-                # use jamfHelper if possible
-                "$jamfHelper" -windowType "utility" -title "${!jh_power_title}" -description "${!jh_power_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" &
+                # use jamfHelper if possible
+                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
                 wait_for_power "jamfHelper"
             else
-                /usr/bin/osascript -e "display dialog \"Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected.\" buttons {\"OK\"} default button \"OK\" with icon stop" &
+                /usr/bin/osascript -e "display dialog \"${!dialog_power_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop" &
                 wait_for_power "osascript"
             fi
         else
@@ -265,7 +319,9 @@ free_space_check() {
     else
         echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!jh_check_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" -button1 "Ok" -defaultButton "0" -cancelButton "1"
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
+        else
+            /usr/bin/osascript -e "display dialog \"${!dialog_check_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop"
         fi
         exit 1
     fi
@@ -276,9 +332,13 @@ check_installer_is_valid() {
     # check installer validity:
     # The Build version in the app Info.plist is often older than the advertised build, 
     # so it's not a great check for validity
-    # check if running --erase, where we might be using the same build.
+    # check if running --erase, where we might be using the same build.
     # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
     # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
+
+    # first ensure that some earlier instance is not still mounted as it might interfere with the check
+    [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
+    # now attempt to mount
     if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
         build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
         if [[ -f "$build_xml" ]]; then
@@ -288,6 +348,7 @@ check_installer_is_valid() {
             diskutil unmount force "/Volumes/Shared Support"
         fi
     else
+        # if that fails, fallback to the method for 10.15 or less, which is less accurate
         echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
         installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
     fi
@@ -295,22 +356,22 @@ check_installer_is_valid() {
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
     # we need to break the build into component parts to compare versions
-    # 1. Darwin version is older in the installer than on the system
+    # 1. Darwin version is older in the installer than on the system
     if [[ ${installer_build:0:2} -lt ${system_build:0:2} ]]; then 
         invalid_installer_found="yes"
-    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
+    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
         invalid_installer_found="yes"
-    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
+    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
-        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
+        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
         if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
-        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
+        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
         fi
@@ -328,9 +389,9 @@ check_installer_is_valid() {
 check_installassistant_pkg_is_valid() {
     echo "   [check_installassistant_pkg_is_valid] Checking validity of $installer_pkg."
     # check InstallAssistant pkg validity
-    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
+    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
     # Extracting an actual version from the package is slow as the entire package must be unpackaged
-    # to read the PackageInfo file. 
+    # to read the PackageInfo file. 
     # We are here YOLOing the filename instead. Of course it could be spoofed, but that would not be
     # in anyone's interest to attempt as it will just make the script eventually fail.
     installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
@@ -396,7 +457,7 @@ move_to_applications_folder() {
         return
     fi
 
-    # if dealing with a package we now have to extract it and check it's valid
+    # if dealing with a package we now have to extract it and check it's valid
     if [[ -f "$installassistant_pkg" ]]; then
         echo "   [move_to_applications_folder] Extracting $installassistant_pkg to /Applications folder"
         /usr/sbin/installer -pkg "$installassistant_pkg" -tgt /
@@ -448,7 +509,7 @@ set_seedprogram() {
 }
 
 list_full_installers() {
-    # for 10.15.7 and above we can use softwareupdate --list-full-installers
+    # for 10.15.7 and above we can use softwareupdate --list-full-installers
     set_seedprogram
     echo
     /usr/sbin/softwareupdate --list-full-installers
@@ -507,7 +568,7 @@ get_installinstallmacos() {
             curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
         fi
     fi
-    # check it did actually get downloaded
+    # check it did actually get downloaded
     if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
         echo "Could not download installinstallmacos.py so cannot continue."
         exit 1
@@ -932,7 +993,7 @@ iim_downloaded=0
 os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
 os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
-# check for power and drive space if invoking erase or reinstall options
+# check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     free_space_check
     [[ "$check_power" == "yes" ]] && check_power_status
@@ -973,7 +1034,7 @@ fi
 
 # Silicon Macs require a username and password to run startosinstall
 # We therefore need to be logged in to proceed, if we are going to erase or reinstall
-# This goes before the download so users aren't waiting for the prompt for username
+# This goes before the download so users aren't waiting for the prompt for username
 arch=$(/usr/bin/arch)
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
@@ -990,7 +1051,7 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     # the download is taking place.
     if [[ -f "$jamfHelper" && ($erase == "yes" || $reinstall == "yes") ]]; then
         echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
-        "$jamfHelper" -windowType hud -windowPosition ul -title "${!jh_dl_title}" -alignHeading center -alignDescription left -description "${!jh_dl_desc}" -lockHUD -icon  "$jh_dl_icon" -iconSize 100 &
+        "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
     fi
     # now run installinstallmacos or softwareupdate
     if [[ $ffi && $os_minor_version -ge 15 ]]; then
@@ -1045,12 +1106,18 @@ fi
 echo
 
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
-if [[ $confirm == "yes" ]] && [[ -f "$jamfHelper" ]]; then
+if [[ $confirm == "yes" ]]; then
     if [[ $erase == "yes" ]]; then
-        "$jamfHelper" -windowType utility -title "${!jh_confirmation_title}" -alignHeading center -alignDescription natural -description "${!jh_confirmation_desc}" \
-            -lockHUD -icon "$jh_confirmation_icon" -button1 "${!jh_confirmation_cancel_button}" -button2 "${!jh_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
-        confirmation=$?
-
+        if [[ -f "$jamfHelper" ]]; then
+            "$jamfHelper" -windowType utility -title "${!dialog_confirmation_title}" -alignHeading center -alignDescription natural -description "${!dialog_confirmation_desc}" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
+            confirmation=$?
+        else
+            if /usr/bin/osascript -e 'set nameentry to text returned of (display dialog '"${!dialog_confirmation_desc}"' buttons {'"${!dialog_confirmation_button}"', '"${!dialog_cancel_button}"'} default button 2 with icon 2)' ; then
+                confirmation=0
+            else
+                confirmation=2
+            fi
+        fi
         if [[ "$confirmation" == "0"* ]]; then
             echo "   [erase-install] User DECLINED erase/install"
             exit 0
@@ -1063,9 +1130,6 @@ if [[ $confirm == "yes" ]] && [[ -f "$jamfHelper" ]]; then
     else
         echo "   [erase-install] --confirm requires --erase argument; ignoring"
     fi
-elif [[ $confirm == "yes" ]] && [[ ! -f "$jamfHelper" ]]; then
-    echo "   [erase-install] Error: cannot obtain confirmation from user without jamfHelper. Cannot continue."
-    exit 1
 fi
 
 # determine SIP status, as the volume is required if SIP is disabled
@@ -1087,7 +1151,7 @@ find_extra_packages
 # some cli options vary based on installer versions
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
 
-# add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
+# add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
 if [[ ${installer_build:0:2} -gt 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
@@ -1108,27 +1172,33 @@ if [[  ${installer_build:0:2} -ge 19 ]]; then
     install_args+=("--forcequitapps")
 fi
 
-# Jamf Helper icons for erase and re-install windows
-jh_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
-jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
+# icons for Jamf Helper erase and re-install windows
+dialog_erase_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
+dialog_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 
 # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
 [[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
 
-# show the full screen display
+# show the full screen display
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -heading "${!jh_erase_title}" -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
     PID=$!
 elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!jh_reinstall_title}" -heading "${!jh_reinstall_heading}" -description "${!jh_reinstall_desc}" -icon "$jh_reinstall_icon" &
+    "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
     PID=$!
 fi
 
 # run it!
 if [[ $test_run != "yes" ]]; then
     if [ "$arch" == "arm64" ]; then
+        # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
+        # this command supposedly fixes this problem (experimental!)
+        if [[ "$erase" == "yes" ]]; then
+            echo  "   [get_user_details] updating preboot files (takes a few seconds)..."
+            /usr/sbin/diskutil apfs updatepreboot / > /dev/null
+        fi        
         # shellcheck disable=SC2086
         "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
     else
@@ -1151,3 +1221,9 @@ kill_process "jamfHelper"
 
 # kill caffeinate
 kill_process "caffeinate"
+
+# if we get this far and we promoted the user then we should demote it again
+if [[ $promoted_user ]]; then
+    /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
+    echo "     [erase-install] User $promoted_user was demoted back to standard user"
+fi
