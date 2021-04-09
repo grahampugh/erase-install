@@ -335,6 +335,10 @@ check_installer_is_valid() {
     # check if running --erase, where we might be using the same build.
     # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
     # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
+
+    # first ensure that some earlier instance is not still mounted as it might interfere with the check
+    [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
+    # now attempt to mount
     if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
         build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
         if [[ -f "$build_xml" ]]; then
@@ -344,6 +348,7 @@ check_installer_is_valid() {
             diskutil unmount force "/Volumes/Shared Support"
         fi
     else
+        # if that fails, fallback to the method for 10.15 or less, which is less accurate
         echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
         installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
     fi
@@ -1188,11 +1193,12 @@ fi
 # run it!
 if [[ $test_run != "yes" ]]; then
     if [ "$arch" == "arm64" ]; then
-        # startosinstall may fail if a user was converted to admin using the Privileges app
+        # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
-        echo  "   [get_user_details] updating preboot files (takes a few seconds)..."
-        /usr/sbin/diskutil apfs updatepreboot / > /dev/null
-
+        if [[ "$erase" == "yes" ]]; then
+            echo  "   [get_user_details] updating preboot files (takes a few seconds)..."
+            /usr/sbin/diskutil apfs updatepreboot / > /dev/null
+        fi        
         # shellcheck disable=SC2086
         "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
     else
