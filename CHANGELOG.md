@@ -4,6 +4,12 @@
 
 No date
 
+## [0.19.1]
+
+17.04.2021
+
+- Fix for check that `--fetch-full-installer` can be used.
+
 ## [0.19.0]
 
 07.04.2021

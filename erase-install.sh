@@ -22,7 +22,7 @@
 
 
 # Version:
-version="0.19.0"
+version="0.19.1"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -655,9 +655,6 @@ run_installinstallmacos() {
         installinstallmacos_args+="--current "
 
     elif [[ $sameos == "yes" ]]; then
-        system_version=$( /usr/bin/sw_vers -productVersion )
-        system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
-        system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
         echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
         if [[ $system_os_major == "10" ]]; then
             installinstallmacos_args+="--os=$system_os_major.$system_os_version "
@@ -989,9 +986,10 @@ fi
 # variable to prevent installinstallmacos getting downloaded twice
 iim_downloaded=0
 
-# some cli options vary based on installer versions
-os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
-os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
+# some options vary based on installer versions
+system_version=$( /usr/bin/sw_vers -productVersion )
+system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
+system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 
 # check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
@@ -1053,11 +1051,13 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
         echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
         "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
     fi
+
     # now run installinstallmacos or softwareupdate
-    if [[ $ffi && $os_minor_version -ge 15 ]]; then
-        echo "   [erase-install] OS version is $os_version so can run with --fetch-full-installer option"
+    if [[ $ffi && (($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11) ]]; then
+        echo "   [erase-install] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
         run_fetch_full_installer
     else
+        echo "   [erase-install] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
