@@ -9,6 +9,7 @@ No date
 17.04.2021
 
 - Fix for check that `--fetch-full-installer` can be used.
+- Dutch localizations (thanks to Thijs Vught)
 
 ## [0.19.0]
 

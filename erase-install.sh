@@ -47,66 +47,94 @@ jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/
 # Dialogue localizations - download window
 dialog_dl_title_en="Downloading macOS"
 dialog_dl_title_de="Download macOS"
+dialog_dl_title_nl="Downloaden macOS"
+
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
 dialog_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
+dialog_dl_desc_nl="We moeten het macOS-installatieprogramma naar uw computer downloaden, dit duurt enkele minuten."
 
 # Dialogue localizations - erase lockscreen
 dialog_erase_title_en="Erasing macOS"
 dialog_erase_title_de="macOS Wiederherstellen"
+dialog_erase_title_nl="Wissen macOS"
+
 dialog_erase_desc_en="This computer is now being erased and is locked until rebuilt"
 dialog_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
+dialog_erase_desc_nl="Deze computer wordt nu gewist en is vergrendeld totdat hij opnieuw is opgebouwd"
 
 # Dialogue localizations - reinstall lockscreen
 dialog_reinstall_title_en="Upgrading macOS"
 dialog_reinstall_title_de="Upgrading macOS"
+dialog_reinstall_title_nl="MacOS upgraden"
+
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
+dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor het upgraden van macOS."
+
 dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
+dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade.."
 
 # Dialogue localizations - confirmation window
 dialog_confirmation_title_en="Erasing macOS"
 dialog_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
+dialog_confirmation_title_nl="MacOS wissen"
+
 dialog_confirmation_title_de="macOS Wiederherstellen"
 dialog_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
+dialog_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
 
 # Dialogue buttons
 dialog_confirmation_button_en="Yes"
 dialog_confirmation_button_de="Ja"
+dialog_confirmation_button_nl="Ja"
+
 dialog_cancel_button_en="Cancel"
 dialog_cancel_button_de="Abbrechen"
+dialog_cancel_button_nl="Annuleren"
+
 dialog_enter_button_en="Enter"
 dialog_enter_button_de="Eingeben"
+dialog_enter_button_nl="Enter"
 
 # Dialogue localizations - free space check
 dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
 dialog_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
+dialog_check_desc_nl="De macOS-upgrade kan niet worden geïnstalleerd op een computer met minder dan 45 GB schijfruimte."
 
 # Dialogue localizations - power check
 dialog_power_title_en="Waiting for AC Power Connection"
 dialog_power_title_de="Warten auf AC-Netzteil"
+dialog_power_title_nl="Wachten op Stroomadapter"
+
 dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
 dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
+dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder"
 
 # Dialogue localizations - ask for short name
 dialog_short_name_en="Please enter an account name to start the reinstallation process"
 dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
+dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
 
 # Dialogue localizations - ask for password
 dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
 dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
+dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
 
 # Dialogue localizations - invalid user
 dialog_invalid_user_en="This account cannot be used to to perform the reinstall"
 dialog_invalid_user_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
+dialog_invalid_user_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
 dialog_invalid_password_de="ERROR: Das eingegebene Kennwort ist NICHT das Anmeldekennwort für"
+dialog_invalid_password_nl="FOUT: Het ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
 
 # Dialogue localizations - not a volume owner
 dialog_get_password_en="Please enter the password for the account"
 dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
+dialog_get_password_nl="Voer het wachtwoord voor het account in"
 
 # icon for download window
 dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -119,6 +147,8 @@ current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/a
 language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
 if [[ $language = de* ]]; then
     user_language="de"
+elif [[ $language = nl* ]]; then
+    user_language="nl"
 else
     user_language="en"
 fi
