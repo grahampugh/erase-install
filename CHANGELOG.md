@@ -4,6 +4,13 @@
 
 No date
 
+## [0.19.2]
+
+26.04.2021
+
+- Another fix to the check that `--fetch-full-installer` can be used.
+- Edited Dutch localizations (thanks to Thijs Vught)
+
 ## [0.19.1]
 
 17.04.2021
@@ -289,7 +296,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.19.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.19.2...HEAD
+[0.19.2]: https://github.com/grahampugh/erase-install/compare/v0.19.1...v0.19.2
+[0.19.1]: https://github.com/grahampugh/erase-install/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/grahampugh/erase-install/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/grahampugh/erase-install/compare/v0.17.4...v0.18.0
 [0.17.4]: https://github.com/grahampugh/erase-install/compare/v0.17.3...v0.17.4

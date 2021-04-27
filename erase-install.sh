@@ -51,36 +51,36 @@ dialog_dl_title_nl="Downloaden macOS"
 
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
 dialog_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
-dialog_dl_desc_nl="We moeten het macOS-installatieprogramma naar uw computer downloaden, dit duurt enkele minuten."
+dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
 
 # Dialogue localizations - erase lockscreen
 dialog_erase_title_en="Erasing macOS"
 dialog_erase_title_de="macOS Wiederherstellen"
-dialog_erase_title_nl="Wissen macOS"
+dialog_erase_title_nl="macOS Herinstalleren"
 
 dialog_erase_desc_en="This computer is now being erased and is locked until rebuilt"
 dialog_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
-dialog_erase_desc_nl="Deze computer wordt nu gewist en is vergrendeld totdat hij opnieuw is opgebouwd"
+dialog_erase_desc_nl="De computer wordt nu gewist en is vergrendeld totdat deze opnieuw is opgestart"
 
 # Dialogue localizations - reinstall lockscreen
 dialog_reinstall_title_en="Upgrading macOS"
 dialog_reinstall_title_de="Upgrading macOS"
-dialog_reinstall_title_nl="MacOS upgraden"
+dialog_reinstall_title_nl="macOS upgraden"
 
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
-dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor het upgraden van macOS."
+dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
 
 dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
-dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade.."
+dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 
 # Dialogue localizations - confirmation window
 dialog_confirmation_title_en="Erasing macOS"
-dialog_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
-dialog_confirmation_title_nl="MacOS wissen"
+dialog_confirmation_title_de="macOS wiederherstellen"
+dialog_confirmation_title_nl="macOS wissen"
 
-dialog_confirmation_title_de="macOS Wiederherstellen"
+dialog_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
 dialog_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
 dialog_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
 
@@ -1083,11 +1083,15 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     fi
 
     # now run installinstallmacos or softwareupdate
-    if [[ $ffi && (($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11) ]]; then
-        echo "   [erase-install] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
-        run_fetch_full_installer
+    if [[ $ffi ]]; then
+        if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
+            echo "   [erase-install] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
+            run_fetch_full_installer
+        else
+            echo "   [erase-install] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
+            run_installinstallmacos
+        fi
     else
-        echo "   [erase-install] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
