@@ -169,7 +169,7 @@ In the event that the `installinstallmacos.py` script that's downloaded via this
   sudo bash erase-install.sh --fetch-full-installer
   ```
 
-### Option in Big Sur or greater only
+### Option for obtaining Big Sur or greater only
 
 - Run the script with the `--pkg` argument to download the latest production installer as a package. This downloads the current latest installer as a package in the working directory. If an existing installer or package is found locally on the disk (either in the default location, or in `/Applications`), and it is a valid installer (>10.13.4), it will not download it again. Can be used in conjunction with the `--version=11.X.Y`, `--reinstall` and `--erase` arguments.
 
