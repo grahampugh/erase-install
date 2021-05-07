@@ -41,8 +41,11 @@ workdir="/Library/Management/erase-install"
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
 extras_directory="$workdir/extras"
 
-# Display downloading and erasing messages if this is running on Jamf Pro
+# Dialog helper apps
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+DEP_NOTIFY_APP="/Applications/Utilities/DEPNotify.app"
+DEP_NOTIFY_LOG="/var/tmp/depnotify.log"
+DEP_NOTIFY_CONFIRMATION_FILE="/var/tmp/com.depnotify.provisioning.done"
 
 # Dialogue localizations - download window
 dialog_dl_title_en="Downloading macOS"
@@ -58,14 +61,18 @@ dialog_erase_title_en="Erasing macOS"
 dialog_erase_title_de="macOS Wiederherstellen"
 dialog_erase_title_nl="macOS Herinstalleren"
 
-dialog_erase_desc_en="This computer is now being erased and is locked until rebuilt"
-dialog_erase_desc_de="Der Computer wird jetzt zurückgesetzt und neu gestartet"
-dialog_erase_desc_nl="De computer wordt nu gewist en is vergrendeld totdat deze opnieuw is opgestart"
+dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
+dialog_erase_desc_de="Das Vorbereiten des Installationsprogramms kann bis zu 30 Minuten dauern. Nach Abschluss wird Ihr Computer neu gestartet und die Neuinstallation fortgesetzt."
+dialog_erase_desc_nl="Het voorbereiden van het installatieprogramma kan tot 30 minuten duren. Zodra het proces is voltooid, wordt uw computer opnieuw opgestart en wordt de herinstallatie voortgezet."
 
 # Dialogue localizations - reinstall lockscreen
 dialog_reinstall_title_en="Upgrading macOS"
 dialog_reinstall_title_de="Upgrading macOS"
 dialog_reinstall_title_nl="macOS upgraden"
+
+dialog_reinstall_status_en="Preparing macOS for reinstallation"
+dialog_reinstall_status_de="Vorbereiten von macOS für die Neuinstallation"
+dialog_reinstall_status_nl="MacOS voorbereiden voor herinstallatie"
 
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
@@ -80,16 +87,20 @@ dialog_confirmation_title_en="Erasing macOS"
 dialog_confirmation_title_de="macOS wiederherstellen"
 dialog_confirmation_title_nl="macOS wissen"
 
-dialog_confirmation_desc_en="Are you sure you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS?"
-dialog_confirmation_desc_de="Möchten Sie wirklich ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren?"
+dialog_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
+dialog_confirmation_desc_de="Bitte bestätigen, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
 dialog_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
 
+dialog_confirmation_status_en="Press Cmd + Ctrl + C to Cancel"
+dialog_confirmation_status_de="Drücken Sie Cmd + Ctrl + C zum Abbrechen"
+dialog_confirmation_status_nl="Druk op Cmd + Ctrl + C om te Annuleren"
+
 # Dialogue buttons
-dialog_confirmation_button_en="Yes"
-dialog_confirmation_button_de="Ja"
+dialog_confirmation_button_en="Confirm"
+dialog_confirmation_button_de="Bestätigen"
 dialog_confirmation_button_nl="Ja"
 
-dialog_cancel_button_en="Cancel"
+dialog_cancel_button_en="Stop"
 dialog_cancel_button_de="Abbrechen"
 dialog_cancel_button_nl="Annuleren"
 
@@ -161,8 +172,10 @@ dialog_erase_desc=dialog_erase_desc_${user_language}
 dialog_reinstall_title=dialog_reinstall_title_${user_language}
 dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
+dialog_reinstall_status=dialog_reinstall_status_${user_language}
 dialog_confirmation_title=dialog_confirmation_title_${user_language}
 dialog_confirmation_desc=dialog_confirmation_desc_${user_language}
+dialog_confirmation_status=dialog_confirmation_status_${user_language}
 dialog_confirmation_button=dialog_confirmation_button_${user_language}
 dialog_cancel_button=dialog_cancel_button_${user_language}
 dialog_enter_button=dialog_enter_button_${user_language}
@@ -181,6 +194,51 @@ kill_process() {
         /usr/bin/pkill -a "$process" && echo "   [erase-install] '$process' ended" || \
         echo "   [erase-install] '$process' could not be killed"
     fi
+}
+
+dep_notify() {
+    # configuration taken from https://github.com/jamf/DEPNotify-Starter
+    DEP_NOTIFY_CONFIG_PLIST="/Users/$current_user/Library/Preferences/menu.nomad.DEPNotify.plist"
+    # /usr/bin/defaults write "$DEP_NOTIFY_CONFIG_PLIST" pathToPlistFile "$DEP_NOTIFY_USER_INPUT_PLIST"
+    STATUS_TEXT_ALIGN="center"
+    /usr/bin/defaults write "$DEP_NOTIFY_CONFIG_PLIST" statusTextAlignment "$STATUS_TEXT_ALIGN"
+    chown "$current_user":staff "$DEP_NOTIFY_CONFIG_PLIST"
+
+    # Configure the window's look
+    echo "Command: Image: $dn_icon" >> "$DEP_NOTIFY_LOG"
+    echo "Command: MainTitle: $dn_title" >> "$DEP_NOTIFY_LOG"
+    echo "Command: MainText: $dn_desc" >> "$DEP_NOTIFY_LOG"
+    if [[ $dn_button ]]; then
+        echo "Command: ContinueButton: $dn_button" >> "$DEP_NOTIFY_LOG"
+    fi
+
+    if ! pgrep DEPNotify ; then
+        # Opening the app after initial configuration
+        if [[ "$window_type" == "fs" ]]; then
+            sudo -u "$current_user" open -a "$DEP_NOTIFY_APP" --args -path "$DEP_NOTIFY_LOG" -fullScreen
+        else
+            sudo -u "$current_user" open -a "$DEP_NOTIFY_APP" --args -path "$DEP_NOTIFY_LOG"
+        fi
+    fi
+
+    # set message below progress bar
+    echo "Status: $dn_status" >> "$DEP_NOTIFY_LOG"
+
+    # set alternaitve quit key (default is X)
+    if [[ $dn_quit_key ]]; then
+        echo "Command: QuitKey: $dn_quit_key" >> "$DEP_NOTIFY_LOG"
+    fi
+
+}
+
+dep_notify_quit() {
+    # quit DEP Notify
+    echo "Command: Quit" >> "$DEP_NOTIFY_LOG"
+    # reset all the settings that might be used again
+    rm "$DEP_NOTIFY_LOG" "$DEP_NOTIFY_CONFIRMATION_FILE" 2>/dev/null
+    dn_button=""
+    dn_quit_key=""
+    dn_cancel=""
 }
 
 ask_for_shortname() {
@@ -903,6 +961,14 @@ do
             ;;
         --test-run) test_run="yes"
             ;;
+        --depnotify) 
+            if [[ -d "$DEP_NOTIFY_APP" ]]; then
+                use_depnotify="yes"
+                dep_notify_quit
+            fi
+            ;;
+        --no-jamfhelper) jamfHelper=""
+            ;;
         --check-power) 
             check_power="yes"
             ;;
@@ -1075,11 +1141,22 @@ fi
 
 if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; then
     echo "   [erase-install] Starting download process"
-    # if using Jamf and due to erase, open a helper hud to state that
-    # the download is taking place.
-    if [[ -f "$jamfHelper" && ($erase == "yes" || $reinstall == "yes") ]]; then
-        echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
-        "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
+    # if erasing or reinstalling, open a dialog to state that the download is taking place.
+    if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+        if [[ $use_depnotify == "yes" ]]; then
+            echo "   [erase-install] Opening DEPNotify download message (language=$user_language)"
+            dn_title="${!dialog_dl_title}"
+            dn_desc="${!dialog_dl_desc}"
+            dn_status="${!dialog_dl_title}"
+            dn_icon="$dialog_dl_icon"
+            dep_notify
+        elif [[ -f "$jamfHelper" ]]; then
+            echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
+            "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
+        else
+            echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+            /usr/bin/osascript -e "display alert \"${!dialog_dl_title}\" message \"${!dialog_dl_desc}\" buttons {\"OK\"} default button \"OK\" with icon 2"
+        fi
     fi
 
     # now run installinstallmacos or softwareupdate
@@ -1095,7 +1172,14 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
-    kill_process "jamfHelper"
+    if [[ $use_depnotify == "yes" ]]; then
+        echo "   [erase-install] Closing DEPNotify download message (language=$user_language)"
+        dn_finished="Download complete!" # TODO localize this message
+        dep_notify_quit
+    elif [[ -f "$jamfHelper" ]]; then
+        echo "   [erase-install] Closing jamfHelper download message (language=$user_language)"
+        kill_process "jamfHelper"
+    fi
 fi
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
@@ -1142,14 +1226,48 @@ echo
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
 if [[ $confirm == "yes" ]]; then
     if [[ $erase == "yes" ]]; then
-        if [[ -f "$jamfHelper" ]]; then
+        if [[ $use_depnotify == "yes" ]]; then
+            # DEPNotify dialog option
+            echo "   [erase-install] Opening DEPNotify confirmation message (language=$user_language)"
+            dn_title="${!dialog_confirmation_title}"
+            dn_desc="${!dialog_confirmation_desc}"
+            dn_status="${!dialog_confirmation_status}"
+            dn_icon="$dialog_confirmation_icon"
+            dn_button="${!dialog_confirmation_button}"
+            dn_quit_key="c"
+            dep_notify
+            dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+            # wait for the confirmation button to be pressed or for the user to cancel
+            until [[ "$dn_pid" = "" ]]; do
+                sleep 1
+                dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+            done
+            # DEPNotify creates a bom file if the user presses the confirmation button
+            # but not if they cancel
+            if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
+                confirmation=2
+            else
+                confirmation=0
+            fi
+            # now clear the button, quit key and dialog
+            dep_notify_quit
+        elif [[ -f "$jamfHelper" ]]; then
+            # jamfHelper dialog option
+            echo "   [erase-install] Opening jamfHelper confirmation message (language=$user_language)"
             "$jamfHelper" -windowType utility -title "${!dialog_confirmation_title}" -alignHeading center -alignDescription natural -description "${!dialog_confirmation_desc}" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
             confirmation=$?
         else
-            if /usr/bin/osascript -e 'set nameentry to text returned of (display dialog '"${!dialog_confirmation_desc}"' buttons {'"${!dialog_confirmation_button}"', '"${!dialog_cancel_button}"'} default button 2 with icon 2)' ; then
-                confirmation=0
-            else
+            # osascript dialog option
+            echo "   [erase-install] Opening osascript dialog for confirmation (language=$user_language)"
+            answer=$(
+                /usr/bin/osascript <<-END
+                    set nameentry to button returned of (display dialog "${!dialog_confirmation_desc}" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_confirmation_button}" with icon 2)
+END
+)
+            if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
                 confirmation=2
+            else
+                confirmation=0
             fi
         fi
         if [[ "$confirmation" == "0"* ]]; then
@@ -1213,15 +1331,49 @@ dialog_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.ic
 # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
 [[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
 
-# show the full screen display
-if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
-    PID=$!
-elif [[ -f "$jamfHelper" && $reinstall == "yes" ]]; then
-    echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
-    "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
-    PID=$!
+# dialogs for reinstallation
+if [[ $erase == "yes" ]]; then
+    if [[ $use_depnotify == "yes" ]]; then
+        echo "   [erase-install] Opening DEPNotify full screen message (language=$user_language)"
+        dn_title="${!dialog_erase_title}"
+        dn_desc="${!dialog_erase_desc}"
+        dn_status="${!dialog_reinstall_status}"
+        dn_icon="$dialog_erase_icon"
+        dep_notify
+        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+    elif [[ -f "$jamfHelper" ]]; then
+        echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+        "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
+        PID=$!
+    else
+        echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+        /usr/bin/osascript <<-END &
+            display dialog "${!dialog_erase_desc}" buttons {"OK"} default button "OK" with icon stop
+END
+        PID=$!
+    fi
+
+# dialogs for reinstallation
+elif [[ $reinstall == "yes" ]]; then
+    if [[ $use_depnotify == "yes" ]]; then
+        echo "   [erase-install] Opening DEPNotify full screen message (language=$user_language)"
+        dn_title="${!dialog_reinstall_title}"
+        dn_desc="${!dialog_reinstall_desc}"
+        dn_status="${!dialog_reinstall_status}"
+        dn_icon="$dialog_reinstall_icon"
+        dep_notify
+        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+    elif [[ -f "$jamfHelper" ]]; then
+        echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+        "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
+        PID=$!
+    else
+        echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+        /usr/bin/osascript <<-END &
+            display alert "${!dialog_reinstall_desc}" buttons {"OK"} default button "OK" with icon stop
+END
+        PID=$!
+    fi
 fi
 
 # run it!
@@ -1250,8 +1402,9 @@ else
     sleep 120
 fi
 
-# kill Jamf FUD if startosinstall ends before a reboot
+# kill any dialogs if startosinstall ends before a reboot
 kill_process "jamfHelper"
+dep_notify_quit
 
 # kill caffeinate
 kill_process "caffeinate"
