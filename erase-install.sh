@@ -840,10 +840,12 @@ show_help() {
                         downloaded macOS installer to $installer_directory
     --path /path/to     Overrides the destination of --move to a specified directory
     --erase             After download, erases the current system
-                        and reinstalls macOS
+                        and reinstalls macOS.
     --confirm           Displays a confirmation dialog prior to erasing the current
                         system and reinstalling macOS. Only applicable with
                         --erase argument.
+    --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
+                        Only applicable with --reinstall and --erase arguments.
     --reinstall         After download, reinstalls macOS without erasing the
                         current system
     --overwrite         Download macOS installer even if an installer
@@ -890,6 +892,8 @@ show_help() {
                         run is shown in stdout.
     --no-fs             Replaces the full-screen jamfHelper window with a smaller dialog,
                         so you can still access the desktop while the script runs.
+    --no-jamfhelper     Ignores a jamfHelper installation, so that you can test (or use)
+                        osascript dialogs.
     --min-drive-space   override the default minimum space required for startosinstall
                         to run (45 GB).
     --pythonpath /path/to

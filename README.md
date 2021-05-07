@@ -184,6 +184,14 @@ In the event that the `installinstallmacos.py` script that's downloaded via this
 
 Note that downloading the installer does not require 10.13.4 or APFS, it is just the `startosinstall --eraseinstall` command that requires it.
 
+## Dialog options
+
+If the computer on which the script is running is enrolled to Jamf Pro, dialogs will be shown using the `jamfHelper` tool. Otherwise `osascript` dialogs are used.
+
+The `--no-jamfhelper` option causes `jamfHelper` to be ignored.
+
+The `--depnotify` option uses DEPNotify for dialogs.
+
 ## Setting up in Jamf Pro
 
 To run this script in Jamf Pro, upload the script, and then create a policy to run it. In the script parameters of the Policy, add the desired options, including the `--`.

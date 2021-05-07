@@ -4,6 +4,13 @@
 
 No date
 
+## [0.20.0]
+
+07.05.2021
+
+- `--depnotify` option. Uses DEPNotify instead of jamfHelper, if it is installed.
+- `--no-jamfhelper` option. Ignores the jamfHelper installation. Useful for testing the `osascript` dialogs.
+
 ## [0.19.2]
 
 26.04.2021
