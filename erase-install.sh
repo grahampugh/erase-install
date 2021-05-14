@@ -22,7 +22,7 @@
 
 
 # Version:
-version="0.20.0"
+version="0.20.1"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
