@@ -281,7 +281,7 @@ check_password() {
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         /usr/bin/osascript <<EOT
-            display dialog "${!dialog_invalid_user} $user." buttons {"OK"} default button 1 with icon 2
+            display dialog "${!dialog_invalid_user}: $user." buttons {"OK"} default button 1 with icon 2
 EOT
     exit 1
 	fi
