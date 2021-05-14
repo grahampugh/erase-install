@@ -1265,7 +1265,7 @@ if [[ $confirm == "yes" ]]; then
             echo "   [erase-install] Opening osascript dialog for confirmation (language=$user_language)"
             answer=$(
                 /usr/bin/osascript <<-END
-                    set nameentry to button returned of (display dialog "${!dialog_confirmation_desc}" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_confirmation_button}" with icon 2)
+                    set nameentry to button returned of (display dialog "${!dialog_confirmation_desc}" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
 END
 )
             if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
