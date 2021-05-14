@@ -1374,7 +1374,7 @@ elif [[ $reinstall == "yes" ]]; then
     else
         echo "   [erase-install] Opening osascript dialog (language=$user_language)"
         /usr/bin/osascript <<-END &
-            display alert "${!dialog_reinstall_desc}" buttons {"OK"} default button "OK" with icon stop
+            display dialog "${!dialog_reinstall_desc}" buttons {"OK"} default button "OK" with icon stop
 END
         PID=$!
     fi
