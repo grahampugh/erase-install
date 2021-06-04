@@ -51,101 +51,123 @@ DEP_NOTIFY_CONFIRMATION_FILE="/var/tmp/com.depnotify.provisioning.done"
 dialog_dl_title_en="Downloading macOS"
 dialog_dl_title_de="Download macOS"
 dialog_dl_title_nl="Downloaden macOS"
+dialog_dl_title_fr="Téléchargement de macOS"
 
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
 dialog_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
 dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
+dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur, cela prendra plusieurs minutes."
 
 # Dialogue localizations - erase lockscreen
 dialog_erase_title_en="Erasing macOS"
 dialog_erase_title_de="macOS Wiederherstellen"
 dialog_erase_title_nl="macOS Herinstalleren"
+dialog_erase_title_fr="Effacement de macOS"
 
 dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
 dialog_erase_desc_de="Das Vorbereiten des Installationsprogramms kann bis zu 30 Minuten dauern. Nach Abschluss wird Ihr Computer neu gestartet und die Neuinstallation fortgesetzt."
 dialog_erase_desc_nl="Het voorbereiden van het installatieprogramma kan tot 30 minuten duren. Zodra het proces is voltooid, wordt uw computer opnieuw opgestart en wordt de herinstallatie voortgezet."
+dialog_erase_desc_fr="La préparation de l'installation peut prendre jusqu'à 30 minutes. Une fois terminée, votre ordinateur redémarrera et poursuivra la réinstallation."
 
 # Dialogue localizations - reinstall lockscreen
 dialog_reinstall_title_en="Upgrading macOS"
 dialog_reinstall_title_de="Upgrading macOS"
 dialog_reinstall_title_nl="macOS upgraden"
+dialog_reinstall_title_fr="Mise à niveau de macOS"
 
 dialog_reinstall_status_en="Preparing macOS for reinstallation"
 dialog_reinstall_status_de="Vorbereiten von macOS für die Neuinstallation"
 dialog_reinstall_status_nl="MacOS voorbereiden voor herinstallatie"
+dialog_reinstall_status_fr="Préparation de macOS pour la réinstallation"
 
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
+dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
 
 dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
+dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
 
 # Dialogue localizations - confirmation window
 dialog_confirmation_title_en="Erasing macOS"
 dialog_confirmation_title_de="macOS wiederherstellen"
 dialog_confirmation_title_nl="macOS wissen"
+dialog_confirmation_title_fr="Effacement de macOS"
 
 dialog_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
 dialog_confirmation_desc_de="Bitte bestätigen, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
 dialog_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
+dialog_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
 
 dialog_confirmation_status_en="Press Cmd + Ctrl + C to Cancel"
 dialog_confirmation_status_de="Drücken Sie Cmd + Ctrl + C zum Abbrechen"
 dialog_confirmation_status_nl="Druk op Cmd + Ctrl + C om te Annuleren"
+dialog_confirmation_status_fr="Appuyez sur Cmd + Ctrl + C pour annuler"
 
 # Dialogue buttons
 dialog_confirmation_button_en="Confirm"
 dialog_confirmation_button_de="Bestätigen"
 dialog_confirmation_button_nl="Ja"
+dialog_confirmation_button_fr="Confirmer"
 
 dialog_cancel_button_en="Stop"
 dialog_cancel_button_de="Abbrechen"
 dialog_cancel_button_nl="Annuleren"
+dialog_cancel_button_fr="Annuler"
 
 dialog_enter_button_en="Enter"
 dialog_enter_button_de="Eingeben"
 dialog_enter_button_nl="Enter"
+dialog_enter_button_fr="Entrer"
 
 # Dialogue localizations - free space check
 dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
 dialog_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
 dialog_check_desc_nl="De macOS-upgrade kan niet worden geïnstalleerd op een computer met minder dan 45 GB schijfruimte."
+dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
 
 # Dialogue localizations - power check
 dialog_power_title_en="Waiting for AC Power Connection"
 dialog_power_title_de="Warten auf AC-Netzteil"
 dialog_power_title_nl="Wachten op Stroomadapter"
+dialog_power_title_fr="En attente de l'alimentation secteur"
 
 dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
 dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
 dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder"
+dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée."
 
 # Dialogue localizations - ask for short name
 dialog_short_name_en="Please enter an account name to start the reinstallation process"
 dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
 dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
+dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
 
 # Dialogue localizations - ask for password
 dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
 dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
 dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
+dialog_not_volume_owner_fr="le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
 dialog_invalid_user_en="This account cannot be used to to perform the reinstall"
 dialog_invalid_user_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
 dialog_invalid_user_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
+dialog_invalid_user_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
 dialog_invalid_password_de="ERROR: Das eingegebene Kennwort ist NICHT das Anmeldekennwort für"
 dialog_invalid_password_nl="FOUT: Het ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
+dialog_invalid_password_fr="ERREUR : Le mot de passe entré n'est PAS le mot de passe de connexion pour"
 
 # Dialogue localizations - not a volume owner
 dialog_get_password_en="Please enter the password for the account"
 dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
 dialog_get_password_nl="Voer het wachtwoord voor het account in"
+dialog_get_password_fr="Veuillez saisir le mot de passe du compte"
 
 # icon for download window
 dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
@@ -160,6 +182,8 @@ if [[ $language = de* ]]; then
     user_language="de"
 elif [[ $language = nl* ]]; then
     user_language="nl"
+elif [[ $language = fr* ]]; then
+    user_language="fr"
 else
     user_language="en"
 fi
