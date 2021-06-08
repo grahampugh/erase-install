@@ -18,7 +18,7 @@
 # shellcheck disable=SC2034
 # this is due to the dynamic variable assignments used in the localization strings
 # shellcheck disable=SC2001
-# this is to use sed in the case statements
+# this is to use sed in the case statements
 
 
 # Version:
@@ -146,8 +146,8 @@ EOT
 
 check_password() {
     # Check that the password entered matches actual password
-    # required for Silicon Macs
-    # thanks to Dan Snelson for the idea
+    # required for Silicon Macs
+    # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
 	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
@@ -241,7 +241,7 @@ check_power_status() {
         echo "   [check_power_status] WARNING - No AC power detected"
         if [[ "$power_wait_timer" -gt 0 ]]; then
             if [[ -f "$jamfHelper" ]]; then
-                # use jamfHelper if possible
+                # use jamfHelper if possible
                 "$jamfHelper" -windowType "utility" -title "${!jh_power_title}" -description "${!jh_power_desc}" -alignDescription "left" -icon "$jh_confirmation_icon" &
                 wait_for_power "jamfHelper"
             else
@@ -276,7 +276,7 @@ check_installer_is_valid() {
     # check installer validity:
     # The Build version in the app Info.plist is often older than the advertised build, 
     # so it's not a great check for validity
-    # check if running --erase, where we might be using the same build.
+    # check if running --erase, where we might be using the same build.
     # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
     # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
     if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
@@ -295,22 +295,22 @@ check_installer_is_valid() {
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
     # we need to break the build into component parts to compare versions
-    # 1. Darwin version is older in the installer than on the system
+    # 1. Darwin version is older in the installer than on the system
     if [[ ${installer_build:0:2} -lt ${system_build:0:2} ]]; then 
         invalid_installer_found="yes"
-    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
+    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
         invalid_installer_found="yes"
-    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
+    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
-        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
+        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
         if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
-        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
+        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
         fi
@@ -328,9 +328,9 @@ check_installer_is_valid() {
 check_installassistant_pkg_is_valid() {
     echo "   [check_installassistant_pkg_is_valid] Checking validity of $installer_pkg."
     # check InstallAssistant pkg validity
-    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
+    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
     # Extracting an actual version from the package is slow as the entire package must be unpackaged
-    # to read the PackageInfo file. 
+    # to read the PackageInfo file. 
     # We are here YOLOing the filename instead. Of course it could be spoofed, but that would not be
     # in anyone's interest to attempt as it will just make the script eventually fail.
     installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
@@ -396,7 +396,7 @@ move_to_applications_folder() {
         return
     fi
 
-    # if dealing with a package we now have to extract it and check it's valid
+    # if dealing with a package we now have to extract it and check it's valid
     if [[ -f "$installassistant_pkg" ]]; then
         echo "   [move_to_applications_folder] Extracting $installassistant_pkg to /Applications folder"
         /usr/sbin/installer -pkg "$installassistant_pkg" -tgt /
@@ -448,7 +448,7 @@ set_seedprogram() {
 }
 
 list_full_installers() {
-    # for 10.15.7 and above we can use softwareupdate --list-full-installers
+    # for 10.15.7 and above we can use softwareupdate --list-full-installers
     set_seedprogram
     echo
     /usr/sbin/softwareupdate --list-full-installers
@@ -507,7 +507,7 @@ get_installinstallmacos() {
             curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
         fi
     fi
-    # check it did actually get downloaded
+    # check it did actually get downloaded
     if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
         echo "Could not download installinstallmacos.py so cannot continue."
         exit 1
@@ -932,7 +932,7 @@ iim_downloaded=0
 os_version=$( /usr/bin/defaults read "/System/Library/CoreServices/SystemVersion.plist" ProductVersion )
 os_minor_version=$( echo "$os_version" | sed 's|^10\.||' | sed 's|\..*||' )
 
-# check for power and drive space if invoking erase or reinstall options
+# check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     free_space_check
     [[ "$check_power" == "yes" ]] && check_power_status
@@ -973,7 +973,7 @@ fi
 
 # Silicon Macs require a username and password to run startosinstall
 # We therefore need to be logged in to proceed, if we are going to erase or reinstall
-# This goes before the download so users aren't waiting for the prompt for username
+# This goes before the download so users aren't waiting for the prompt for username
 arch=$(/usr/bin/arch)
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
@@ -1087,7 +1087,7 @@ find_extra_packages
 # some cli options vary based on installer versions
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
 
-# add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
+# add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
 if [[ ${installer_build:0:2} -gt 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
@@ -1115,7 +1115,7 @@ jh_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.icns"
 # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
 [[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
 
-# show the full screen display
+# show the full screen display
 if [[ -f "$jamfHelper" && $erase == "yes" ]]; then
     echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
     "$jamfHelper" -windowType $window_type -title "${!jh_erase_title}" -heading "${!jh_erase_title}" -description "${!jh_erase_desc}" -icon "$jh_erase_icon" &
