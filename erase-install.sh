@@ -793,6 +793,7 @@ run_installinstallmacos() {
     if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
+	kill_pricess DEPNotify
         echo
         exit 1
     fi
