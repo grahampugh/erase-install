@@ -4,6 +4,13 @@
 
 No date
 
+## [0.21.0]
+
+20.07.2021
+
+-   Add French translation.
+-   Fix version for which `--allowremoval` is set when doing a reinstall.
+
 ## [0.20.1]
 
 12.05.2021

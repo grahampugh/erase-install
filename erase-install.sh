@@ -22,7 +22,7 @@
 
 
 # Version:
-version="0.20.1"
+version="0.21.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -1332,18 +1332,18 @@ find_extra_packages
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
 
 # add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
-if [[ ${installer_build:0:2} -gt 18 && $preservecontainer == "yes" ]]; then
+if [[ ${installer_build:0:2} -ge 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
 
 # OS X 10.12 (Darwin 16) requires the --applicationpath option
-if [[ ${installer_build:0:2} -lt 17 ]]; then
+if [[ ${installer_build:0:2} -le 16 ]]; then
     install_args+=("--applicationpath")
     install_args+=("$install_macos_app")
 fi
 
 # macOS 11 (Darwin 20) and above requires the --allowremoval option
-if [[ ${installer_build:0:2} -eq 19 ]]; then
+if [[ ${installer_build:0:2} -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
