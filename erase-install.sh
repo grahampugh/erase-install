@@ -20,9 +20,11 @@
 # shellcheck disable=SC2001
 # this is to use sed in the case statements
 
+# script name
+script_name="erase-install"
 
 # Version:
-version="0.20.1"
+version="0.21.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -215,8 +217,8 @@ dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 kill_process() {
     process="$1"
     if /usr/bin/pgrep -a "$process" >/dev/null ; then 
-        /usr/bin/pkill -a "$process" && echo "   [erase-install] '$process' ended" || \
-        echo "   [erase-install] '$process' could not be killed"
+        /usr/bin/pkill -a "$process" && echo "   [$script_name] '$process' ended" || \
+        echo "   [$script_name] '$process' could not be killed"
     fi
 }
 
@@ -425,7 +427,6 @@ free_space_check() {
     free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
     
     min_drive_bytes=$(( min_drive_space * 1000000 ))
-    echo $min_drive_bytes
     if [[ $free_disk_space -ge $min_drive_bytes ]]; then
         echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
     else
@@ -547,6 +548,9 @@ find_existing_installer() {
         check_installassistant_pkg_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
+        if [[ $clear_cache == "yes" ]]; then
+            exit
+        fi
     fi
 }
 
@@ -554,13 +558,17 @@ overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
     existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
     if [[ -d "$existing_installer" ]]; then
-        echo "   [erase-install] Mounted installer will be unmounted: $existing_installer"
+        echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
         existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
         diskutil unmount force "$existing_installer_mount_point"
     fi
     rm -f "$macos_dmg" "$macos_sparseimage"
     rm -rf "$installer_app"
     app_is_in_applications_folder=""
+    if [[ $clear_cache == "yes" ]]; then
+        echo "   [overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
+        exit
+    fi
 }
 
 move_to_applications_folder() {
@@ -652,17 +660,20 @@ run_fetch_full_installer() {
                 if [[ $invalid_installer_found == "yes" ]]; then
                     echo "   [run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
                     kill_process jamfHelper
+            	    kill_process DEPNotify
                     exit 1
                 fi
             fi
         else
             echo "   [run_fetch_full_installer] No install app found. I guess nothing got downloaded."
             kill_process jamfHelper
+    	    kill_process DEPNotify
             exit 1
         fi
     else
         echo "   [run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
         kill_process jamfHelper
+	    kill_process DEPNotify
         exit 1
     fi
 }
@@ -793,6 +804,7 @@ run_installinstallmacos() {
     if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
+	    kill_process DEPNotify
         echo
         exit 1
     fi
@@ -819,6 +831,7 @@ run_installinstallmacos() {
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         kill_process jamfHelper
+	    kill_process DEPNotify
         exit 1
     fi
 }
@@ -826,7 +839,7 @@ run_installinstallmacos() {
 # Functions
 show_help() {
     echo "
-    [erase-install] by @GrahamRPugh
+    [$script_name] by @GrahamRPugh
 
     Common usage:
     [sudo] ./erase-install.sh [--list]  [--overwrite] [--move] [--path /path/to]
@@ -989,6 +1002,8 @@ do
             ;;
         --test-run) test_run="yes"
             ;;
+        --clear-cache-only) clear_cache="yes"
+            ;;
         --depnotify) 
             if [[ -d "$DEP_NOTIFY_APP" ]]; then
                 use_depnotify="yes"
@@ -1084,7 +1099,7 @@ do
 done
 
 echo
-echo "   [erase-install] v$version script execution started: $(date)"
+echo "   [$script_name] v$version script execution started: $(date)"
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list_installers ]]; then
@@ -1093,9 +1108,10 @@ if [[ $list_installers ]]; then
     exit
 fi
 
+
 # ensure computer does not go to sleep while running this script
 pid=$$
-echo "   [erase-install] Caffeinating this script (pid=$pid)"
+echo "   [$script_name] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -dimsu -w $pid &
 caffeinate_pid=$!
 
@@ -1117,40 +1133,65 @@ system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 
 # check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+    # announce that the Test Run mode is implemented
+    if [[ $test_run == "yes" ]]; then
+        echo
+        echo "*** TEST-RUN ONLY! ***"
+        echo "* This script will perform all tasks up to the point of erase or reinstall,"
+        echo "* but will not actually erase or reinstall."
+        echo "* Remove the --test-run argument to perform the erase or reinstall."
+        echo "**********************"
+        echo
+    fi
     free_space_check
     [[ "$check_power" == "yes" ]] && check_power_status
 fi
 
 # Look for the installer, download it if it is not present
-echo "   [erase-install] Looking for existing installer"
+echo "   [$script_name] Looking for existing installer"
 find_existing_installer
 
 if [[ $invalid_installer_found == "yes" && -d "$install_macos_app" && $replace_invalid_installer == "yes" ]]; then
     overwrite_existing_installer
 elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$installassistant_pkg") && $replace_invalid_installer == "yes" ]]; then
-    echo "   [erase-install] Deleting invalid installer package"
+    echo "   [$script_name] Deleting invalid installer package"
     rm -f "$install_macos_app"
+    if [[ $clear_cache == "yes" ]]; then
+        echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        exit
+    fi
 elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "yes" ]]; then
-    echo "   [erase-install] Checking for newer installer"
+    echo "   [$script_name] Checking for newer installer"
     check_newer_available
     if [[ $newer_build_found == "yes" ]]; then 
-        echo "   [erase-install] Newer installer found so overwriting existing installer"
+        echo "   [$script_name] Newer installer found so overwriting existing installer"
         overwrite_existing_installer
+    elif [[ $clear_cache == "yes" ]]; then
+        echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
-    echo "   [erase-install] Checking for newer installer"
+    echo "   [$script_name] Checking for newer installer"
     check_newer_available
     if [[ $newer_build_found == "yes" ]]; then 
-        echo "   [erase-install] Newer installer found so deleting existing installer package"
+        echo "   [$script_name] Newer installer found so deleting existing installer package"
         rm -f "$install_macos_app"
+    fi
+    if [[ $clear_cache == "yes" ]]; then
+        echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        exit
     fi
 elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
     overwrite_existing_installer
 elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") && ! $list ]]; then
-    echo "   [erase-install] Deleting invalid installer package"
+    echo "   [$script_name] Deleting invalid installer package"
     rm -f "$installassistant_pkg"
+    if [[ $clear_cache == "yes" ]]; then
+        echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        exit
+    fi
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
-    echo "   [erase-install] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+    echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
     exit 1
 fi
 
@@ -1160,7 +1201,7 @@ fi
 arch=$(/usr/bin/arch)
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
-        echo "    [erase-install] ERROR! The startosinstall binary requires a user to be logged in."
+        echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
         echo
         exit 1
     fi
@@ -1168,21 +1209,21 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
 fi
 
 if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; then
-    echo "   [erase-install] Starting download process"
+    echo "   [$script_name] Starting download process"
     # if erasing or reinstalling, open a dialog to state that the download is taking place.
     if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         if [[ $use_depnotify == "yes" ]]; then
-            echo "   [erase-install] Opening DEPNotify download message (language=$user_language)"
+            echo "   [$script_name] Opening DEPNotify download message (language=$user_language)"
             dn_title="${!dialog_dl_title}"
             dn_desc="${!dialog_dl_desc}"
             dn_status="${!dialog_dl_title}"
             dn_icon="$dialog_dl_icon"
             dep_notify
         elif [[ -f "$jamfHelper" ]]; then
-            echo "   [erase-install] Opening jamfHelper download message (language=$user_language)"
+            echo "   [$script_name] Opening jamfHelper download message (language=$user_language)"
             "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
         else
-            echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+            echo "   [$script_name] Opening osascript dialog (language=$user_language)"
             /usr/bin/osascript -e "display alert \"${!dialog_dl_title}\" message \"${!dialog_dl_desc}\" buttons {\"OK\"} default button \"OK\" with icon 2"
         fi
     fi
@@ -1190,10 +1231,10 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     # now run installinstallmacos or softwareupdate
     if [[ $ffi ]]; then
         if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
-            echo "   [erase-install] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
+            echo "   [$script_name] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
             run_fetch_full_installer
         else
-            echo "   [erase-install] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
+            echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
             run_installinstallmacos
         fi
     else
@@ -1201,24 +1242,24 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     fi
     # Once finished downloading, kill the jamfHelper
     if [[ $use_depnotify == "yes" ]]; then
-        echo "   [erase-install] Closing DEPNotify download message (language=$user_language)"
+        echo "   [$script_name] Closing DEPNotify download message (language=$user_language)"
         dn_finished="Download complete!" # TODO localize this message
         dep_notify_quit
     elif [[ -f "$jamfHelper" ]]; then
-        echo "   [erase-install] Closing jamfHelper download message (language=$user_language)"
+        echo "   [$script_name] Closing jamfHelper download message (language=$user_language)"
         kill_process "jamfHelper"
     fi
 fi
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     if [[ -d "$install_macos_app" ]]; then
-        echo "   [erase-install] Installer is at: $install_macos_app"
+        echo "   [$script_name] Installer is at: $install_macos_app"
     fi
 
     # Move to $installer_directory if move_to_applications_folder flag is included
     # Not allowed for fetch_full_installer option
     if [[ $move == "yes" && ! $ffi ]]; then
-        echo "   [erase-install] Invoking --move option"
+        echo "   [$script_name] Invoking --move option"
         move_to_applications_folder
     fi
 
@@ -1226,13 +1267,13 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     if [[ ! $ffi ]]; then
         existing_installer=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         if [[ -d "$existing_installer" ]]; then
-            echo "   [erase-install] Mounted installer will be unmounted: $existing_installer"
+            echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
             existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
             diskutil unmount force "$existing_installer_mount_point"
         fi
     fi
     # Clear the working directory
-    echo "   [erase-install] Cleaning working directory '$workdir/content'"
+    echo "   [$script_name] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"
     # kill caffeinate
     kill_process "caffeinate"
@@ -1244,11 +1285,11 @@ fi
 
 echo
 if [[ ! -d "$install_macos_app" ]]; then
-    echo "   [erase-install] ERROR: Can't find the installer! "
+    echo "   [$script_name] ERROR: Can't find the installer! "
     exit 1
 fi
-[[ $erase == "yes" ]] && echo "   [erase-install] WARNING! Running $install_macos_app with eraseinstall option"
-[[ $reinstall == "yes" ]] && echo "   [erase-install] WARNING! Running $install_macos_app with reinstall option"
+[[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $install_macos_app with eraseinstall option"
+[[ $reinstall == "yes" ]] && echo "   [$script_name] WARNING! Running $install_macos_app with reinstall option"
 echo
 
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
@@ -1256,7 +1297,7 @@ if [[ $confirm == "yes" ]]; then
     if [[ $erase == "yes" ]]; then
         if [[ $use_depnotify == "yes" ]]; then
             # DEPNotify dialog option
-            echo "   [erase-install] Opening DEPNotify confirmation message (language=$user_language)"
+            echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
             dn_title="${!dialog_confirmation_title}"
             dn_desc="${!dialog_confirmation_desc}"
             dn_status="${!dialog_confirmation_status}"
@@ -1281,12 +1322,12 @@ if [[ $confirm == "yes" ]]; then
             dep_notify_quit
         elif [[ -f "$jamfHelper" ]]; then
             # jamfHelper dialog option
-            echo "   [erase-install] Opening jamfHelper confirmation message (language=$user_language)"
+            echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
             "$jamfHelper" -windowType utility -title "${!dialog_confirmation_title}" -alignHeading center -alignDescription natural -description "${!dialog_confirmation_desc}" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
             confirmation=$?
         else
             # osascript dialog option
-            echo "   [erase-install] Opening osascript dialog for confirmation (language=$user_language)"
+            echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
             answer=$(
                 /usr/bin/osascript <<-END
                     set nameentry to button returned of (display dialog "${!dialog_confirmation_desc}" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
@@ -1299,16 +1340,16 @@ END
             fi
         fi
         if [[ "$confirmation" == "0"* ]]; then
-            echo "   [erase-install] User DECLINED erase/install"
+            echo "   [$script_name] User DECLINED erase/install"
             exit 0
         elif [[ "$confirmation" == "2"* ]]; then
-            echo "   [erase-install] User CONFIRMED erase/install"
+            echo "   [$script_name] User CONFIRMED erase/install"
         else
-            echo "   [erase-install] User FAILED to confirm erase/install"
+            echo "   [$script_name] User FAILED to confirm erase/install"
             exit 1
         fi
     else
-        echo "   [erase-install] --confirm requires --erase argument; ignoring"
+        echo "   [$script_name] --confirm requires --erase argument; ignoring"
     fi
 fi
 
@@ -1332,18 +1373,18 @@ find_extra_packages
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
 
 # add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
-if [[ ${installer_build:0:2} -gt 18 && $preservecontainer == "yes" ]]; then
+if [[ ${installer_build:0:2} -ge 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
 
 # OS X 10.12 (Darwin 16) requires the --applicationpath option
-if [[ ${installer_build:0:2} -lt 17 ]]; then
+if [[ ${installer_build:0:2} -le 16 ]]; then
     install_args+=("--applicationpath")
     install_args+=("$install_macos_app")
 fi
 
 # macOS 11 (Darwin 20) and above requires the --allowremoval option
-if [[ ${installer_build:0:2} -eq 19 ]]; then
+if [[ ${installer_build:0:2} -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
@@ -1362,7 +1403,7 @@ dialog_reinstall_icon="$install_macos_app/Contents/Resources/InstallAssistant.ic
 # dialogs for reinstallation
 if [[ $erase == "yes" ]]; then
     if [[ $use_depnotify == "yes" ]]; then
-        echo "   [erase-install] Opening DEPNotify full screen message (language=$user_language)"
+        echo "   [$script_name] Opening DEPNotify full screen message (language=$user_language)"
         dn_title="${!dialog_erase_title}"
         dn_desc="${!dialog_erase_desc}"
         dn_status="${!dialog_reinstall_status}"
@@ -1370,11 +1411,11 @@ if [[ $erase == "yes" ]]; then
         dep_notify
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
-        echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+        echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
         PID=$!
     else
-        echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+        echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         /usr/bin/osascript <<-END &
             display dialog "${!dialog_erase_desc}" buttons {"OK"} default button "OK" with icon stop
 END
@@ -1384,7 +1425,7 @@ END
 # dialogs for reinstallation
 elif [[ $reinstall == "yes" ]]; then
     if [[ $use_depnotify == "yes" ]]; then
-        echo "   [erase-install] Opening DEPNotify full screen message (language=$user_language)"
+        echo "   [$script_name] Opening DEPNotify full screen message (language=$user_language)"
         dn_title="${!dialog_reinstall_title}"
         dn_desc="${!dialog_reinstall_desc}"
         dn_status="${!dialog_reinstall_status}"
@@ -1392,11 +1433,11 @@ elif [[ $reinstall == "yes" ]]; then
         dep_notify
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
-        echo "   [erase-install] Opening jamfHelper full screen message (language=$user_language)"
+        echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
         PID=$!
     else
-        echo "   [erase-install] Opening osascript dialog (language=$user_language)"
+        echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         /usr/bin/osascript <<-END &
             display dialog "${!dialog_reinstall_desc}" buttons {"OK"} default button "OK" with icon stop
 END
@@ -1421,7 +1462,7 @@ if [[ $test_run != "yes" ]]; then
     # kill Self Service if running
     kill_process "Self Service"
 else
-    echo "   [erase-install] Run without '--test-run' to run this command:"
+    echo "   [$script_name] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
         echo "$install_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
     else
@@ -1440,5 +1481,5 @@ kill_process "caffeinate"
 # if we get this far and we promoted the user then we should demote it again
 if [[ $promoted_user ]]; then
     /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-    echo "     [erase-install] User $promoted_user was demoted back to standard user"
+    echo "     [$script_name] User $promoted_user was demoted back to standard user"
 fi
