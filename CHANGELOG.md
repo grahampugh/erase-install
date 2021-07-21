@@ -8,8 +8,10 @@ No date
 
 20.07.2021
 
--   Add French translation.
+-   Add French translation (thanks @Darkomen78).
 -   Fix version for which `--allowremoval` is set when doing a reinstall.
+-   Kill DEPNotify in places where jamfHelper is killed (thanks @julienvs).
+-   Added '$script_name' variable - if you want to change the script name, the echo statements will reflect this value rather than 'erase-install'.
 
 ## [0.20.1]
 
@@ -317,7 +319,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 -   Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.20.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/grahampugh/erase-install/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/grahampugh/erase-install/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/grahampugh/erase-install/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/grahampugh/erase-install/compare/v0.19.1...v0.19.2
