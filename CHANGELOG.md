@@ -9,9 +9,11 @@ No date
 20.07.2021
 
 -   Add French translation (thanks @Darkomen78).
--   Fix version for which `--allowremoval` is set when doing a reinstall.
--   Kill DEPNotify in places where jamfHelper is killed (thanks @julienvs).
+-   Fix version for which `--allowremoval` is set when doing a reinstall (thanks @anverhousseini).
+-   Kill DEPNotify in places where jamfHelper is killed (#106, thanks @julienvs).
 -   Added '$script_name' variable - if you want to change the script name, the echo statements will reflect this value rather than 'erase-install'.
+-   Added `--clear-cache-only` option, which works in conjunction with `--overwrite` or `--update` to perform the removal of cached installers but then quit rather than carry on with any further workflow (#105).
+-   Added a more verbose message that `--test-run` has been implemented (#93).
 
 ## [0.20.1]
 
