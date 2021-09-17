@@ -274,8 +274,8 @@ dep_notify_progress() {
     do
         until [ $numMsgAct -gt $numMsgBef ]
         do
-        numMsgAct=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
-        sleep 2
+            numMsgAct=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+            sleep 2
         done
         echo "Command: DeterminateManualStep: $((numMsgAct-numMsgBef))" >> $DEP_NOTIFY_LOG
         echo "Status: $dn_status - $numMsgAct%" >> $DEP_NOTIFY_LOG
