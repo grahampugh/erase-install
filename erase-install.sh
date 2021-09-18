@@ -257,32 +257,6 @@ dep_notify() {
 
 }
 
-dep_notify_progress() {
-    numMsgBef=0
-    numMsgAct=0
-
-    # Wait for the preparing process to start and set the progress bar to 100 steps
-    until grep -q "Preparing: \d" $LOG_FILE
-    do
-        sleep 2
-    done
-    echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
-    echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
-
-    # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
-    until [ $numMsgAct -ge 100 ]
-    do
-        until [ $numMsgAct -gt $numMsgBef ]
-        do
-            numMsgAct=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
-            sleep 2
-        done
-        echo "Command: DeterminateManualStep: $((numMsgAct-numMsgBef))" >> $DEP_NOTIFY_LOG
-        echo "Status: $dn_status - $numMsgAct%" >> $DEP_NOTIFY_LOG
-        numMsgBef=$numMsgAct
-    done
-}
-
 dep_notify_quit() {
     # quit DEP Notify
     echo "Command: Quit" >> "$DEP_NOTIFY_LOG"
@@ -291,11 +265,6 @@ dep_notify_quit() {
     dn_button=""
     dn_quit_key=""
     dn_cancel=""
-    # kill dep_notify_progress background job if it's already running
-    if [ -f "/tmp/dn_progressPID" ]; then
-        while read i; do kill -9 ${i}; done</tmp/dn_progressPID
-        rm /tmp/dn_progressPID;
-    fi
 }
 
 ask_for_shortname() {
@@ -1440,8 +1409,6 @@ if [[ $erase == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
         dep_notify
-        dep_notify_progress &
-        echo $! >> /tmp/dn_progressPID
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
@@ -1464,8 +1431,6 @@ elif [[ $reinstall == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
         dep_notify
-        dep_notify_progress &
-        echo $! >> /tmp/dn_progressPID
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
