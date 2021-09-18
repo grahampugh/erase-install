@@ -1354,7 +1354,7 @@ END
 fi
 
 # determine SIP status, as the volume is required if SIP is disabled
-/usr/bin/csrutil status | grep -q 'disabled' && sip="disabled" || sip="enabled"
+/usr/bin/csrutil status | sed -n 1p | grep -q 'disabled' && sip="disabled" || sip="enabled"
 
 # set install argument for erase option
 install_args=()
