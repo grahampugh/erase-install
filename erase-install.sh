@@ -476,9 +476,9 @@ check_installer_is_valid() {
     elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
         invalid_installer_found="yes"
     # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -lt ${system_build:3:2} ]]; then
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:3} -lt ${system_build:3:2} ]]; then
         echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:2} -eq ${system_build:3:2} ]]; then
+    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:3} -eq ${system_build:3:2} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
         # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
@@ -705,14 +705,15 @@ get_installinstallmacos() {
 check_newer_available() {
     # Download installinstallmacos.py
     get_installinstallmacos
-
     # run installinstallmacos.py with list and then interrogate the plist
     [[ ! -f "$python_path" ]] && python_path=$(which python)
     "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
     i=0
     newer_build_found="no"
     while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
-        if [[ $available_build > $installer_build ]]; then
+        available_build_minor=${available_build:3:3}
+        installer_build_minor=${installer_build:3:3}
+        if [[ ${available_build_minor//[!0-9]/} -gt ${installer_build_minor//[!0-9]/} ]] && [[ ${available_build:0:2} -ge ${installer_build:0:2} ]]; then
             echo "   [check_newer_available] $available_build > $installer_build"
             newer_build_found="yes"
             break
@@ -721,6 +722,7 @@ check_newer_available() {
     done
     [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
 }
+
 
 run_installinstallmacos() {
     # Download installinstallmacos.py
