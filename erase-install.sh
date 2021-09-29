@@ -92,17 +92,19 @@ dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac st
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
 
-# Dialogue localizations - confirmation window
-dialog_confirmation_title_en="Erasing macOS"
-dialog_confirmation_title_de="macOS wiederherstellen"
-dialog_confirmation_title_nl="macOS wissen"
-dialog_confirmation_title_fr="Effacement de macOS"
+# Dialogue localizations - confirmation window (erase)
+dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
+dialog_erase_confirmation_desc_de="Bitte bestätigen, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
+dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
+dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
 
-dialog_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
-dialog_confirmation_desc_de="Bitte bestätigen, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
-dialog_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
-dialog_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
+# Dialogue localizations - confirmation window (reinstall)
+dialog_reinstall_confirmation_desc_en="Please confirm that you want to upgrade macOS on this system now"
+dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten"
+dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
+dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
 
+# Dialogue localizations - confirmation window status
 dialog_confirmation_status_en="Press Cmd + Ctrl + C to Cancel"
 dialog_confirmation_status_de="Drücken Sie Cmd + Ctrl + C zum Abbrechen"
 dialog_confirmation_status_nl="Druk op Cmd + Ctrl + C om te Annuleren"
@@ -199,10 +201,14 @@ dialog_reinstall_title=dialog_reinstall_title_${user_language}
 dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 dialog_reinstall_status=dialog_reinstall_status_${user_language}
-dialog_confirmation_title=dialog_confirmation_title_${user_language}
-dialog_confirmation_desc=dialog_confirmation_desc_${user_language}
-dialog_confirmation_status=dialog_confirmation_status_${user_language}
-dialog_confirmation_button=dialog_confirmation_button_${user_language}
+dialog_erase_confirmation_title=dialog_erase_confirmation_title_${user_language}
+dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
+dialog_erase_confirmation_status=dialog_erase_confirmation_status_${user_language}
+dialog_erase_confirmation_button=dialog_erase_confirmation_button_${user_language}
+dialog_reinstall_confirmation_title=dialog_reinstall_confirmation_title_${user_language}
+dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
+dialog_reinstall_confirmation_status=dialog_reinstall_confirmation_status_${user_language}
+dialog_reinstall_confirmation_button=dialog_reinstall_confirmation_button_${user_language}
 dialog_cancel_button=dialog_cancel_button_${user_language}
 dialog_enter_button=dialog_enter_button_${user_language}
 dialog_check_desc=dialog_check_desc_${user_language}
@@ -213,6 +219,8 @@ dialog_invalid_user=dialog_invalid_user_${user_language}
 dialog_get_password=dialog_get_password_${user_language}
 dialog_invalid_password=dialog_invalid_password_${user_language}
 dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
+
+## FUNCTIONS
 
 kill_process() {
     process="$1"
@@ -502,32 +510,41 @@ check_installer_is_valid() {
 
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
-    # we need to break the build into component parts to compare versions
+    # we need to break the build into component parts to fully compare versions
+    installer_darwin_version=${installer_build:0:2}
+    system_darwin_version=${system_build:0:2}
+    installer_build_letter=${installer_build:2:1}
+    system_build_letter=${system_build:2:1}
+    installer_build_version=${installer_build:3}
+    system_build_version=${system_build:3}
+
     # 1. Darwin version is older in the installer than on the system
-    if [[ ${installer_build:0:2} -lt ${system_build:0:2} ]]; then 
+    if [[ $installer_darwin_version -lt $system_darwin_version ]]; then 
         invalid_installer_found="yes"
     # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} < ${system_build:2:1} ]]; then
+    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter < $system_build_letter ]]; then
         invalid_installer_found="yes"
-    # 3. Darwin version and build letter (minor version) matches but the first two build version numbers are older in the installer than on the system
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:3} -lt ${system_build:3:2} ]]; then
-        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
-    elif [[ ${installer_build:0:2} -eq ${system_build:0:2} && ${installer_build:2:1} == "${system_build:2:1}" && ${installer_build:3:3} -eq ${system_build:3:2} ]]; then
+    # 3. Darwin version and build letter (minor version) matches but the first three build version numbers are older in the installer than on the system
+    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:3} -lt ${system_build_version:3} ]]; then
+        warning_issued="yes"
+    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:3} -eq ${system_build_version:3} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
-        # 4. Darwin version, build letter (minor version) and first two build version numbers match, but the second two build version numbers are older in the installer than on the system
+        # 4. Darwin version, build letter (minor version) and first three build version numbers match, but the fourth build version number is older in the installer than on the system
         if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
-        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
+        warning_issued="yes"
         # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
         elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
-        echo "   [check_installer_is_valid] Warning: $installer_build < $system_build - find newer installer if this one fails"
+        warning_issued="yes"
         fi
     fi
 
     if [[ "$invalid_installer_found" == "yes" ]]; then
-        echo "   [check_installer_is_valid] Installer: $installer_build ; System: $system_build : invalid build."
+        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
+    elif [[ "$warning_issued" == "yes" ]]; then
+        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
     else
-        echo "   [check_installer_is_valid] Installer: $installer_build ; System: $system_build : valid build."
+        echo "   [check_installer_is_valid] Installer: $installer_build > System: $system_build : valid build."
     fi
 
     install_macos_app="$installer_app"
@@ -872,7 +889,79 @@ run_installinstallmacos() {
     fi
 }
 
-# Functions
+confirm() {
+    if [[ $use_depnotify == "yes" ]]; then
+        # DEPNotify dialog option
+        echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            dn_title="${!dialog_erase_title}"
+            dn_desc="${!dialog_erase_confirmation_desc}"
+        else
+            dn_title="${!dialog_reinstall_title}"
+            dn_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        dn_status="${!dialog_confirmation_status}"
+        dn_icon="$dialog_confirmation_icon"
+        dn_button="${!dialog_confirmation_button}"
+        dn_quit_key="c"
+        dep_notify
+        dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        # wait for the confirmation button to be pressed or for the user to cancel
+        until [[ "$dn_pid" = "" ]]; do
+            sleep 1
+            dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        done
+        # DEPNotify creates a bom file if the user presses the confirmation button
+        # but not if they cancel
+        if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
+            confirmation=2
+        else
+            confirmation=0
+        fi
+        # now clear the button, quit key and dialog
+        dep_notify_quit
+    elif [[ -f "$jamfHelper" ]]; then
+        # jamfHelper dialog option
+        echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            jh_title="${!dialog_erase_title}"
+            jh_desc="${!dialog_erase_confirmation_desc}"
+        else
+            jh_title="${!dialog_reinstall_title}"
+            jh_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
+        confirmation=$?
+    else
+        # osascript dialog option
+        echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            osa_desc="${!dialog_erase_confirmation_desc}"
+        else
+            osa_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        answer=$(
+            /usr/bin/osascript <<-END
+                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
+END
+)
+        if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
+            confirmation=2
+        else
+            confirmation=0
+        fi
+    fi
+    if [[ "$confirmation" == "0"* ]]; then
+        echo "   [$script_name] User DECLINED erase-install or reinstall"
+        exit 0
+    elif [[ "$confirmation" == "2"* ]]; then
+        echo "   [$script_name] User CONFIRMED erase-install or reinstall"
+    else
+        echo "   [$script_name] User FAILED to confirm erase-install or reinstall"
+        exit 1
+    fi
+}
+
 show_help() {
     echo "
     [$script_name] by @GrahamRPugh
@@ -915,8 +1004,7 @@ show_help() {
     --erase             After download, erases the current system
                         and reinstalls macOS.
     --confirm           Displays a confirmation dialog prior to erasing the current
-                        system and reinstalling macOS. Only applicable with
-                        --erase argument.
+                        system and reinstalling macOS. 
     --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
                         Only applicable with --reinstall and --erase arguments.
     --reinstall         After download, reinstalls macOS without erasing the
@@ -984,7 +1072,7 @@ show_help() {
 }
 
 
-# Main body
+## MAIN BODY
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -1341,63 +1429,7 @@ echo
 
 # If configured to do so, display a confirmation window to the user. Note: default button is cancel
 if [[ $confirm == "yes" ]]; then
-    if [[ $erase == "yes" ]]; then
-        if [[ $use_depnotify == "yes" ]]; then
-            # DEPNotify dialog option
-            echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
-            dn_title="${!dialog_confirmation_title}"
-            dn_desc="${!dialog_confirmation_desc}"
-            dn_status="${!dialog_confirmation_status}"
-            dn_icon="$dialog_confirmation_icon"
-            dn_button="${!dialog_confirmation_button}"
-            dn_quit_key="c"
-            dep_notify
-            dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
-            # wait for the confirmation button to be pressed or for the user to cancel
-            until [[ "$dn_pid" = "" ]]; do
-                sleep 1
-                dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
-            done
-            # DEPNotify creates a bom file if the user presses the confirmation button
-            # but not if they cancel
-            if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
-                confirmation=2
-            else
-                confirmation=0
-            fi
-            # now clear the button, quit key and dialog
-            dep_notify_quit
-        elif [[ -f "$jamfHelper" ]]; then
-            # jamfHelper dialog option
-            echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
-            "$jamfHelper" -windowType utility -title "${!dialog_confirmation_title}" -alignHeading center -alignDescription natural -description "${!dialog_confirmation_desc}" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
-            confirmation=$?
-        else
-            # osascript dialog option
-            echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
-            answer=$(
-                /usr/bin/osascript <<-END
-                    set nameentry to button returned of (display dialog "${!dialog_confirmation_desc}" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
-END
-)
-            if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
-                confirmation=2
-            else
-                confirmation=0
-            fi
-        fi
-        if [[ "$confirmation" == "0"* ]]; then
-            echo "   [$script_name] User DECLINED erase/install"
-            exit 0
-        elif [[ "$confirmation" == "2"* ]]; then
-            echo "   [$script_name] User CONFIRMED erase/install"
-        else
-            echo "   [$script_name] User FAILED to confirm erase/install"
-            exit 1
-        fi
-    else
-        echo "   [$script_name] --confirm requires --erase argument; ignoring"
-    fi
+    confirm
 fi
 
 # determine SIP status, as the volume is required if SIP is disabled
@@ -1418,25 +1450,25 @@ find_extra_packages
 
 # some cli options vary based on installer versions
 installer_build=$( /usr/bin/defaults read "$install_macos_app/Contents/Info.plist" DTSDKBuild )
-
+installer_darwin_version=${installer_build:0:2}
 # add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
-if [[ ${installer_build:0:2} -ge 18 && $preservecontainer == "yes" ]]; then
+if [[ $installer_darwin_version -ge 18 && $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
 fi
 
 # OS X 10.12 (Darwin 16) requires the --applicationpath option
-if [[ ${installer_build:0:2} -le 16 ]]; then
+if [[ $installer_darwin_version -le 16 ]]; then
     install_args+=("--applicationpath")
     install_args+=("$install_macos_app")
 fi
 
 # macOS 11 (Darwin 20) and above requires the --allowremoval option
-if [[ ${installer_build:0:2} -ge 20 ]]; then
+if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
-if [[  ${installer_build:0:2} -ge 19 ]]; then    
+if [[  $installer_darwin_version -ge 19 ]]; then    
     install_args+=("--forcequitapps")
 fi
 
