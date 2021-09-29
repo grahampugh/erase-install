@@ -760,9 +760,18 @@ check_newer_available() {
     i=0
     newer_build_found="no"
     while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
+        available_build_darwin=${available_build:0:2}
+        installer_build_darwin=${installer_build:0:2}
+        available_build_letter=${available_build:2:1}
+        installer_build_letter=${installer_build:2:1}
         available_build_minor=${available_build:3:3}
         installer_build_minor=${installer_build:3:3}
-        if [[ ${available_build_minor//[!0-9]/} -gt ${installer_build_minor//[!0-9]/} ]] && [[ ${available_build:0:2} -ge ${installer_build:0:2} ]]; then
+        echo "   [check_newer_available] Checking available: $available_build vs. installer: $installer_build"
+        if [[ $available_build_letter -gt $installer_build_minor && $available_build_darwin -ge $installer_build_darwin ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build"
+            newer_build_found="yes"
+            break
+        elif [[ $available_build_letter == "$installer_build_minor" && ${available_build_minor//[!0-9]/} -gt ${installer_build_minor//[!0-9]/} && $available_build_darwin -ge $installer_build_darwin ]]; then
             echo "   [check_newer_available] $available_build > $installer_build"
             newer_build_found="yes"
             break
