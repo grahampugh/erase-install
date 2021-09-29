@@ -24,7 +24,7 @@
 script_name="erase-install"
 
 # Version:
-version="0.21.0"
+version="0.22.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -257,14 +257,48 @@ dep_notify() {
 
 }
 
+dep_notify_progress() {
+    # function for DEPNotify to show progress while the installer is being prepared
+    last_progress_value=0
+    current_progress_value=0
+
+    # Wait for the preparing process to start and set the progress bar to 100 steps
+    until grep -q "Preparing: \d" $LOG_FILE
+    do
+        sleep 2
+    done
+    echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+    echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+    # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
+    until [ $current_progress_value -ge 100 ]
+    do
+        until [ $current_progress_value -gt $last_progress_value ]
+        do
+            current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+            sleep 2
+        done
+        echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+        last_progress_value=$current_progress_value
+    done
+}
+
 dep_notify_quit() {
     # quit DEP Notify
     echo "Command: Quit" >> "$DEP_NOTIFY_LOG"
     # reset all the settings that might be used again
-    rm "$DEP_NOTIFY_LOG" "$DEP_NOTIFY_CONFIRMATION_FILE" 2>/dev/null
+    /bin/rm "$DEP_NOTIFY_LOG" "$DEP_NOTIFY_CONFIRMATION_FILE" 2>/dev/null
     dn_button=""
     dn_quit_key=""
     dn_cancel=""
+    # kill dep_notify_progress background job if it's already running
+    if [ -f "/tmp/depnotify_progress_pid" ]; then
+        while read i; do
+            kill -9 ${i}
+        done < /tmp/depnotify_progress_pid
+        /bin/rm /tmp/depnotify_progress_pid
+    fi
 }
 
 ask_for_shortname() {
@@ -896,6 +930,10 @@ show_help() {
     --power-wait-limit NN
                         Maximum seconds to wait for detection of AC power, if 
                         --check-power is set. Default is 60.
+    --preinstall-command 'some arbitrary command'
+                        Supply a shell command to run immediately prior to startosinstall
+                        running. An example might be 'jamf recon -department Spare'.
+                        Ensure that the command is in quotes.
                       
 
     Parameters for use with Apple Silicon Mac:
@@ -1061,6 +1099,10 @@ do
             shift
             workdir="$1"
             ;;
+        --preinstall-command)
+            shift
+            preinstall_command="$1"
+            ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -1093,6 +1135,9 @@ do
             ;;
         --workdir*)
             workdir=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --preinstall-command*)
+            preinstall_command=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         -h|--help) show_help
             ;;
@@ -1356,7 +1401,7 @@ END
 fi
 
 # determine SIP status, as the volume is required if SIP is disabled
-/usr/bin/csrutil status | grep -q 'disabled' && sip="disabled" || sip="enabled"
+/usr/bin/csrutil status | sed -n 1p | grep -q 'disabled' && sip="disabled" || sip="enabled"
 
 # set install argument for erase option
 install_args=()
@@ -1411,6 +1456,8 @@ if [[ $erase == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
         dep_notify
+        dep_notify_progress &
+        echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
@@ -1433,6 +1480,8 @@ elif [[ $reinstall == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
         dep_notify
+        dep_notify_progress &
+        echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
@@ -1449,6 +1498,9 @@ fi
 
 # run it!
 if [[ $test_run != "yes" ]]; then
+    if [[ -z $arbitrary_command ]]; then
+        $arbitrary_command
+    fi
     if [ "$arch" == "arm64" ]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
