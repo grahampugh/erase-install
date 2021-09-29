@@ -13,6 +13,7 @@ No date
 -   New `--preinstall-command` option to run a command prior to the beginning of the `startosinstall` run (thanks Fredrik Virding for the idea).
 -   Fix build version comparisons (this affected macOS 11.6) (#124, thanks @boberito)
 -   Allow use of `--confirm` option for reinstallation (#123)
+-   Improve version comparisons in `check_newer_available` function (should improve `--update` reliability)
 
 ## [0.21.0]
 
