@@ -12,6 +12,7 @@ No date
 -   SIP check only checks for partial SIP enablement (#110, thanks @anverhousseini).
 -   New `--preinstall-command` option to run a command prior to the beginning of the `startosinstall` run (thanks Fredrik Virding for the idea).
 -   Fix build version comparisons (this affected macOS 11.6) (#124, thanks @boberito)
+-   Allow use of `--confirm` option for reinstallation (#123)
 
 ## [0.21.0]
 
