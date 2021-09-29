@@ -764,15 +764,35 @@ check_newer_available() {
         installer_build_darwin=${installer_build:0:2}
         available_build_letter=${available_build:2:1}
         installer_build_letter=${installer_build:2:1}
-        available_build_minor=${available_build:3:3}
-        installer_build_minor=${installer_build:3:3}
+        available_build_minor=${available_build:3}
+        installer_build_minor=${installer_build:3}
+        available_build_minor_no=${available_build_minor//[!0-9]/}
+        installer_build_minor_no=${installer_build_minor//[!0-9]/}
+        available_build_minor_beta=${available_build_minor//[0-9]/}
+        installer_build_minor_beta=${installer_build_minor//[0-9]/}
         echo "   [check_newer_available] Checking available: $available_build vs. installer: $installer_build"
-        if [[ $available_build_letter -gt $installer_build_letter && $available_build_darwin -ge $installer_build_darwin ]]; then
+        if [[ $available_build_darwin -gt $installer_build_darwin ]]; then
             echo "   [check_newer_available] $available_build > $installer_build"
             newer_build_found="yes"
             break
-        elif [[ $available_build_letter == "$installer_build_letter" && ${available_build_minor//[!0-9]/} -gt ${installer_build_minor//[!0-9]/} && $available_build_darwin -ge $installer_build_darwin ]]; then
+        elif [[ $available_build_letter > $installer_build_letter && $available_build_darwin -eq $installer_build_darwin ]]; then
             echo "   [check_newer_available] $available_build > $installer_build"
+            newer_build_found="yes"
+            break
+        elif [[ ! $available_build_minor_beta && $installer_build_minor_beta && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build (production > beta)"
+            newer_build_found="yes"
+            break
+        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -lt 1000 && $installer_build_minor_no -lt 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build"
+            newer_build_found="yes"
+            break
+        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
+            newer_build_found="yes"
+            break
+        elif [[ $available_build_minor_beta && $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
+            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
             newer_build_found="yes"
             break
         fi
