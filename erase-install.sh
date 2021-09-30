@@ -523,9 +523,9 @@ check_installer_is_valid() {
     elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter < $system_build_letter ]]; then
         invalid_installer_found="yes"
     # 3. Darwin version and build letter (minor version) matches but the first three build version numbers are older in the installer than on the system
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:3} -lt ${system_build_version:3} ]]; then
+    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -lt ${system_build_version:0:3} ]]; then
         warning_issued="yes"
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:3} -eq ${system_build_version:3} ]]; then
+    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -eq ${system_build_version:0:3} ]]; then
         installer_build_minor=${installer_build:5:2}
         system_build_minor=${system_build:5:2}
         # 4. Darwin version, build letter (minor version) and first three build version numbers match, but the fourth build version number is older in the installer than on the system
@@ -542,7 +542,7 @@ check_installer_is_valid() {
     elif [[ "$warning_issued" == "yes" ]]; then
         echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
     else
-        echo "   [check_installer_is_valid] Installer: $installer_build > System: $system_build : valid build."
+        echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
     fi
 
     install_macos_app="$installer_app"
@@ -559,11 +559,11 @@ check_installassistant_pkg_is_valid() {
     installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
     system_build=$( /usr/bin/sw_vers -buildVersion )
     if [[ "$installer_pkg_build" < "$system_build" ]]; then
-        echo "   [check_installassistant_pkg_is_valid] $installer_pkg_build < $system_build so not valid."
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build < System: $system_build : invalid build."
         installassistant_pkg="$installer_pkg"
         invalid_installer_found="yes"
     else
-        echo "   [check_installassistant_pkg_is_valid] $installer_pkg_build >= $system_build so valid."
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build >= System: $system_build : valid build."
         installassistant_pkg="$installer_pkg"
     fi
 
@@ -756,7 +756,12 @@ check_newer_available() {
     get_installinstallmacos
     # run installinstallmacos.py with list and then interrogate the plist
     [[ ! -f "$python_path" ]] && python_path=$(which python)
-    "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
+    if [[ $pkg_installer ]]; then
+        "$python_path" "$workdir/installinstallmacos.py" --list --pkg --workdir="$workdir" > /dev/null
+    else
+        "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
+    fi
+
     i=0
     newer_build_found="no"
     while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
@@ -1217,6 +1222,7 @@ do
         --preinstall-command)
             shift
             preinstall_command="$1"
+            echo "Preinstall: $preinstall_command"
             ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
@@ -1446,6 +1452,11 @@ fi
 ## Steps beyond here are to run startosinstall
 
 echo
+if [[ -f "$installassistant_pkg" ]]; then
+    # if we still have a packege we need to move it before we can install it
+    move_to_applications_folder
+fi
+
 if [[ ! -d "$install_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
     exit 1
@@ -1555,10 +1566,14 @@ END
     fi
 fi
 
-# run it!
+# now actually run startosinstall
+if [[ $preinstall_command != "" ]]; then
+    echo "   [$script_name] Now running arbitrary command: $preinstall_command"
+fi
 if [[ $test_run != "yes" ]]; then
-    if [[ -z $arbitrary_command ]]; then
-        $arbitrary_command
+    if [[ $preinstall_command != "" ]]; then
+        # run an arbitrary command if supplied in argumnents
+        $preinstall_command
     fi
     if [ "$arch" == "arm64" ]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app

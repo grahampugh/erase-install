@@ -14,6 +14,7 @@ No date
 -   Fix build version comparisons (this affected macOS 11.6) (#124, thanks @boberito)
 -   Allow use of `--confirm` option for reinstallation (#123)
 -   Improve version comparisons in `check_newer_available` function (should improve `--update` reliability)
+-   Fix erase or reinstall from a package if it has not already been extracted with the `--move` option (#111).
 
 ## [0.21.0]
 
