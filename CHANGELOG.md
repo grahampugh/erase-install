@@ -4,9 +4,17 @@
 
 No date
 
+## [0.23.0]
+
+No date
+
+-   The package now includes a relocatable python installation (version 3.9.5) for use with `installinstallmacos.py`. This replaces the reliance on the macOS python2.7 distribution.
+-   For standalone script runs, erase-install.sh will now check for an existing relocatable python or MacAdmins Python installation. If neither exists, and `--no-curl` is not set, the script will download and install the minimum MacAdmins Python signed package, for use with `installinstallmacos.py`. If `--no-curl` is set, the script will fall back to python 2.
+-   If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum.
+
 ## [0.22.0]
 
-19.09.2021
+01.10.2021
 
 -   Add preparation progress information to the DEPNotify bar (#122, thanks @andredb90).
 -   SIP check only checks for partial SIP enablement (#110, thanks @anverhousseini).
@@ -14,7 +22,7 @@ No date
 -   Fix build version comparisons (this affected macOS 11.6) (#124, thanks @boberito)
 -   Allow use of `--confirm` option for reinstallation (#123)
 -   Improve version comparisons in `check_newer_available` function (should improve `--update` reliability)
--   Fix erase or reinstall from a package if it has not already been extracted with the `--move` option (#111).
+-   Fix erase or reinstall from a InstallAssistant package if it has not already been extracted with the `--move` option (#111).
 
 ## [0.21.0]
 

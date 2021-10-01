@@ -24,7 +24,7 @@
 script_name="erase-install"
 
 # Version:
-version="0.22.0"
+version="0.23.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -32,12 +32,21 @@ exec > >(tee ${LOG_FILE}) 2>&1
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
+installinstallmacos_checksum="f52fa78f7f51209de45fe1fb6ab0ce13f21b3008f129b4d17ab5b89b22b793c3"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
 # Temporary working directory
 workdir="/Library/Management/erase-install"
+
+# bundled python directory
+relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
+
+# URL for downloading macadmins python (with tag version) for standalone script running
+macadmins_python_version="v.3.9.5.09222021234106"
+macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
+macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
 # place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
@@ -729,15 +738,22 @@ run_fetch_full_installer() {
 
 get_installinstallmacos() {
     # grab installinstallmacos.py if not already there
+    # note this does a SHA256 checksum check and will delete the file and exit if this fails
     if [[ ! -d "$workdir" ]]; then
         echo "   [get_installinstallmacos] Making working directory at $workdir"
-        mkdir -p $workdir
+        mkdir -p "$workdir"
+        # make a checksumfile
+        echo $installinstallmacos_checksum > "$workdir/installinstallmacos_checksum"
     fi
 
     if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
         if [[ ! $no_curl ]]; then
             echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
-            curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
+            /usr/bin/curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
+            if ! shasum -a 256 -c "$workdir/installinstallmacos_checksum" "$workdir/installinstallmacos.py" ; then
+                echo "   [get_installinstallmacos] ERROR: downloaded installinstallmacos.py does not match checksum. Possible corrupted file. Deleting file."
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
         fi
     fi
     # check it did actually get downloaded
@@ -751,11 +767,41 @@ get_installinstallmacos() {
        
 }
 
+get_relocatable_python() {
+    # grab macadmins python and install it if not already there - used when running this script as a standalone
+    if [[ -L "$relocatable_python_path" && -e "$relocatable_python_path" ]]; then
+        echo "   [get_relocatable_python] Relocatable Python is installed in $workdir"
+        python_path="$relocatable_python_path"
+    elif [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+        echo "   [get_relocatable_python] MacAdmins Python is installed"
+        python_path="$macadmins_python_path"
+    else
+        if [[ ! $no_curl ]]; then
+            echo "   [get_relocatable_python] Downloading MacAdmins Python package..."
+            macadmins_python_pkg=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" | grep signed | grep url | sed 's|^.*"browser_download_url": ||' | sed 's|\"||g' )
+            /usr/bin/curl -L "$macadmins_python_pkg" -o "$workdir/macadmins_python-$macadmins_python_version.pkg"
+            installer -pkg "$workdir/macadmins_python-$macadmins_python_version.pkg" -target /
+        fi
+        # check it did actually get downloaded
+        if [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+            echo "   [get_relocatable_python] MacAdmins Python is installed"
+            python_path="$macadmins_python_path"
+        else
+            echo "   [get_relocatable_python] Could not download MacAdmins Python."
+        fi
+    fi
+}
+
 check_newer_available() {
-    # Download installinstallmacos.py
+    # Download installinstallmacos.py and MacAdmins python
     get_installinstallmacos
+    get_relocatable_python
+    if [[ ! -f "$python_path" ]]; then
+        # fall back to python2
+        python_path=$(which python)
+    fi
+
     # run installinstallmacos.py with list and then interrogate the plist
-    [[ ! -f "$python_path" ]] && python_path=$(which python)
     if [[ $pkg_installer ]]; then
         "$python_path" "$workdir/installinstallmacos.py" --list --pkg --workdir="$workdir" > /dev/null
     else
@@ -808,8 +854,9 @@ check_newer_available() {
 
 
 run_installinstallmacos() {
-    # Download installinstallmacos.py
+    # Download installinstallmacos.py and MacAdmins Python
     get_installinstallmacos
+    get_relocatable_python
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=''
@@ -1326,6 +1373,8 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$installas
     rm -f "$install_macos_app"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "yes" ]]; then
@@ -1336,6 +1385,8 @@ elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "
         overwrite_existing_installer
     elif [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
@@ -1347,6 +1398,8 @@ elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_p
     fi
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
@@ -1356,10 +1409,14 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") &&
     rm -f "$installassistant_pkg"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 
@@ -1371,6 +1428,8 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
         echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
         echo
+        # kill caffeinate
+        kill_process "caffeinate"
         exit 1
     fi
     get_user_details
@@ -1459,6 +1518,8 @@ fi
 
 if [[ ! -d "$install_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 [[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $install_macos_app with eraseinstall option"
