@@ -4,6 +4,18 @@
 
 No date
 
+## [0.22.0]
+
+19.09.2021
+
+-   Add preparation progress information to the DEPNotify bar (#122, thanks @andredb90).
+-   SIP check only checks for partial SIP enablement (#110, thanks @anverhousseini).
+-   New `--preinstall-command` option to run a command prior to the beginning of the `startosinstall` run (thanks Fredrik Virding for the idea).
+-   Fix build version comparisons (this affected macOS 11.6) (#124, thanks @boberito)
+-   Allow use of `--confirm` option for reinstallation (#123)
+-   Improve version comparisons in `check_newer_available` function (should improve `--update` reliability)
+-   Fix erase or reinstall from a package if it has not already been extracted with the `--move` option (#111).
+
 ## [0.21.0]
 
 20.07.2021
@@ -321,7 +333,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 -   Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.21.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/grahampugh/erase-install/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/grahampugh/erase-install/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/grahampugh/erase-install/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/grahampugh/erase-install/compare/v0.19.2...v0.20.0
