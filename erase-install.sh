@@ -273,10 +273,11 @@ dep_notify() {
 }
 
 dep_notify_progress() {
-    # function for DEPNotify to show progress while the installer is being prepared
+    # function for DEPNotify to show progress while the installer is being downloaded or prepared
     last_progress_value=0
     current_progress_value=0
 
+    if [ $1 = startoinstall ]; then
     # Wait for the preparing process to start and set the progress bar to 100 steps
     until grep -q "Preparing: \d" $LOG_FILE
     do
@@ -297,6 +298,49 @@ dep_notify_progress() {
         echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
         last_progress_value=$current_progress_value
     done
+    elif [ $1 = installinstallmacos ]; then
+    # Wait for the download to start and set the progress bar to 100 steps
+    until grep -q "Total" $LOG_FILE
+    do
+        sleep 2
+    done
+    echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+    echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+    # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
+    until [ $current_progress_value -ge 100 ]
+    do
+        until [ $current_progress_value -gt $last_progress_value ]
+        do
+            current_progress_value=$(tail -1 $LOG_FILE | awk '{print substr($(NF-9), 1, length($NF))}')
+            sleep 2
+        done
+        echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+        last_progress_value=$current_progress_value
+    done
+    elif [ $1 = fetch-full-installer ]; then
+    # Wait for the download to start and set the progress bar to 100 steps
+    until grep -q "Installing:" $LOG_FILE
+    do
+        sleep 2
+    done
+    echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+    echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+    # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
+    until [ $current_progress_value -ge 100 ]
+    do
+        until [ $current_progress_value -gt $last_progress_value ]
+        do
+            current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+            sleep 2
+        done
+        echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+        last_progress_value=$current_progress_value
+    done
+    fi
 }
 
 dep_notify_quit() {
@@ -1459,12 +1503,18 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     if [[ $ffi ]]; then
         if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
+            dep_notify_progress fetch-full-installer >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
             run_fetch_full_installer
         else
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
+            dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
             run_installinstallmacos
         fi
     else
+        dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+        echo $! >> /tmp/depnotify_progress_pid
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
@@ -1587,7 +1637,7 @@ if [[ $erase == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
         dep_notify
-        dep_notify_progress &
+        dep_notify_progress startoinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
@@ -1611,7 +1661,7 @@ elif [[ $reinstall == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
         dep_notify
-        dep_notify_progress &
+        dep_notify_progress startoinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
