@@ -8,7 +8,9 @@ by Graham Pugh
 
 **It can be used to reinstall, upgrade or erase macOS.**
 
-The script is designed to interact with `installinstallmacos.py`, a script developed by Greg Neagle, in order to download a macOS Installer application directly from Apple to the client. However, to allow the two scripts to operate better together, a forked version of installinstallmacos.py is used (see [grahampugh/macadmin-scripts](https://github.com/grahampugh/macadmin-scripts). It is alternatively possible to use the `softwareupdate --fetch-full-installer` command that is built in to macOS since 10.15, though the default method is to date more reliable and more flexible.
+The script is designed to interact with `installinstallmacos.py`, a script developed by Greg Neagle, in order to download a macOS Installer application directly from Apple to the client. However, to allow the two scripts to operate better together, a forked version of installinstallmacos.py is used (see [grahampugh/macadmin-scripts](https://github.com/grahampugh/macadmin-scripts)). 
+
+It is alternatively possible to use the `softwareupdate --fetch-full-installer` command that is built in to macOS since 10.15, though the default method is to date more reliable and more flexible.
 
 The script has many options to suit a large variety of workflows, management tools and user experiences. Originally designed to work with Macs that are enrolled into Jamf Pro, it now has additional options for use with other management systems or no management systems at all.
 
