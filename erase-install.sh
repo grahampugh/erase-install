@@ -721,12 +721,6 @@ get_installinstallmacos() {
         mkdir -p "$workdir"
     fi
 
-    if [[ ! -f "$workdir/installinstallmacos_checksum" ]]; then
-	# make a checksumfile
-        echo $installinstallmacos_checksum > "$workdir/installinstallmacos_checksum"
-    fi
-
-
     if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
         if [[ ! $no_curl ]]; then
             echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
