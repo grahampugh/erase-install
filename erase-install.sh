@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# shellcheck disable=SC2001
+# this is to use sed in the case statements
+# shellcheck disable=SC2034
+# this is due to the dynamic variable assignments used in the localization strings
+
 :<<DOC
 erase-install.sh
 by Graham Pugh
@@ -24,12 +29,6 @@ Requirements:
 
 Original version of installinstallmacos.py - Greg Neagle; GitHub munki/macadmins-scripts
 DOC
-
-# shellcheck disable=SC2034
-# this is due to the dynamic variable assignments used in the localization strings
-# shellcheck disable=SC2001
-# this is to use sed in the case statements
-
 
 ###############
 ## VARIABLES ##
@@ -276,13 +275,17 @@ check_installassistant_pkg_is_valid() {
     # in anyone's interest to attempt as it will just make the script eventually fail.
     installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
     system_build=$( /usr/bin/sw_vers -buildVersion )
-    if [[ "$installer_pkg_build" < "$system_build" ]]; then
-        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build < System: $system_build : invalid build."
+
+    compare_build_versions "$system_build" "$installer_pkg_build"
+
+    if [[ $first_build_newer == "yes" ]]; then
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
         installassistant_pkg="$installer_pkg"
         invalid_installer_found="yes"
     else
-        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build >= System: $system_build : valid build."
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_pkg_build >= System: $system_build : valid build."
         installassistant_pkg="$installer_pkg"
+        invalid_installer_found="no"
     fi
 
     install_macos_app="$installer_app"
@@ -316,41 +319,17 @@ check_installer_is_valid() {
 
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
-    # we need to break the build into component parts to fully compare versions
-    installer_darwin_version=${installer_build:0:2}
-    system_darwin_version=${system_build:0:2}
-    installer_build_letter=${installer_build:2:1}
-    system_build_letter=${system_build:2:1}
-    installer_build_version=${installer_build:3}
-    system_build_version=${system_build:3}
-
-    # 1. Darwin version is older in the installer than on the system
-    if [[ $installer_darwin_version -lt $system_darwin_version ]]; then 
-        invalid_installer_found="yes"
-    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter < $system_build_letter ]]; then
-        invalid_installer_found="yes"
-    # 3. Darwin version and build letter (minor version) matches but the first three build version numbers are older in the installer than on the system
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -lt ${system_build_version:0:3} ]]; then
-        warning_issued="yes"
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -eq ${system_build_version:0:3} ]]; then
-        installer_build_minor=${installer_build:5:2}
-        system_build_minor=${system_build:5:2}
-        # 4. Darwin version, build letter (minor version) and first three build version numbers match, but the fourth build version number is older in the installer than on the system
-        if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
-        warning_issued="yes"
-        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
-        elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
-        warning_issued="yes"
-        fi
-    fi
-
-    if [[ "$invalid_installer_found" == "yes" ]]; then
+    compare_build_versions "$system_build" "$installer_build"
+    if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
         echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
-    elif [[ "$warning_issued" == "yes" ]]; then
+        invalid_installer_found="yes"
+    elif [[ $first_build_patch_newer == "yes" ]]; then
         echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
+        warning_issued="yes"
+        invalid_installer_found="no"
     else
         echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
+        invalid_installer_found="no"
     fi
 
     install_macos_app="$installer_app"
@@ -375,41 +354,9 @@ check_newer_available() {
     i=0
     newer_build_found="no"
     while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
-        available_build_darwin=${available_build:0:2}
-        installer_build_darwin=${installer_build:0:2}
-        available_build_letter=${available_build:2:1}
-        installer_build_letter=${installer_build:2:1}
-        available_build_minor=${available_build:3}
-        installer_build_minor=${installer_build:3}
-        available_build_minor_no=${available_build_minor//[!0-9]/}
-        installer_build_minor_no=${installer_build_minor//[!0-9]/}
-        available_build_minor_beta=${available_build_minor//[0-9]/}
-        installer_build_minor_beta=${installer_build_minor//[0-9]/}
-        echo "   [check_newer_available] Checking available: $available_build vs. installer: $installer_build"
-        if [[ $available_build_darwin -gt $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
+        compare_build_versions "$available_build" "$installer_build"
+        if [[ "$first_build_newer" == "yes" ]]; then
             newer_build_found="yes"
-            break
-        elif [[ $available_build_letter > $installer_build_letter && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && $installer_build_minor_beta && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (production > beta)"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -lt 1000 && $installer_build_minor_no -lt 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
-            newer_build_found="yes"
-            break
-        elif [[ $available_build_minor_beta && $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
-            newer_build_found="yes"
-            break
         fi
         i=$((i+1))
     done
@@ -460,6 +407,59 @@ check_power_status() {
             exit 1
         fi
     fi
+}
+
+compare_build_versions() {
+    first_build="$1"
+    second_build="$2"
+    
+    first_build_darwin=${first_build:0:2}
+    second_build_darwin=${second_build:0:2}
+    first_build_letter=${first_build:2:1}
+    second_build_letter=${second_build:2:1}
+    first_build_minor=${first_build:3}
+    second_build_minor=${second_build:3}
+    first_build_minor_no=${first_build_minor//[!0-9]/}
+    second_build_minor_no=${second_build_minor//[!0-9]/}
+    first_build_minor_beta=${first_build_minor//[0-9]/}
+    second_build_minor_beta=${second_build_minor//[0-9]/}
+    echo "   [compare_build_versions] Comparing (1) $first_build with (2) $second_build"
+    if [[ "$first_build" == "$second_build" ]]; then
+        echo "   [compare_build_versions] $first_build = $second_build"
+        builds_match="yes"
+        return
+    elif [[ $first_build_darwin -gt $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_major_newer="yes"
+        return
+    elif [[ $first_build_letter > $second_build_letter && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_minor_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && $second_build_minor_beta && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (production > beta)"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -lt 1000 && $second_build_minor_no -lt 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (both betas)"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ $first_build_minor_beta && $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (both betas)"
+        first_build_patch_newer="yes"
+        first_build_newer="yes"
+        return
+    fi
+
 }
 
 confirm() {
@@ -655,9 +655,9 @@ find_existing_installer() {
     # Search for an existing download
     # First let's see if this script has been run before and left an installer
     macos_dmg=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
-    macos_sparseimage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
+    macos_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
     installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    installer_pkg=$( find $workdir/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     if [[ -f "$macos_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $macos_dmg."
@@ -968,7 +968,7 @@ run_installinstallmacos() {
     echo "   installinstallmacos.py $installinstallmacos_args"
 
     # shellcheck disable=SC2086
-    if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
+    if ! "$python_path" "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
 	    kill_process DEPNotify
@@ -1423,7 +1423,7 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
 fi
 
 # Look for the installer, download it if it is not present
-echo "   [$script_name] Looking for existing installer"
+echo "   [$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
 if [[ $invalid_installer_found == "yes" && -d "$install_macos_app" && $replace_invalid_installer == "yes" ]]; then

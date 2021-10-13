@@ -4,7 +4,8 @@ PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
 PKG_BUILD := $(CURDIR)/pkg/erase-install/build
 PKG_VERSION := $(shell defaults read $(CURDIR)/pkg/erase-install/build-info.plist version)
 PYTHON_VERSION := 3.9.5
-PYTHON_INSTALLER_SCRIPT := "$(CURDIR)/../relocatable-python/make_relocatable_python_framework.py"
+PYTHON_INSTALLER_SCRIPT := $(CURDIR)/../relocatable-python/make_relocatable_python_framework.py
+PYTHON_REQUIREMENTS := $(CURDIR)/requirements_python3.txt
 
 objects = $(PKG_ROOT)/Library/Management/erase-install/erase-install.sh \
 	$(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py \
@@ -34,7 +35,7 @@ $(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py:
 
 $(PKG_ROOT)/Library/Management/erase-install/Python.framework:
 	@echo "Installing Python into /Library/Management/erase-install"
-	$(PYTHON_INSTALLER_SCRIPT) --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION)
+	"$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 
 .PHONY : clean

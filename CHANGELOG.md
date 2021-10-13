@@ -12,6 +12,7 @@ No date
 - For standalone script runs, erase-install.sh will now check for an existing relocatable python or MacAdmins Python installation. If neither exists, and `--no-curl` is not set, the script will download and install the minimum MacAdmins Python signed package, for use with `installinstallmacos.py`. If `--no-curl` is set, the script will fall back to python 2.
 - If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum.
 - Add download progress information to the DEPNotify bar (#127, thanks @andredb90, addresses #116).
+- Rationalised version comparisons in the code from 3 to 1.
 
 ## [0.22.0]
 
