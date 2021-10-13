@@ -719,15 +719,20 @@ get_installinstallmacos() {
     if [[ ! -d "$workdir" ]]; then
         echo "   [get_installinstallmacos] Making working directory at $workdir"
         mkdir -p "$workdir"
-        # make a checksumfile
-        echo $installinstallmacos_checksum > "$workdir/installinstallmacos_checksum"
     fi
 
     if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
         if [[ ! $no_curl ]]; then
             echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
-            /usr/bin/curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
-            if ! shasum -a 256 -c "$workdir/installinstallmacos_checksum" "$workdir/installinstallmacos.py" ; then
+            # delete existing version so curl can create new file 
+            if [[ -f "$workdir/installinstallmacos.py" ]]; then
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
+            # use curl -o instead of > redirect, which causes permission error when run with sudo
+            /usr/bin/curl -H 'Cache-Control: no-cache' -s "$installinstallmacos_url" -o "$workdir/installinstallmacos.py"
+            if echo "$installinstallmacos_checksum  $workdir/installinstallmacos.py" | shasum -c; then
+                echo "   [get_installinstallmacos] downloaded new installinstallmacos.py successfully."
+            else    
                 echo "   [get_installinstallmacos] ERROR: downloaded installinstallmacos.py does not match checksum. Possible corrupted file. Deleting file."
                 /bin/rm "$workdir/installinstallmacos.py"
             fi
