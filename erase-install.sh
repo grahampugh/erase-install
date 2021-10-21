@@ -1,30 +1,44 @@
 #!/bin/bash
 
-# erase-install
-# by Graham Pugh.
-#
-# WARNING. This is a self-destruct script. Do not try it out on your own device!
-#
-# This script downloads and runs installinstallmacos.py from Greg Neagle,
-# which expects you to choose a value corresponding to the version of macOS you wish to download.
-# This script automatically fills in that value so that it can be run remotely.
-#
-# See README.md for details on use.
-#
-# Requirements:
-# macOS 10.13.4+ is already installed on the device (for eraseinstall option)
-# Device file system is APFS
-
-# shellcheck disable=SC2034
-# this is due to the dynamic variable assignments used in the localization strings
 # shellcheck disable=SC2001
 # this is to use sed in the case statements
+# shellcheck disable=SC2034
+# this is due to the dynamic variable assignments used in the localization strings
+
+:<<DOC
+erase-install.sh
+by Graham Pugh
+
+WARNING. This is a self-destruct script. Do not try it out on your own device!
+
+See README.md and the GitHub repo's Wiki for details on use.
+
+It is recommended to use the package installer of this script. It contains the bundled
+installinstallmacos.py fork, plus a relocatable python with which to run it.
+
+This script can, however, also be run standalone.
+It will download and install the MacAdmins Python Framework if not found.
+It will also download the installinstallmacos.py fork if it is not found.
+Suppress the downloads with the --no-curl option.
+
+Requirements:
+- macOS 12.4+
+- macOS 10.13.4+ (for --erase option)
+- macOS 10.15+ (for --fetch-full-installer option)
+- Device file system is APFS
+
+Original version of installinstallmacos.py - Greg Neagle; GitHub munki/macadmins-scripts
+DOC
+
+###############
+## VARIABLES ##
+###############
 
 # script name
 script_name="erase-install"
 
 # Version:
-version="0.22.0"
+version="0.23.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -32,12 +46,21 @@ exec > >(tee ${LOG_FILE}) 2>&1
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
+installinstallmacos_checksum="f52fa78f7f51209de45fe1fb6ab0ce13f21b3008f129b4d17ab5b89b22b793c3"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
 # Temporary working directory
 workdir="/Library/Management/erase-install"
+
+# bundled python directory
+relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
+
+# URL for downloading macadmins python (with tag version) for standalone script running
+macadmins_python_version="v.3.9.5.09222021234106"
+macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
+macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
 # place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
@@ -48,6 +71,24 @@ jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/
 DEP_NOTIFY_APP="/Applications/Utilities/DEPNotify.app"
 DEP_NOTIFY_LOG="/var/tmp/depnotify.log"
 DEP_NOTIFY_CONFIRMATION_FILE="/var/tmp/com.depnotify.provisioning.done"
+
+
+###################
+## LOCALIZATIONS ##
+###################
+
+# Grab currently logged in user to set the language for Dialogue messages
+current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+if [[ $language = de* ]]; then
+    user_language="de"
+elif [[ $language = nl* ]]; then
+    user_language="nl"
+elif [[ $language = fr* ]]; then
+    user_language="fr"
+else
+    user_language="en"
+fi
 
 # Dialogue localizations - download window
 dialog_dl_title_en="Downloading macOS"
@@ -156,10 +197,10 @@ dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van 
 dialog_not_volume_owner_fr="le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
-dialog_invalid_user_en="This account cannot be used to to perform the reinstall"
-dialog_invalid_user_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
-dialog_invalid_user_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
-dialog_invalid_user_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
+dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
+dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
+dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
+dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
@@ -178,19 +219,6 @@ dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources
 
 # icon for confirmation dialog
 dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
-
-# Grab currently logged in user to set the language for Dialogue messages
-current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
-if [[ $language = de* ]]; then
-    user_language="de"
-elif [[ $language = nl* ]]; then
-    user_language="nl"
-elif [[ $language = fr* ]]; then
-    user_language="fr"
-else
-    user_language="en"
-fi
 
 # set localisation variables
 dialog_dl_title=dialog_dl_title_${user_language}
@@ -213,18 +241,297 @@ dialog_check_desc=dialog_check_desc_${user_language}
 dialog_power_desc=dialog_power_desc_${user_language}
 dialog_power_title=dialog_power_title_${user_language}
 dialog_short_name=dialog_short_name_${user_language}
-dialog_invalid_user=dialog_invalid_user_${user_language}
+dialog_user_invalid=dialog_user_invalid_${user_language}
 dialog_get_password=dialog_get_password_${user_language}
 dialog_invalid_password=dialog_invalid_password_${user_language}
 dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
-## FUNCTIONS
 
-kill_process() {
-    process="$1"
-    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
-        /usr/bin/pkill -a "$process" && echo "   [$script_name] '$process' ended" || \
-        echo "   [$script_name] '$process' could not be killed"
+###############
+## FUNCTIONS ##
+###############
+
+ask_for_password() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+EOT
+}
+
+ask_for_shortname() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+EOT
+}
+
+check_installassistant_pkg_is_valid() {
+    echo "   [check_installassistant_pkg_is_valid] Checking validity of $installer_pkg."
+    # check InstallAssistant pkg validity
+    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
+    # Extracting an actual version from the package is slow as the entire package must be unpackaged
+    # to read the PackageInfo file. 
+    # We are here YOLOing the filename instead. Of course it could be spoofed, but that would not be
+    # in anyone's interest to attempt as it will just make the script eventually fail.
+    installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
+    system_build=$( /usr/bin/sw_vers -buildVersion )
+
+    compare_build_versions "$system_build" "$installer_pkg_build"
+
+    if [[ $first_build_newer == "yes" ]]; then
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
+        installassistant_pkg="$installer_pkg"
+        invalid_installer_found="yes"
+    else
+        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_pkg_build >= System: $system_build : valid build."
+        installassistant_pkg="$installer_pkg"
+        invalid_installer_found="no"
+    fi
+
+    install_macos_app="$installer_app"
+}
+
+check_installer_is_valid() {
+    echo "   [check_installer_is_valid] Checking validity of $installer_app."
+    # check installer validity:
+    # The Build version in the app Info.plist is often older than the advertised build, 
+    # so it's not a great check for validity
+    # check if running --erase, where we might be using the same build.
+    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
+    # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
+
+    # first ensure that some earlier instance is not still mounted as it might interfere with the check
+    [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
+    # now attempt to mount
+    if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
+        if [[ -f "$build_xml" ]]; then
+            echo "   [check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
+            installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+            sleep 1
+            diskutil unmount force "/Volumes/Shared Support"
+        fi
+    else
+        # if that fails, fallback to the method for 10.15 or less, which is less accurate
+        echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
+        installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+    fi
+
+    system_build=$( /usr/bin/sw_vers -buildVersion )
+
+    compare_build_versions "$system_build" "$installer_build"
+    if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
+        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
+        invalid_installer_found="yes"
+    elif [[ $first_build_patch_newer == "yes" ]]; then
+        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
+        warning_issued="yes"
+        invalid_installer_found="no"
+    else
+        echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
+        invalid_installer_found="no"
+    fi
+
+    install_macos_app="$installer_app"
+}
+
+check_newer_available() {
+    # Download installinstallmacos.py and MacAdmins python
+    get_installinstallmacos
+    get_relocatable_python
+    if [[ ! -f "$python_path" ]]; then
+        # fall back to python2
+        python_path=$(which python)
+    fi
+
+    # run installinstallmacos.py with list and then interrogate the plist
+    if [[ $pkg_installer ]]; then
+        "$python_path" "$workdir/installinstallmacos.py" --list --pkg --workdir="$workdir" > /dev/null
+    else
+        "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
+    fi
+
+    i=0
+    newer_build_found="no"
+    while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
+        compare_build_versions "$available_build" "$installer_build"
+        if [[ "$first_build_newer" == "yes" ]]; then
+            newer_build_found="yes"
+        fi
+        i=$((i+1))
+    done
+    [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
+}
+
+check_password() {
+    # Check that the password entered matches actual password
+    # required for Silicon Macs
+    # thanks to Dan Snelson for the idea
+    user="$1"
+    password="$2"
+	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+	if [[ -z "${password_matches}" ]]; then
+		echo "   [check_password] Success: the password entered is the correct login password for $user."
+	else
+		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+        /usr/bin/osascript <<EOT
+            display dialog "${!dialog_user_invalid}: $user." buttons {"OK"} default button 1 with icon 2
+EOT
+    exit 1
+	fi
+}
+
+check_power_status() {
+    # Check if device is on battery or AC power
+    # If not, and our power_wait_timer is above 1, allow user to connect to power for specified time period
+    # Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
+
+    # set default wait time to 60 seconds
+    [[ ! $power_wait_timer ]] && power_wait_timer=60
+
+    if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
+        echo "   [check_power_status] OK - AC power detected"
+    else
+        echo "   [check_power_status] WARNING - No AC power detected"
+        if [[ "$power_wait_timer" -gt 0 ]]; then
+            if [[ -f "$jamfHelper" ]]; then
+                # use jamfHelper if possible
+                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
+                wait_for_power "jamfHelper"
+            else
+                /usr/bin/osascript -e "display dialog \"${!dialog_power_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop" &
+                wait_for_power "osascript"
+            fi
+        else
+            echo "   [check_power_status] ERROR - No AC power detected, cannot continue."
+            exit 1
+        fi
+    fi
+}
+
+compare_build_versions() {
+    first_build="$1"
+    second_build="$2"
+    
+    first_build_darwin=${first_build:0:2}
+    second_build_darwin=${second_build:0:2}
+    first_build_letter=${first_build:2:1}
+    second_build_letter=${second_build:2:1}
+    first_build_minor=${first_build:3}
+    second_build_minor=${second_build:3}
+    first_build_minor_no=${first_build_minor//[!0-9]/}
+    second_build_minor_no=${second_build_minor//[!0-9]/}
+    first_build_minor_beta=${first_build_minor//[0-9]/}
+    second_build_minor_beta=${second_build_minor//[0-9]/}
+    echo "   [compare_build_versions] Comparing (1) $first_build with (2) $second_build"
+    if [[ "$first_build" == "$second_build" ]]; then
+        echo "   [compare_build_versions] $first_build = $second_build"
+        builds_match="yes"
+        return
+    elif [[ $first_build_darwin -gt $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_major_newer="yes"
+        return
+    elif [[ $first_build_letter > $second_build_letter && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_minor_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && $second_build_minor_beta && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (production > beta)"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -lt 1000 && $second_build_minor_no -lt 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (both betas)"
+        first_build_newer="yes"
+        first_build_patch_newer="yes"
+        return
+    elif [[ $first_build_minor_beta && $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
+        echo "   [compare_build_versions] $first_build > $second_build (both betas)"
+        first_build_patch_newer="yes"
+        first_build_newer="yes"
+        return
+    fi
+
+}
+
+confirm() {
+    if [[ $use_depnotify == "yes" ]]; then
+        # DEPNotify dialog option
+        echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            dn_title="${!dialog_erase_title}"
+            dn_desc="${!dialog_erase_confirmation_desc}"
+        else
+            dn_title="${!dialog_reinstall_title}"
+            dn_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        dn_status="${!dialog_confirmation_status}"
+        dn_icon="$dialog_confirmation_icon"
+        dn_button="${!dialog_confirmation_button}"
+        dn_quit_key="c"
+        dep_notify
+        dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        # wait for the confirmation button to be pressed or for the user to cancel
+        until [[ "$dn_pid" = "" ]]; do
+            sleep 1
+            dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        done
+        # DEPNotify creates a bom file if the user presses the confirmation button
+        # but not if they cancel
+        if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
+            confirmation=2
+        else
+            confirmation=0
+        fi
+        # now clear the button, quit key and dialog
+        dep_notify_quit
+    elif [[ -f "$jamfHelper" ]]; then
+        # jamfHelper dialog option
+        echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            jh_title="${!dialog_erase_title}"
+            jh_desc="${!dialog_erase_confirmation_desc}"
+        else
+            jh_title="${!dialog_reinstall_title}"
+            jh_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
+        confirmation=$?
+    else
+        # osascript dialog option
+        echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
+        if [[ $erase == "yes" ]]; then
+            osa_desc="${!dialog_erase_confirmation_desc}"
+        else
+            osa_desc="${!dialog_reinstall_confirmation_desc}"
+        fi
+        answer=$(
+            /usr/bin/osascript <<-END
+                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
+END
+)
+        if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
+            confirmation=2
+        else
+            confirmation=0
+        fi
+    fi
+    if [[ "$confirmation" == "0"* ]]; then
+        echo "   [$script_name] User DECLINED erase-install or reinstall"
+        exit 0
+    elif [[ "$confirmation" == "2"* ]]; then
+        echo "   [$script_name] User CONFIRMED erase-install or reinstall"
+    else
+        echo "   [$script_name] User FAILED to confirm erase-install or reinstall"
+        exit 1
     fi
 }
 
@@ -264,30 +571,67 @@ dep_notify() {
 }
 
 dep_notify_progress() {
-    # function for DEPNotify to show progress while the installer is being prepared
+    # function for DEPNotify to show progress while the installer is being downloaded or prepared
     last_progress_value=0
     current_progress_value=0
 
-    # Wait for the preparing process to start and set the progress bar to 100 steps
-    until grep -q "Preparing: \d" $LOG_FILE
-    do
-        sleep 2
-    done
-    echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
-    echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
-
-    # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
-    until [ $current_progress_value -ge 100 ]
-    do
-        until [ $current_progress_value -gt $last_progress_value ]
-        do
-            current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+    if [[ "$1" == "startosinstall" ]]; then
+        # Wait for the preparing process to start and set the progress bar to 100 steps
+        until grep -q "Preparing: \d" $LOG_FILE ; do
             sleep 2
         done
-        echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
-        echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
-        last_progress_value=$current_progress_value
-    done
+        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+        # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
+        until [[ $current_progress_value -ge 100 ]]; do
+            until [[ $current_progress_value -gt $last_progress_value ]]; do
+                current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                sleep 2
+            done
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            last_progress_value=$current_progress_value
+        done
+
+    elif [[ "$1" == "installinstallmacos" ]]; then
+        # Wait for the download to start and set the progress bar to 100 steps
+        until grep -q "Total" $LOG_FILE ; do
+            sleep 2
+        done
+        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+        # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
+        until [[ $current_progress_value -ge 100 ]]; do
+            until [[ $current_progress_value -gt $last_progress_value ]]; do
+                current_progress_value=$(tail -1 $LOG_FILE | awk '{print substr($(NF-9), 1, length($NF))}')
+                sleep 2
+            done
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            last_progress_value=$current_progress_value
+        done
+
+    elif [[ "$1" == "fetch-full-installer" ]]; then
+        # Wait for the download to start and set the progress bar to 100 steps
+        until grep -q "Installing:" $LOG_FILE ; do
+            sleep 2
+        done
+        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
+        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+
+        # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
+        until [[ $current_progress_value -ge 100 ]]; do
+            until [ $current_progress_value -gt $last_progress_value ]; do
+                current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                sleep 2
+            done
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
+            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            last_progress_value=$current_progress_value
+        done
+    fi
 }
 
 dep_notify_quit() {
@@ -307,50 +651,127 @@ dep_notify_quit() {
     fi
 }
 
-ask_for_shortname() {
-    # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
-EOT
+find_existing_installer() {
+    # Search for an existing download
+    # First let's see if this script has been run before and left an installer
+    macos_dmg=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    macos_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
+    installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+
+    if [[ -f "$macos_dmg" ]]; then
+        echo "   [find_existing_installer] Installer image found at $macos_dmg."
+        hdiutil attach "$macos_dmg"
+        installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        check_installer_is_valid
+    elif [[ -f "$macos_sparseimage" ]]; then
+        echo "   [find_existing_installer] Installer sparse image found at $macos_sparseimage."
+        hdiutil attach "$macos_sparseimage"
+        installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        check_installer_is_valid
+    elif [[ -d "$installer_app" ]]; then
+        echo "   [find_existing_installer] Installer found at $installer_app."
+        app_is_in_applications_folder="yes"
+        check_installer_is_valid
+    elif [[ -f "$installer_pkg" ]]; then
+        echo "   [find_existing_installer] InstallAssistant package found at $installer_pkg."
+        check_installassistant_pkg_is_valid
+    else
+        echo "   [find_existing_installer] No valid installer found."
+        if [[ $clear_cache == "yes" ]]; then
+            exit
+        fi
+    fi
 }
 
-invalid_user() {
-    # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        display dialog "$account_shortname: ${!dialog_invalid_user}" buttons {"OK"} default button 1 with icon 2
-EOT
+find_extra_packages() {
+    # set install_package_list to blank.
+    install_package_list=()
+    for file in "$extras_directory"/*.pkg; do
+        if [[ $file != *"/*.pkg" ]]; then
+            echo "   [find_extra_installers] Additional package to install: $file"
+            install_package_list+=("--installpackage")
+            install_package_list+=("$file")
+        fi
+    done
 }
 
-user_not_volume_owner() {
-    # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        display dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
-EOT
+free_space_check() {
+    free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+    
+    min_drive_bytes=$(( min_drive_space * 1000000 ))
+    if [[ $free_disk_space -ge $min_drive_bytes ]]; then
+        echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
+    else
+        echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
+        if [[ -f "$jamfHelper" ]]; then
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
+        else
+            /usr/bin/osascript -e "display dialog \"${!dialog_check_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop"
+        fi
+        exit 1
+    fi
 }
 
-ask_for_password() {
-    # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
-EOT
+get_installinstallmacos() {
+    # grab installinstallmacos.py if not already there
+    # note this does a SHA256 checksum check and will delete the file and exit if this fails
+    if [[ ! -d "$workdir" ]]; then
+        echo "   [get_installinstallmacos] Making working directory at $workdir"
+        mkdir -p "$workdir"
+    fi
+
+    if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
+        if [[ ! $no_curl ]]; then
+            echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
+            # delete existing version so curl can create new file 
+            if [[ -f "$workdir/installinstallmacos.py" ]]; then
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
+            # use curl -o instead of > redirect, which causes permission error when run with sudo
+            /usr/bin/curl -H 'Cache-Control: no-cache' -s "$installinstallmacos_url" -o "$workdir/installinstallmacos.py"
+            if echo "$installinstallmacos_checksum  $workdir/installinstallmacos.py" | shasum -c; then
+                echo "   [get_installinstallmacos] downloaded new installinstallmacos.py successfully."
+            else    
+                echo "   [get_installinstallmacos] ERROR: downloaded installinstallmacos.py does not match checksum. Possible corrupted file. Deleting file."
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
+        fi
+    fi
+    # check it did actually get downloaded
+    if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
+        echo "Could not download installinstallmacos.py so cannot continue."
+        exit 1
+    else
+        echo "   [get_installinstallmacos] installinstallmacos.py is in $workdir"
+        iim_downloaded=1
+    fi
+       
 }
 
-check_password() {
-    # Check that the password entered matches actual password
-    # required for Silicon Macs
-    # thanks to Dan Snelson for the idea
-    user="$1"
-    password="$2"
-	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
-	if [[ -z "${password_matches}" ]]; then
-		echo "   [check_password] Success: the password entered is the correct login password for $user."
-	else
-		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
-        /usr/bin/osascript <<EOT
-            display dialog "${!dialog_invalid_user}: $user." buttons {"OK"} default button 1 with icon 2
-EOT
-    exit 1
-	fi
+get_relocatable_python() {
+    # grab macadmins python and install it if not already there - used when running this script as a standalone
+    if [[ -L "$relocatable_python_path" && -e "$relocatable_python_path" ]]; then
+        echo "   [get_relocatable_python] Relocatable Python is installed in $workdir"
+        python_path="$relocatable_python_path"
+    elif [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+        echo "   [get_relocatable_python] MacAdmins Python is installed"
+        python_path="$macadmins_python_path"
+    else
+        if [[ ! $no_curl ]]; then
+            echo "   [get_relocatable_python] Downloading MacAdmins Python package..."
+            macadmins_python_pkg=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" | grep signed | grep url | sed 's|^.*"browser_download_url": ||' | sed 's|\"||g' )
+            /usr/bin/curl -L "$macadmins_python_pkg" -o "$workdir/macadmins_python-$macadmins_python_version.pkg"
+            installer -pkg "$workdir/macadmins_python-$macadmins_python_version.pkg" -target /
+        fi
+        # check it did actually get downloaded
+        if [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+            echo "   [get_relocatable_python] MacAdmins Python is installed"
+            python_path="$macadmins_python_path"
+        else
+            echo "   [get_relocatable_python] Could not download MacAdmins Python."
+        fi
+    fi
 }
 
 get_user_details() {
@@ -370,7 +791,7 @@ get_user_details() {
     # check that this user exists and is in the staff group (so not some system user)
     if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" staff ; then
         echo "   [get_user_details] $account_shortname account cannot be used to perform reinstallation!"
-        invalid_user
+        user_invalid
         exit 1
     fi
 
@@ -382,7 +803,7 @@ get_user_details() {
                 promoted_user="$account_shortname"
             else
                 echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                invalid_user
+                user_invalid
                 exit 1
             fi
         fi
@@ -417,206 +838,11 @@ get_user_details() {
     check_password "$account_shortname" "$account_password"
 }
 
-wait_for_power() {
+kill_process() {
     process="$1"
-    ## Loop for "power_wait_timer" seconds until either AC Power is detected or the timer is up
-    echo "   [wait_for_power] Waiting for AC power..."
-    while [[ "$power_wait_timer" -gt 0 ]]; do
-        if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
-            echo "   [wait_for_power] OK - AC power detected"
-            kill_process "$process"
-            return
-        fi
-        sleep 1
-        ((power_wait_timer--))
-    done
-    kill_process "$process"
-    echo "   [wait_for_power] ERROR - No AC power detected, cannot continue."
-    exit 1
-}
-
-check_power_status() {
-    # Check if device is on battery or AC power
-    # If not, and our power_wait_timer is above 1, allow user to connect to power for specified time period
-    # Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
-
-    # set default wait time to 60 seconds
-    [[ ! $power_wait_timer ]] && power_wait_timer=60
-
-    if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
-        echo "   [check_power_status] OK - AC power detected"
-    else
-        echo "   [check_power_status] WARNING - No AC power detected"
-        if [[ "$power_wait_timer" -gt 0 ]]; then
-            if [[ -f "$jamfHelper" ]]; then
-                # use jamfHelper if possible
-                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
-                wait_for_power "jamfHelper"
-            else
-                /usr/bin/osascript -e "display dialog \"${!dialog_power_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop" &
-                wait_for_power "osascript"
-            fi
-        else
-            echo "   [check_power_status] ERROR - No AC power detected, cannot continue."
-            exit 1
-        fi
-    fi
-}
-
-free_space_check() {
-    free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
-    
-    min_drive_bytes=$(( min_drive_space * 1000000 ))
-    if [[ $free_disk_space -ge $min_drive_bytes ]]; then
-        echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
-    else
-        echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
-        if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
-        else
-            /usr/bin/osascript -e "display dialog \"${!dialog_check_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop"
-        fi
-        exit 1
-    fi
-}
-
-check_installer_is_valid() {
-    echo "   [check_installer_is_valid] Checking validity of $installer_app."
-    # check installer validity:
-    # The Build version in the app Info.plist is often older than the advertised build, 
-    # so it's not a great check for validity
-    # check if running --erase, where we might be using the same build.
-    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
-    # This is new from Big Sur, so we include a fallback to the Info.plist file just in case. 
-
-    # first ensure that some earlier instance is not still mounted as it might interfere with the check
-    [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
-    # now attempt to mount
-    if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
-        build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
-        if [[ -f "$build_xml" ]]; then
-            echo "   [check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
-            installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
-            sleep 1
-            diskutil unmount force "/Volumes/Shared Support"
-        fi
-    else
-        # if that fails, fallback to the method for 10.15 or less, which is less accurate
-        echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
-        installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
-    fi
-
-    system_build=$( /usr/bin/sw_vers -buildVersion )
-
-    # we need to break the build into component parts to fully compare versions
-    installer_darwin_version=${installer_build:0:2}
-    system_darwin_version=${system_build:0:2}
-    installer_build_letter=${installer_build:2:1}
-    system_build_letter=${system_build:2:1}
-    installer_build_version=${installer_build:3}
-    system_build_version=${system_build:3}
-
-    # 1. Darwin version is older in the installer than on the system
-    if [[ $installer_darwin_version -lt $system_darwin_version ]]; then 
-        invalid_installer_found="yes"
-    # 2. Darwin version matches but build letter (minor version) is older in the installer than on the system
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter < $system_build_letter ]]; then
-        invalid_installer_found="yes"
-    # 3. Darwin version and build letter (minor version) matches but the first three build version numbers are older in the installer than on the system
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -lt ${system_build_version:0:3} ]]; then
-        warning_issued="yes"
-    elif [[ $installer_darwin_version -eq $system_darwin_version && $installer_build_letter == "$system_build_letter" && ${installer_build_version:0:3} -eq ${system_build_version:0:3} ]]; then
-        installer_build_minor=${installer_build:5:2}
-        system_build_minor=${system_build:5:2}
-        # 4. Darwin version, build letter (minor version) and first three build version numbers match, but the fourth build version number is older in the installer than on the system
-        if [[ ${installer_build_minor//[!0-9]/} -lt ${system_build_minor//[!0-9]/} ]]; then
-        warning_issued="yes"
-        # 5. Darwin version, build letter (minor version) and build version numbers match, but beta release letter is older in the installer than on the system (unlikely to ever happen, but just in case)
-        elif [[ ${installer_build_minor//[!0-9]/} -eq ${system_build_minor//[!0-9]/} && ${installer_build_minor//[0-9]/} < ${system_build_minor//[0-9]/} ]]; then
-        warning_issued="yes"
-        fi
-    fi
-
-    if [[ "$invalid_installer_found" == "yes" ]]; then
-        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
-    elif [[ "$warning_issued" == "yes" ]]; then
-        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
-    else
-        echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
-    fi
-
-    install_macos_app="$installer_app"
-}
-
-check_installassistant_pkg_is_valid() {
-    echo "   [check_installassistant_pkg_is_valid] Checking validity of $installer_pkg."
-    # check InstallAssistant pkg validity
-    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
-    # Extracting an actual version from the package is slow as the entire package must be unpackaged
-    # to read the PackageInfo file. 
-    # We are here YOLOing the filename instead. Of course it could be spoofed, but that would not be
-    # in anyone's interest to attempt as it will just make the script eventually fail.
-    installer_pkg_build=$( basename "$installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
-    system_build=$( /usr/bin/sw_vers -buildVersion )
-    if [[ "$installer_pkg_build" < "$system_build" ]]; then
-        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build < System: $system_build : invalid build."
-        installassistant_pkg="$installer_pkg"
-        invalid_installer_found="yes"
-    else
-        echo "   [check_installassistant_pkg_is_valid] Installer: $installer_build >= System: $system_build : valid build."
-        installassistant_pkg="$installer_pkg"
-    fi
-
-    install_macos_app="$installer_app"
-}
-
-find_existing_installer() {
-    # Search for an existing download
-    # First let's see if this script has been run before and left an installer
-    macos_dmg=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
-    macos_sparseimage=$( find $workdir/*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
-    installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    installer_pkg=$( find $workdir/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
-
-    if [[ -f "$macos_dmg" ]]; then
-        echo "   [find_existing_installer] Installer image found at $macos_dmg."
-        hdiutil attach "$macos_dmg"
-        installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
-    elif [[ -f "$macos_sparseimage" ]]; then
-        echo "   [find_existing_installer] Installer sparse image found at $macos_sparseimage."
-        hdiutil attach "$macos_sparseimage"
-        installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
-    elif [[ -d "$installer_app" ]]; then
-        echo "   [find_existing_installer] Installer found at $installer_app."
-        app_is_in_applications_folder="yes"
-        check_installer_is_valid
-    elif [[ -f "$installer_pkg" ]]; then
-        echo "   [find_existing_installer] InstallAssistant package found at $installer_pkg."
-        check_installassistant_pkg_is_valid
-    else
-        echo "   [find_existing_installer] No valid installer found."
-        if [[ $clear_cache == "yes" ]]; then
-            exit
-        fi
-    fi
-}
-
-overwrite_existing_installer() {
-    echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-    if [[ -d "$existing_installer" ]]; then
-        echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
-        existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
-        diskutil unmount force "$existing_installer_mount_point"
-    fi
-    rm -f "$macos_dmg" "$macos_sparseimage"
-    rm -rf "$installer_app"
-    app_is_in_applications_folder=""
-    if [[ $clear_cache == "yes" ]]; then
-        echo "   [overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
-        exit
+    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
+        /usr/bin/pkill -a "$process" && echo "   [$script_name] '$process' ended" || \
+        echo "   [$script_name] '$process' could not be killed"
     fi
 }
 
@@ -650,166 +876,27 @@ move_to_applications_folder() {
     echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
 }
 
-find_extra_packages() {
-    # set install_package_list to blank.
-    install_package_list=()
-    for file in "$extras_directory"/*.pkg; do
-        if [[ $file != *"/*.pkg" ]]; then
-            echo "   [find_extra_installers] Additional package to install: $file"
-            install_package_list+=("--installpackage")
-            install_package_list+=("$file")
-        fi
-    done
-}
-
-set_seedprogram() {
-    if [[ $seedprogram ]]; then
-        echo "   [set_seedprogram] $seedprogram seed program selected"
-        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll "$seedprogram" >/dev/null
-        # /usr/sbin/softwareupdate -l -a >/dev/null
-    else
-        echo "   [set_seedprogram] Standard seed program selected"
-        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll >/dev/null
-        # /usr/sbin/softwareupdate -l -a >/dev/null
+overwrite_existing_installer() {
+    echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
+    existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+    if [[ -d "$existing_installer" ]]; then
+        echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
+        existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
+        diskutil unmount force "$existing_installer_mount_point"
     fi
-    sleep 5
-    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
-    echo "   [set_seedprogram] Currently enrolled in $current_seed seed program."
-}
-
-list_full_installers() {
-    # for 10.15.7 and above we can use softwareupdate --list-full-installers
-    set_seedprogram
-    echo
-    /usr/sbin/softwareupdate --list-full-installers
-}
-
-run_fetch_full_installer() {
-    # for 10.15+ we can use softwareupdate --fetch-full-installer
-    set_seedprogram
-
-    softwareupdate_args=''
-    if [[ $prechosen_version ]]; then
-        echo "   [run_fetch_full_installer] Trying to download version $prechosen_version"
-        softwareupdate_args+=" --full-installer-version $prechosen_version"
-    fi
-    # now download the installer
-    echo "   [run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
-    # shellcheck disable=SC2086
-    /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
-
-    # shellcheck disable=SC2181
-    if [[ $? == 0 ]]; then
-        # Identify the installer
-        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
-            install_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-            # if we actually want to use this installer we should check that it's valid
-            if [[ $erase == "yes" || $reinstall == "yes" ]]; then 
-                check_installer_is_valid
-                if [[ $invalid_installer_found == "yes" ]]; then
-                    echo "   [run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    kill_process jamfHelper
-            	    kill_process DEPNotify
-                    exit 1
-                fi
-            fi
-        else
-            echo "   [run_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            kill_process jamfHelper
-    	    kill_process DEPNotify
-            exit 1
-        fi
-    else
-        echo "   [run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        kill_process jamfHelper
-	    kill_process DEPNotify
-        exit 1
+    rm -f "$macos_dmg" "$macos_sparseimage"
+    rm -rf "$installer_app"
+    app_is_in_applications_folder=""
+    if [[ $clear_cache == "yes" ]]; then
+        echo "   [overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
+        exit
     fi
 }
-
-get_installinstallmacos() {
-    # grab installinstallmacos.py if not already there
-    if [[ ! -d "$workdir" ]]; then
-        echo "   [get_installinstallmacos] Making working directory at $workdir"
-        mkdir -p $workdir
-    fi
-
-    if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
-        if [[ ! $no_curl ]]; then
-            echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
-            curl -H 'Cache-Control: no-cache' -s $installinstallmacos_url > "$workdir/installinstallmacos.py"
-        fi
-    fi
-    # check it did actually get downloaded
-    if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
-        echo "Could not download installinstallmacos.py so cannot continue."
-        exit 1
-    else
-        echo "   [get_installinstallmacos] installinstallmacos.py is in $workdir"
-        iim_downloaded=1
-    fi
-       
-}
-
-check_newer_available() {
-    # Download installinstallmacos.py
-    get_installinstallmacos
-    # run installinstallmacos.py with list and then interrogate the plist
-    [[ ! -f "$python_path" ]] && python_path=$(which python)
-    if [[ $pkg_installer ]]; then
-        "$python_path" "$workdir/installinstallmacos.py" --list --pkg --workdir="$workdir" > /dev/null
-    else
-        "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
-    fi
-
-    i=0
-    newer_build_found="no"
-    while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
-        available_build_darwin=${available_build:0:2}
-        installer_build_darwin=${installer_build:0:2}
-        available_build_letter=${available_build:2:1}
-        installer_build_letter=${installer_build:2:1}
-        available_build_minor=${available_build:3}
-        installer_build_minor=${installer_build:3}
-        available_build_minor_no=${available_build_minor//[!0-9]/}
-        installer_build_minor_no=${installer_build_minor//[!0-9]/}
-        available_build_minor_beta=${available_build_minor//[0-9]/}
-        installer_build_minor_beta=${installer_build_minor//[0-9]/}
-        echo "   [check_newer_available] Checking available: $available_build vs. installer: $installer_build"
-        if [[ $available_build_darwin -gt $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
-            newer_build_found="yes"
-            break
-        elif [[ $available_build_letter > $installer_build_letter && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && $installer_build_minor_beta && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (production > beta)"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -lt 1000 && $installer_build_minor_no -lt 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build"
-            newer_build_found="yes"
-            break
-        elif [[ ! $available_build_minor_beta && ! $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
-            newer_build_found="yes"
-            break
-        elif [[ $available_build_minor_beta && $installer_build_minor_beta && $available_build_minor_no -ge 1000 && $installer_build_minor_no -ge 1000 && $available_build_minor_no -gt $installer_build_minor_no && $available_build_letter == "$installer_build_letter" && $available_build_darwin -eq $installer_build_darwin ]]; then
-            echo "   [check_newer_available] $available_build > $installer_build (both betas)"
-            newer_build_found="yes"
-            break
-        fi
-        i=$((i+1))
-    done
-    [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
-}
-
 
 run_installinstallmacos() {
-    # Download installinstallmacos.py
+    # Download installinstallmacos.py and MacAdmins Python
     get_installinstallmacos
+    get_relocatable_python
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=''
@@ -886,7 +973,7 @@ run_installinstallmacos() {
     echo "   installinstallmacos.py $installinstallmacos_args"
 
     # shellcheck disable=SC2086
-    if ! python "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
+    if ! "$python_path" "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
 	    kill_process DEPNotify
@@ -921,77 +1008,101 @@ run_installinstallmacos() {
     fi
 }
 
-confirm() {
-    if [[ $use_depnotify == "yes" ]]; then
-        # DEPNotify dialog option
-        echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
-        if [[ $erase == "yes" ]]; then
-            dn_title="${!dialog_erase_title}"
-            dn_desc="${!dialog_erase_confirmation_desc}"
-        else
-            dn_title="${!dialog_reinstall_title}"
-            dn_desc="${!dialog_reinstall_confirmation_desc}"
-        fi
-        dn_status="${!dialog_confirmation_status}"
-        dn_icon="$dialog_confirmation_icon"
-        dn_button="${!dialog_confirmation_button}"
-        dn_quit_key="c"
-        dep_notify
-        dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
-        # wait for the confirmation button to be pressed or for the user to cancel
-        until [[ "$dn_pid" = "" ]]; do
-            sleep 1
-            dn_pid=$(pgrep -l "DEPNotify" | cut -d " " -f1)
-        done
-        # DEPNotify creates a bom file if the user presses the confirmation button
-        # but not if they cancel
-        if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
-            confirmation=2
-        else
-            confirmation=0
-        fi
-        # now clear the button, quit key and dialog
-        dep_notify_quit
-    elif [[ -f "$jamfHelper" ]]; then
-        # jamfHelper dialog option
-        echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
-        if [[ $erase == "yes" ]]; then
-            jh_title="${!dialog_erase_title}"
-            jh_desc="${!dialog_erase_confirmation_desc}"
-        else
-            jh_title="${!dialog_reinstall_title}"
-            jh_desc="${!dialog_reinstall_confirmation_desc}"
-        fi
-        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
-        confirmation=$?
+set_seedprogram() {
+    if [[ $seedprogram ]]; then
+        echo "   [set_seedprogram] $seedprogram seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll "$seedprogram" >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
     else
-        # osascript dialog option
-        echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
-        if [[ $erase == "yes" ]]; then
-            osa_desc="${!dialog_erase_confirmation_desc}"
-        else
-            osa_desc="${!dialog_reinstall_confirmation_desc}"
-        fi
-        answer=$(
-            /usr/bin/osascript <<-END
-                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
-END
-)
-        if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
-            confirmation=2
-        else
-            confirmation=0
-        fi
+        echo "   [set_seedprogram] Standard seed program selected"
+        /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll >/dev/null
+        # /usr/sbin/softwareupdate -l -a >/dev/null
     fi
-    if [[ "$confirmation" == "0"* ]]; then
-        echo "   [$script_name] User DECLINED erase-install or reinstall"
-        exit 0
-    elif [[ "$confirmation" == "2"* ]]; then
-        echo "   [$script_name] User CONFIRMED erase-install or reinstall"
+    sleep 5
+    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
+    echo "   [set_seedprogram] Currently enrolled in $current_seed seed program."
+}
+
+swu_list_full_installers() {
+    # for 10.15.7 and above we can use softwareupdate --list-full-installers
+    set_seedprogram
+    echo
+    /usr/sbin/softwareupdate --list-full-installers
+}
+
+swu_fetch_full_installer() {
+    # for 10.15+ we can use softwareupdate --fetch-full-installer
+    set_seedprogram
+
+    softwareupdate_args=''
+    if [[ $prechosen_version ]]; then
+        echo "   [swu_fetch_full_installer] Trying to download version $prechosen_version"
+        softwareupdate_args+=" --full-installer-version $prechosen_version"
+    fi
+    # now download the installer
+    echo "   [swu_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
+    # shellcheck disable=SC2086
+    /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
+
+    # shellcheck disable=SC2181
+    if [[ $? == 0 ]]; then
+        # Identify the installer
+        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
+            install_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            # if we actually want to use this installer we should check that it's valid
+            if [[ $erase == "yes" || $reinstall == "yes" ]]; then 
+                check_installer_is_valid
+                if [[ $invalid_installer_found == "yes" ]]; then
+                    echo "   [swu_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
+                    kill_process jamfHelper
+            	    kill_process DEPNotify
+                    exit 1
+                fi
+            fi
+        else
+            echo "   [swu_fetch_full_installer] No install app found. I guess nothing got downloaded."
+            kill_process jamfHelper
+    	    kill_process DEPNotify
+            exit 1
+        fi
     else
-        echo "   [$script_name] User FAILED to confirm erase-install or reinstall"
+        echo "   [swu_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
+        kill_process jamfHelper
+	    kill_process DEPNotify
         exit 1
     fi
+}
+
+user_invalid() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        display dialog "$account_shortname: ${!dialog_user_invalid}" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+user_not_volume_owner() {
+    # required for Silicon Macs
+    /usr/bin/osascript <<EOT
+        display dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
+EOT
+}
+
+wait_for_power() {
+    process="$1"
+    ## Loop for "power_wait_timer" seconds until either AC Power is detected or the timer is up
+    echo "   [wait_for_power] Waiting for AC power..."
+    while [[ "$power_wait_timer" -gt 0 ]]; do
+        if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
+            echo "   [wait_for_power] OK - AC power detected"
+            kill_process "$process"
+            return
+        fi
+        sleep 1
+        ((power_wait_timer--))
+    done
+    kill_process "$process"
+    echo "   [wait_for_power] ERROR - No AC power detected, cannot continue."
+    exit 1
 }
 
 show_help() {
@@ -1104,7 +1215,9 @@ show_help() {
 }
 
 
-## MAIN BODY
+###############
+## MAIN BODY ##
+###############
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -1113,8 +1226,7 @@ reinstall="no"
 # default minimum drive space in GB
 min_drive_space=45
 
-while test $# -gt 0
-do
+while test $# -gt 0 ; do
     case "$1" in
         -l|--list) list="yes"
             ;;
@@ -1271,7 +1383,7 @@ echo "   [$script_name] v$version script execution started: $(date)"
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list_installers ]]; then
-    list_full_installers
+    swu_list_full_installers
     echo
     exit
 fi
@@ -1316,7 +1428,7 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
 fi
 
 # Look for the installer, download it if it is not present
-echo "   [$script_name] Looking for existing installer"
+echo "   [$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
 if [[ $invalid_installer_found == "yes" && -d "$install_macos_app" && $replace_invalid_installer == "yes" ]]; then
@@ -1326,6 +1438,8 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$installas
     rm -f "$install_macos_app"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "yes" ]]; then
@@ -1336,6 +1450,8 @@ elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "
         overwrite_existing_installer
     elif [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
@@ -1347,6 +1463,8 @@ elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_p
     fi
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $overwrite == "yes" && -d "$install_macos_app" && ! $list ]]; then
@@ -1356,10 +1474,14 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$installassistant_pkg") &&
     rm -f "$installassistant_pkg"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 
@@ -1371,6 +1493,8 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
         echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
         echo
+        # kill caffeinate
+        kill_process "caffeinate"
         exit 1
     fi
     get_user_details
@@ -1400,12 +1524,18 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     if [[ $ffi ]]; then
         if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
-            run_fetch_full_installer
+            dep_notify_progress fetch-full-installer >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
+            swu_fetch_full_installer
         else
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
+            dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
             run_installinstallmacos
         fi
     else
+        dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+        echo $! >> /tmp/depnotify_progress_pid
         run_installinstallmacos
     fi
     # Once finished downloading, kill the jamfHelper
@@ -1459,6 +1589,8 @@ fi
 
 if [[ ! -d "$install_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 [[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $install_macos_app with eraseinstall option"
@@ -1526,7 +1658,7 @@ if [[ $erase == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
         dep_notify
-        dep_notify_progress &
+        dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
@@ -1550,7 +1682,7 @@ elif [[ $reinstall == "yes" ]]; then
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
         dep_notify
-        dep_notify_progress &
+        dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then

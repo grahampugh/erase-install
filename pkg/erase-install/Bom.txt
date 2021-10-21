@@ -1,4 +1,0 @@
-.	40755	0/0
-./Library	41775	0/80
-./Library/Management	40755	0/80
-./Library/Management/erase-install	40755	0/80
