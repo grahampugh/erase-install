@@ -6,7 +6,7 @@ No date
 
 ## [0.23.0]
 
-No date
+21.10.2021
 
 - The package now includes a relocatable python installation (version 3.9.5) for use with `installinstallmacos.py`. This replaces the reliance on the macOS python2.7 distribution.
 - For standalone script runs, erase-install.sh will now check for an existing relocatable python or MacAdmins Python installation. If neither exists, and `--no-curl` is not set, the script will download and install the minimum MacAdmins Python signed package, for use with `installinstallmacos.py`. If `--no-curl` is set, the script will fall back to python 2.
