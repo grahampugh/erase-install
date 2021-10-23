@@ -4,6 +4,14 @@
 
 No date
 
+## [24.0]
+
+No date
+
+- Removed the "0" from the version, as it's arbitrary and meaningless.
+- New `--cleanup-after-use` option to delete the entire working directory after use.
+- `--move` will now move the installer even when using `--erase` or `--reinstall`.
+
 ## [0.23.0]
 
 21.10.2021

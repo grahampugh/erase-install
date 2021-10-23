@@ -37,8 +37,8 @@ DOC
 # script name
 script_name="erase-install"
 
-# Version:
-version="0.23.0"
+# Version of this script
+version="24.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -118,10 +118,10 @@ dialog_reinstall_title_de="Upgrading macOS"
 dialog_reinstall_title_nl="macOS upgraden"
 dialog_reinstall_title_fr="Mise à niveau de macOS"
 
-dialog_reinstall_status_en="Preparing macOS for reinstallation"
-dialog_reinstall_status_de="Vorbereiten von macOS für die Neuinstallation"
-dialog_reinstall_status_nl="MacOS voorbereiden voor herinstallatie"
-dialog_reinstall_status_fr="Préparation de macOS pour la réinstallation"
+dialog_reinstall_status_en="Preparing macOS for installation"
+dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
+dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
+dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
 
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
@@ -535,6 +535,24 @@ END
     fi
 }
 
+create_launchdaemon_to_remove_workdir () {
+    # Name of LaunchDaemon
+    plist_label="com.github.grahampugh.erase-install.remove"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
+    # Create the plist
+    /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
+    /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
+        -string /bin/rm \
+        -string -Rf \
+        -string "$workdir" \
+        -string "$launch_daemon"
+    /usr/bin/defaults write "$launch_daemon" RunAtLoad -boolean yes
+    /usr/bin/defaults write "$launch_daemon" LaunchOnlyOnce -boolean yes
+
+    /usr/sbin/chown root:wheel "$launch_daemon"
+    /bin/chmod 644 "$launch_daemon"
+}
+
 dep_notify() {
     # configuration taken from https://github.com/jamf/DEPNotify-Starter
     DEP_NOTIFY_CONFIG_PLIST="/Users/$current_user/Library/Preferences/menu.nomad.DEPNotify.plist"
@@ -644,8 +662,8 @@ dep_notify_quit() {
     dn_cancel=""
     # kill dep_notify_progress background job if it's already running
     if [ -f "/tmp/depnotify_progress_pid" ]; then
-        while read i; do
-            kill -9 ${i}
+        while read -r i; do
+            kill -9 "${i}"
         done < /tmp/depnotify_progress_pid
         /bin/rm /tmp/depnotify_progress_pid
     fi
@@ -1124,7 +1142,7 @@ show_help() {
                         security team don't like it.
     --list              List available updates only using installinstallmacos 
                         (don't download anything)
-    --seedprogram ...   Select a non-standard seed program
+    --seed ...          Select a non-standard seed program
     --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
     --samebuild         Finds the build of macOS that matches the
                         existing system version, downloads it.
@@ -1141,8 +1159,12 @@ show_help() {
     --replace-invalid   Checks that an existing installer on the system is still valid
                         i.e. would successfully build on this system. If not, deletes it
                         and downloads the current installer.
-    --move              If not erasing, moves the
-                        downloaded macOS installer to $installer_directory
+    --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
+                        the existing installer is removed but not replaced. This is useful
+                        for running the script after an upgrade to clear the working files.
+    --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
+                        in conjunction with the --reinstall option.
+    --move              Moves the downloaded macOS installer to $installer_directory
     --path /path/to     Overrides the destination of --move to a specified directory
     --erase             After download, erases the current system
                         and reinstalls macOS.
@@ -1276,6 +1298,8 @@ while test $# -gt 0 ; do
             ;;
         --clear-cache-only) clear_cache="yes"
             ;;
+        --cleanup-after-use) cleanup_after_use="yes"
+            ;;
         --depnotify) 
             if [[ -d "$DEP_NOTIFY_APP" ]]; then
                 use_depnotify="yes"
@@ -1295,7 +1319,7 @@ while test $# -gt 0 ; do
             shift
             min_drive_space="$1"
             ;;
-        --seedprogram)
+        --seed|--seedprogram)
             shift
             seedprogram="$1"
             ;;
@@ -1549,18 +1573,18 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     fi
 fi
 
+if [[ -d "$install_macos_app" ]]; then
+    echo "   [$script_name] Installer is at: $install_macos_app"
+fi
+
+# Move to $installer_directory if move_to_applications_folder flag is included
+# Not allowed for fetch_full_installer option
+if [[ $move == "yes" && ! $ffi ]]; then
+    echo "   [$script_name] Invoking --move option"
+    move_to_applications_folder
+fi
+
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
-    if [[ -d "$install_macos_app" ]]; then
-        echo "   [$script_name] Installer is at: $install_macos_app"
-    fi
-
-    # Move to $installer_directory if move_to_applications_folder flag is included
-    # Not allowed for fetch_full_installer option
-    if [[ $move == "yes" && ! $ffi ]]; then
-        echo "   [$script_name] Invoking --move option"
-        move_to_applications_folder
-    fi
-
     # Unmount the dmg
     if [[ ! $ffi ]]; then
         existing_installer=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
@@ -1573,6 +1597,7 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Clear the working directory
     echo "   [$script_name] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"
+
     # kill caffeinate
     kill_process "caffeinate"
     echo
@@ -1698,14 +1723,25 @@ END
     fi
 fi
 
-# now actually run startosinstall
+# set launchdaemon to remove $workdir if $cleanup_after_use is set
+if [[ $cleanup_after_use != "" ]]; then
+    echo "   [$script_name] Writing LaunchDaemon which will remove $workdir at next boot"
+fi
+
+# run an arbitrary command if preinstall_command is set
 if [[ $preinstall_command != "" ]]; then
     echo "   [$script_name] Now running arbitrary command: $preinstall_command"
 fi
+
+# now actually run startosinstall
 if [[ $test_run != "yes" ]]; then
     if [[ $preinstall_command != "" ]]; then
-        # run an arbitrary command if supplied in argumnents
+        # run an arbitrary command if preinstall_command is set
         $preinstall_command
+    fi
+    if [[ $cleanup_after_use != "" ]]; then
+        # set launchdaemon to remove $workdir if $cleanup_after_use is set
+        create_launchdaemon_to_remove_workdir
     fi
     if [ "$arch" == "arm64" ]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
