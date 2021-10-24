@@ -45,8 +45,8 @@ LOG_FILE=/var/log/erase-install.log
 exec > >(tee ${LOG_FILE}) 2>&1
 
 # URL for downloading installinstallmacos.py
-installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/master/installinstallmacos.py"
-installinstallmacos_checksum="f52fa78f7f51209de45fe1fb6ab0ce13f21b3008f129b4d17ab5b89b22b793c3"
+installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
+installinstallmacos_checksum="08ceb0187bd648e040c8ba23f79192f7d91b1250dbff47107c29cb2bca1ce433"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -68,9 +68,10 @@ extras_directory="$workdir/extras"
 
 # Dialog helper apps
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
-DEP_NOTIFY_APP="/Applications/Utilities/DEPNotify.app"
-DEP_NOTIFY_LOG="/var/tmp/depnotify.log"
-DEP_NOTIFY_CONFIRMATION_FILE="/var/tmp/com.depnotify.provisioning.done"
+depnotify_app="/Applications/Utilities/DEPNotify.app"
+depnotify_log="/var/tmp/depnotify.log"
+depnotify_confirmation_file="/var/tmp/com.depnotify.provisioning.done"
+depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 
 
 ###################
@@ -253,16 +254,16 @@ dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
 ask_for_password() {
     # required for Silicon Macs
-    /usr/bin/osascript <<EOT
+    /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
-EOT
+END
 }
 
 ask_for_shortname() {
     # required for Silicon Macs
-    /usr/bin/osascript <<EOT
+    /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
-EOT
+END
 }
 
 check_installassistant_pkg_is_valid() {
@@ -344,23 +345,56 @@ check_newer_available() {
         python_path=$(which python)
     fi
 
-    # run installinstallmacos.py with list and then interrogate the plist
+    # build arguments for installinstallmacos
+    installinstallmacos_args=()
+    installinstallmacos_args+=("--workdir")
+    installinstallmacos_args+=("$workdir")
+    installinstallmacos_args+=("--list")
+    if [[ $catalogurl ]]; then
+        echo "   [check_newer_available] Non-standard catalog URL selected"
+        installinstallmacos_args+=("--catalogurl")
+        installinstallmacos_args+=("$catalogurl")
+    elif [[ $seedprogram ]]; then
+        echo "   [check_newer_available] Non-standard seedprogram selected"
+        installinstallmacos_args+=("--seed")
+        installinstallmacos_args+=("$seedprogram")
+    fi
+    if [[ $beta == "yes" ]]; then
+        echo "   [check_newer_available] Beta versions included"
+        installinstallmacos_args+=("--beta")
+    fi
     if [[ $pkg_installer ]]; then
-        "$python_path" "$workdir/installinstallmacos.py" --list --pkg --workdir="$workdir" > /dev/null
-    else
-        "$python_path" "$workdir/installinstallmacos.py" --list --workdir="$workdir" > /dev/null
+        echo "   [check_newer_available] checking against package installers"
+        installinstallmacos_args+=("--pkg")
     fi
 
-    i=0
-    newer_build_found="no"
-    while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
-        compare_build_versions "$available_build" "$installer_build"
-        if [[ "$first_build_newer" == "yes" ]]; then
-            newer_build_found="yes"
+    # run installinstallmacos.py with list and then interrogate the plist
+    # TEST 
+    echo
+    echo "   [check_newer_available] This command is now being run:"
+    echo
+    echo "   installinstallmacos.py ${installinstallmacos_args[*]}"
+
+    if "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" > /dev/null; then
+        i=0
+        newer_build_found="no"
+        if [[ -f "$workdir/softwareupdate.plist" ]]; then
+            while available_build=$( /usr/libexec/PlistBuddy -c "Print :result:$i:build" "$workdir/softwareupdate.plist" 2>/dev/null); do
+                compare_build_versions "$available_build" "$installer_build"
+                if [[ "$first_build_newer" == "yes" ]]; then
+                    newer_build_found="yes"
+                fi
+                i=$((i+1))
+            done
+        else
+            echo "   [check_newer_available] ERROR reading output from installinstallmacos.py, cannot continue"
+            exit 1
         fi
-        i=$((i+1))
-    done
-    [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
+        [[ $newer_build_found != "yes" ]] && echo "   [check_newer_available] No newer builds found"
+    else
+        echo "   [check_newer_available] ERROR running installinstallmacos.py, cannot continue"
+        exit 1
+    fi
 }
 
 check_password() {
@@ -374,11 +408,9 @@ check_password() {
 		echo "   [check_password] Success: the password entered is the correct login password for $user."
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
-        /usr/bin/osascript <<EOT
-            display dialog "${!dialog_user_invalid}: $user." buttons {"OK"} default button 1 with icon 2
-EOT
-    exit 1
-	fi
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
+    fi
 }
 
 check_power_status() {
@@ -399,7 +431,8 @@ check_power_status() {
                 "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
                 wait_for_power "jamfHelper"
             else
-                /usr/bin/osascript -e "display dialog \"${!dialog_power_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop" &
+                # open_osascript_dialog syntax: title, message, button1, icon
+                open_osascript_dialog "${!dialog_power_desc}" "" "OK" stop &
                 wait_for_power "osascript"
             fi
         else
@@ -486,7 +519,7 @@ confirm() {
         done
         # DEPNotify creates a bom file if the user presses the confirmation button
         # but not if they cancel
-        if [[ -f "$DEP_NOTIFY_CONFIRMATION_FILE" ]]; then
+        if [[ -f "$depnotify_confirmation_file" ]]; then
             confirmation=2
         else
             confirmation=0
@@ -562,28 +595,28 @@ dep_notify() {
     chown "$current_user":staff "$DEP_NOTIFY_CONFIG_PLIST"
 
     # Configure the window's look
-    echo "Command: Image: $dn_icon" >> "$DEP_NOTIFY_LOG"
-    echo "Command: MainTitle: $dn_title" >> "$DEP_NOTIFY_LOG"
-    echo "Command: MainText: $dn_desc" >> "$DEP_NOTIFY_LOG"
+    echo "Command: Image: $dn_icon" >> "$depnotify_log"
+    echo "Command: MainTitle: $dn_title" >> "$depnotify_log"
+    echo "Command: MainText: $dn_desc" >> "$depnotify_log"
     if [[ $dn_button ]]; then
-        echo "Command: ContinueButton: $dn_button" >> "$DEP_NOTIFY_LOG"
+        echo "Command: ContinueButton: $dn_button" >> "$depnotify_log"
     fi
 
     if ! pgrep DEPNotify ; then
         # Opening the app after initial configuration
         if [[ "$window_type" == "fs" ]]; then
-            sudo -u "$current_user" open -a "$DEP_NOTIFY_APP" --args -path "$DEP_NOTIFY_LOG" -fullScreen
+            sudo -u "$current_user" open -a "$depnotify_app" --args -path "$depnotify_log" -fullScreen
         else
-            sudo -u "$current_user" open -a "$DEP_NOTIFY_APP" --args -path "$DEP_NOTIFY_LOG"
+            sudo -u "$current_user" open -a "$depnotify_app" --args -path "$depnotify_log"
         fi
     fi
 
     # set message below progress bar
-    echo "Status: $dn_status" >> "$DEP_NOTIFY_LOG"
+    echo "Status: $dn_status" >> "$depnotify_log"
 
     # set alternaitve quit key (default is X)
     if [[ $dn_quit_key ]]; then
-        echo "Command: QuitKey: $dn_quit_key" >> "$DEP_NOTIFY_LOG"
+        echo "Command: QuitKey: $dn_quit_key" >> "$depnotify_log"
     fi
 
 }
@@ -598,8 +631,8 @@ dep_notify_progress() {
         until grep -q "Preparing: \d" $LOG_FILE ; do
             sleep 2
         done
-        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
-        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - 0%" >> $depnotify_log
+        echo "Command: DeterminateManual: 100" >> $depnotify_log
 
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -607,8 +640,8 @@ dep_notify_progress() {
                 current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
-            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
-            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
+            echo "Status: $dn_status - $current_progress_value%" >> $depnotify_log
             last_progress_value=$current_progress_value
         done
 
@@ -617,8 +650,8 @@ dep_notify_progress() {
         until grep -q "Total" $LOG_FILE ; do
             sleep 2
         done
-        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
-        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - 0%" >> $depnotify_log
+        echo "Command: DeterminateManual: 100" >> $depnotify_log
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -626,8 +659,8 @@ dep_notify_progress() {
                 current_progress_value=$(tail -1 $LOG_FILE | awk '{print substr($(NF-9), 1, length($NF))}')
                 sleep 2
             done
-            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
-            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
+            echo "Status: $dn_status - $current_progress_value%" >> $depnotify_log
             last_progress_value=$current_progress_value
         done
 
@@ -636,8 +669,8 @@ dep_notify_progress() {
         until grep -q "Installing:" $LOG_FILE ; do
             sleep 2
         done
-        echo "Status: $dn_status - 0%" >> $DEP_NOTIFY_LOG
-        echo "Command: DeterminateManual: 100" >> $DEP_NOTIFY_LOG
+        echo "Status: $dn_status - 0%" >> $depnotify_log
+        echo "Command: DeterminateManual: 100" >> $depnotify_log
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -645,8 +678,8 @@ dep_notify_progress() {
                 current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
-            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $DEP_NOTIFY_LOG
-            echo "Status: $dn_status - $current_progress_value%" >> $DEP_NOTIFY_LOG
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
+            echo "Status: $dn_status - $current_progress_value%" >> $depnotify_log
             last_progress_value=$current_progress_value
         done
     fi
@@ -654,9 +687,9 @@ dep_notify_progress() {
 
 dep_notify_quit() {
     # quit DEP Notify
-    echo "Command: Quit" >> "$DEP_NOTIFY_LOG"
+    echo "Command: Quit" >> "$depnotify_log"
     # reset all the settings that might be used again
-    /bin/rm "$DEP_NOTIFY_LOG" "$DEP_NOTIFY_CONFIRMATION_FILE" 2>/dev/null
+    /bin/rm "$depnotify_log" "$depnotify_confirmation_file" 2>/dev/null
     dn_button=""
     dn_quit_key=""
     dn_cancel=""
@@ -725,9 +758,37 @@ free_space_check() {
         if [[ -f "$jamfHelper" ]]; then
             "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
         else
-            /usr/bin/osascript -e "display dialog \"${!dialog_check_desc}\" buttons {\"OK\"} default button \"OK\" with icon stop"
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
         fi
         exit 1
+    fi
+}
+
+get_depnotify() {
+    # grab installinstallmacos.py if not already there
+    # note this does a SHA256 checksum check and will delete the file and exit if this fails
+    if [[ -d "$depnotify_app" ]]; then
+        echo "   [get_depnotify] DEPNotify is installed ($depnotify_app)"
+    else
+        if [[ ! $no_curl ]]; then
+            echo "   [get_depnotify] Downloading DEPNotify.app..."
+            if /usr/bin/curl -L "$depnotify_download_url" -o "$workdir/DEPNotify.pkg" ; then
+                if ! installer -pkg "$workdir/DEPNotify.pkg" -target / ; then
+                    echo "   [get_depnotify] DEPNotify installation failed"
+                fi
+            else
+                echo "   [get_depnotify] DEPNotify download failed"
+            fi
+        fi
+        # check it did actually get downloaded
+        if [[  -d "$depnotify_app" ]]; then
+            echo "   [get_depnotify] DEPNotify is installed"
+            use_depnotify="yes"
+            dep_notify_quit
+        else
+            echo "   [get_depnotify] Could not download DEPNotify.app."
+        fi
     fi
 }
 
@@ -891,7 +952,32 @@ move_to_applications_folder() {
         diskutil unmount force "$existing_installer_mount_point"
     fi
     rm -f "$macos_dmg" "$macos_sparseimage"
+    install_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
+}
+
+open_osascript_dialog() {
+    title="$1"
+    message="$2"
+    button1="$3"
+    icon="$4"
+
+    if [[ $message ]]; then
+        /usr/bin/osascript <<-END
+            display dialog "$message" ¬
+            buttons {"$button1"} ¬
+            default button 1 ¬
+            with title "$title" ¬
+            with icon $icon
+END
+    else
+        /usr/bin/osascript <<-END
+            display dialog "$title" ¬
+            buttons {"$button1"} ¬
+            default button 1 ¬
+            with icon $icon
+END
+    fi
 }
 
 overwrite_existing_installer() {
@@ -917,81 +1003,89 @@ run_installinstallmacos() {
     get_relocatable_python
 
     # Use installinstallmacos.py to download the desired version of macOS
-    installinstallmacos_args=''
+    installinstallmacos_args=()
+    installinstallmacos_args+=("--workdir")
+    installinstallmacos_args+=("$workdir")
 
     if [[ $list == "yes" ]]; then
         echo "   [run_installinstallmacos] List only mode chosen"
-        installinstallmacos_args+="--list "
-        installinstallmacos_args+="--warnings "
+        installinstallmacos_args+=("--list")
+        installinstallmacos_args+=("--warnings")
     else
-        installinstallmacos_args+="--workdir=$workdir "
-        installinstallmacos_args+="--ignore-cache "
+        installinstallmacos_args+=("--ignore-cache")
     fi
 
     if [[ $pkg_installer ]]; then 
-        installinstallmacos_args+="--pkg "
+        installinstallmacos_args+=("--pkg")
     else
-        installinstallmacos_args+="--raw "
+        installinstallmacos_args+=("--raw")
     fi
 
     if [[ $catalogurl ]]; then
         echo "   [run_installinstallmacos] Non-standard catalog URL selected"
-        installinstallmacos_args+="--catalogurl $catalogurl "
+        installinstallmacos_args+=("--catalogurl")
+        installinstallmacos_args+=("$catalogurl")
     elif [[ $seedprogram ]]; then
         echo "   [run_installinstallmacos] Non-standard seedprogram selected"
-        installinstallmacos_args+="--seedprogram $seedprogram "
+        installinstallmacos_args+=("--seed")
+        installinstallmacos_args+=("$seedprogram")
     fi
 
     if [[ $beta == "yes" ]]; then
         echo "   [run_installinstallmacos] Beta versions included"
-        installinstallmacos_args+="--beta "
+        installinstallmacos_args+=("--beta")
     fi
 
     if [[ $prechosen_os ]]; then
         echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
-        installinstallmacos_args+="--os=$prechosen_os "
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
+        installinstallmacos_args+=("--os")
+        installinstallmacos_args+=("$prechosen_os")
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
 
     elif [[ $prechosen_version ]]; then
         echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
-        installinstallmacos_args+="--version=$prechosen_version "
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
+        installinstallmacos_args+=("--version")
+        installinstallmacos_args+=("$prechosen_version")
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
 
     elif [[ $prechosen_build ]]; then
         echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
-        installinstallmacos_args+="--build=$prechosen_build "
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+="--validate "
+        installinstallmacos_args+=("--build")
+        installinstallmacos_args+=("$prechosen_build")
+        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
     fi
 
     if [[ $samebuild == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current build $system_build is available"
-        installinstallmacos_args+="--current "
+        installinstallmacos_args+=("--current")
 
     elif [[ $sameos == "yes" ]]; then
         echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
         if [[ $system_os_major == "10" ]]; then
-            installinstallmacos_args+="--os=$system_os_major.$system_os_version "
+            installinstallmacos_args+=("--os")
+            installinstallmacos_args+=("$system_os_major.$system_os_version")
         else
-            installinstallmacos_args+="--os=$system_os_major "
+            installinstallmacos_args+=("--os")
+            installinstallmacos_args+=("$system_os_major")
         fi
         if [[ $skip_validation != "yes" ]]; then
-            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+="--validate "
+            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=("--validate")
         fi
     fi
 
     if [[ $list != "yes" && ! $prechosen_os && ! $prechosen_version && ! $prechosen_build && ! $samebuild ]]; then
         echo "   [run_installinstallmacos] Getting current production version"
-        installinstallmacos_args+="--auto "
+        installinstallmacos_args+=("--auto")
     fi
 
     # TEST 
     echo
     echo "   [run_installinstallmacos] This command is now being run:"
     echo
-    echo "   installinstallmacos.py $installinstallmacos_args"
+    echo "   installinstallmacos.py ${installinstallmacos_args[*]}"
 
     # shellcheck disable=SC2086
-    if ! "$python_path" "$workdir/installinstallmacos.py" $installinstallmacos_args ; then
+    if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
 	    kill_process DEPNotify
@@ -1093,16 +1187,14 @@ swu_fetch_full_installer() {
 
 user_invalid() {
     # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        display dialog "$account_shortname: ${!dialog_user_invalid}" buttons {"OK"} default button 1 with icon 2
-EOT
+    # open_osascript_dialog syntax: title, message, button1, icon
+    open_osascript_dialog "$account_shortname: ${!dialog_user_invalid}" "" "OK" 2
 }
 
 user_not_volume_owner() {
     # required for Silicon Macs
-    /usr/bin/osascript <<EOT
-        display dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" buttons {"OK"} default button 1 with icon 2
-EOT
+    # open_osascript_dialog syntax: title, message, button1, icon
+    open_osascript_dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" "" "OK" 2
 }
 
 wait_for_power() {
@@ -1301,9 +1393,11 @@ while test $# -gt 0 ; do
         --cleanup-after-use) cleanup_after_use="yes"
             ;;
         --depnotify) 
-            if [[ -d "$DEP_NOTIFY_APP" ]]; then
+            if [[ -d "$depnotify_app" ]]; then
                 use_depnotify="yes"
                 dep_notify_quit
+            else
+                get_depnotify
             fi
             ;;
         --no-jamfhelper) jamfHelper=""
@@ -1540,7 +1634,8 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
             "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
         else
             echo "   [$script_name] Opening osascript dialog (language=$user_language)"
-            /usr/bin/osascript -e "display alert \"${!dialog_dl_title}\" message \"${!dialog_dl_desc}\" buttons {\"OK\"} default button \"OK\" with icon 2"
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_dl_title}" "${!dialog_dl_desc}" "OK" 2 &
         fi
     fi
 
@@ -1548,28 +1643,28 @@ if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; t
     if [[ $ffi ]]; then
         if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
-            dep_notify_progress fetch-full-installer >/dev/null 2>&1 &
-            echo $! >> /tmp/depnotify_progress_pid
+            if [[ $use_depnotify == "yes" ]]; then
+                # display progress if DEPNotify used
+                dep_notify_progress fetch-full-installer >/dev/null 2>&1 &
+                echo $! >> /tmp/depnotify_progress_pid
+            fi
             swu_fetch_full_installer
         else
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
-            dep_notify_progress installinstallmacos >/dev/null 2>&1 &
-            echo $! >> /tmp/depnotify_progress_pid
+            if [[ $use_depnotify == "yes" ]]; then
+                # display progress if DEPNotify used
+                dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+                echo $! >> /tmp/depnotify_progress_pid
+            fi
             run_installinstallmacos
         fi
     else
-        dep_notify_progress installinstallmacos >/dev/null 2>&1 &
-        echo $! >> /tmp/depnotify_progress_pid
+        if [[ $use_depnotify == "yes" ]]; then
+            # display progress if DEPNotify used
+            dep_notify_progress installinstallmacos >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
+        fi
         run_installinstallmacos
-    fi
-    # Once finished downloading, kill the jamfHelper
-    if [[ $use_depnotify == "yes" ]]; then
-        echo "   [$script_name] Closing DEPNotify download message (language=$user_language)"
-        dn_finished="Download complete!" # TODO localize this message
-        dep_notify_quit
-    elif [[ -f "$jamfHelper" ]]; then
-        echo "   [$script_name] Closing jamfHelper download message (language=$user_language)"
-        kill_process "jamfHelper"
     fi
 fi
 
@@ -1581,8 +1676,21 @@ fi
 # Not allowed for fetch_full_installer option
 if [[ $move == "yes" && ! $ffi ]]; then
     echo "   [$script_name] Invoking --move option"
+    if [[ $use_depnotify == "yes" ]]; then
+        echo "Status: Moving installer to Applications folder" >> $depnotify_log
+    fi
     move_to_applications_folder
 fi
+
+# Once finished downloading (and optionally moving), kill the jamfHelper or DEPNotify
+if [[ $use_depnotify == "yes" ]]; then
+    echo "   [$script_name] Closing DEPNotify download message (language=$user_language)"
+    dep_notify_quit
+elif [[ -f "$jamfHelper" ]]; then
+    echo "   [$script_name] Closing jamfHelper download message (language=$user_language)"
+    kill_process "jamfHelper"
+fi
+
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Unmount the dmg
@@ -1692,9 +1800,8 @@ if [[ $erase == "yes" ]]; then
         PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
-        /usr/bin/osascript <<-END &
-            display dialog "${!dialog_erase_desc}" buttons {"OK"} default button "OK" with icon stop
-END
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_erase_desc}" "" "OK" stop &
         PID=$!
     fi
 
@@ -1716,9 +1823,8 @@ elif [[ $reinstall == "yes" ]]; then
         PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
-        /usr/bin/osascript <<-END &
-            display dialog "${!dialog_reinstall_desc}" buttons {"OK"} default button "OK" with icon stop
-END
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_reinstall_desc}" "" "OK" stop &
         PID=$!
     fi
 fi
