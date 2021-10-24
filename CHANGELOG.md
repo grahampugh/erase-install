@@ -13,6 +13,7 @@ No date
 - New `--cleanup-after-use` option to delete the entire working directory after use (#131).
 - `--move` will now move the installer even when using `--erase` or `--reinstall`.
 - `--update` option now honours `--beta` and `--seed` options.
+- The `--depnotify` option will download DEPNotify.app if it's not already installed.
 - Fixed a problem with the `osascript` dialog when downloading an installer.
 - Makefile now includes `depnotify` and `nopython` methods. `depnotify` bundles DEPNotify.app into the package, and expects `DEPNotify.zip` in the root of the cloned repo - must be copied there. `nopython` omits the relocatable-python framework (and also omits DEPNotify.app).
 - Updated SHA key of `installinstallmacos.py` to reflect merged in upstream changes (updated software catalog URL for macOS 12).
