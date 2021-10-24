@@ -356,7 +356,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.22.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v24.0...HEAD
+[24.0]: https://github.com/grahampugh/erase-install/compare/v0.23.0...v24.0
 [0.22.0]: https://github.com/grahampugh/erase-install/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/grahampugh/erase-install/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/grahampugh/erase-install/compare/v0.20.0...v0.20.1
