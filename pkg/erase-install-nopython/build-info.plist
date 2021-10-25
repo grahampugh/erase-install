@@ -9,7 +9,7 @@
 	<key>install_location</key>
 	<string>/</string>
 	<key>name</key>
-	<string>erase-install-${version}.pkg</string>
+	<string>erase-install-nopython-${version}.pkg</string>
 	<key>ownership</key>
 	<string>recommended</string>
 	<key>postinstall_action</key>

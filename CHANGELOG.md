@@ -4,13 +4,27 @@
 
 No date
 
+## [24.0]
+
+No date
+
+- Removed the "0." from the version, as it's arbitrary and meaningless.
+- `--seed` is now analogous to `--seedprogram`.
+- New `--cleanup-after-use` option to delete the entire working directory after use (#131).
+- `--move` will now move the installer even when using `--erase` or `--reinstall`.
+- `--update` option now honours `--beta` and `--seed` options.
+- The `--depnotify` option will download DEPNotify.app if it's not already installed.
+- Fixed a problem with the `osascript` dialog when downloading an installer.
+- Makefile now includes `depnotify` and `nopython` methods. `depnotify` bundles DEPNotify.app into the package, and expects `DEPNotify.zip` in the root of the cloned repo - must be copied there. `nopython` omits the relocatable-python framework (and also omits DEPNotify.app).
+- Updated SHA key of `installinstallmacos.py` to reflect merged in upstream changes (updated software catalog URL for macOS 12).
+
 ## [0.23.0]
 
 21.10.2021
 
 - The package now includes a relocatable python installation (version 3.9.5) for use with `installinstallmacos.py`. This replaces the reliance on the macOS python2.7 distribution.
 - For standalone script runs, erase-install.sh will now check for an existing relocatable python or MacAdmins Python installation. If neither exists, and `--no-curl` is not set, the script will download and install the minimum MacAdmins Python signed package, for use with `installinstallmacos.py`. If `--no-curl` is set, the script will fall back to python 2.
-- If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum.
+- If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum. Note: this is calculated using the command: ``
 - Add download progress information to the DEPNotify bar (#127, thanks @andredb90, addresses #116).
 - Rationalised version comparisons in the code from 3 to 1.
 
@@ -343,7 +357,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v0.22.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v24.0...HEAD
+[24.0]: https://github.com/grahampugh/erase-install/compare/v0.23.0...v24.0
 [0.22.0]: https://github.com/grahampugh/erase-install/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/grahampugh/erase-install/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/grahampugh/erase-install/compare/v0.20.0...v0.20.1
