@@ -77,11 +77,9 @@ depnotify:
 clean :
 	@echo "Cleaning up package root"
 	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/tests" ||:
 	rm -Rf "$(PKG_ROOT_NOPYTHON)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT_NOPYTHON)/Library/Management/erase-install/tests" ||:
 	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/tests" ||:
+	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities/"* ||:
 	rm $(CURDIR)/pkg/erase-install/build/*.pkg ||:
 	rm $(CURDIR)/pkg/erase-install-nopython/build/*.pkg ||:
 	rm $(CURDIR)/pkg/erase-install-depnotify/build/*.pkg ||:
