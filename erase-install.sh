@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="24.0"
+version="24.1"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -409,7 +409,8 @@ check_password() {
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
+        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
+        exit 1
     fi
 }
 
@@ -911,7 +912,7 @@ get_user_details() {
 
     # get password and check that the password is correct
     if ! account_password=$(ask_for_password) ; then
-        echo "   [get_user_details] Use cancelled."
+        echo "   [get_user_details] User cancelled."
         exit 1
     fi
     check_password "$account_shortname" "$account_password"
