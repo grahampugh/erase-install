@@ -10,7 +10,7 @@ No date
 
 - Script now exits if an incorrect password is entered (fixes #136).
 - Makefile uses `curl` to obtain DEPNotify.app without adding a quarantine bit (fixes #138).
-- Prevents incorreect entries (shows help and quits)
+- Prevents incorreect entries (shows help and quits) (fixes #139).
 
 ## [24.0]
 
