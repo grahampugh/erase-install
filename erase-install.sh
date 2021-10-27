@@ -1523,7 +1523,7 @@ while test $# -gt 0 ; do
         --preinstall-command*)
             preinstall_command=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
-        -h|--help|*) show_help
+        -h|--help) show_help
             ;;
     esac
     shift
