@@ -6,11 +6,13 @@ No date
 
 ## [24.1]
 
-No date
+27.10.2021
 
 - Script now exits if an incorrect password is entered (partially fixes #136).
 - Makefile uses `curl` to obtain DEPNotify.app without adding a quarantine bit (fixes #138).
 - Prevents incorrect entries in general (shows help and quits) (totally fixes #136).
+- Fixes for certain workflows involving the `--fetch-full-installer` (#140) and `--pkg` (#141) options.
+- Fixed `--user` option, which was not reading in the given user (#142, thanks @chymb).
 
 ## [24.0]
 
