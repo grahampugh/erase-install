@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="24.0"
+version="24.1"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log
@@ -304,18 +304,34 @@ check_installer_is_valid() {
     # first ensure that some earlier instance is not still mounted as it might interfere with the check
     [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
     # now attempt to mount
-    if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
-        build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
-        if [[ -f "$build_xml" ]]; then
-            echo "   [check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
-            installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+    if [[ -f "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
+        if hdiutil attach -quiet -noverify "$installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+            echo "   [check_installer_is_valid] Mounting $installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
-            diskutil unmount force "/Volumes/Shared Support"
+            build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
+            if [[ -f "$build_xml" ]]; then
+                echo "   [check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
+                installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
+                sleep 1
+                diskutil unmount force "/Volumes/Shared Support"
+            else
+                echo "   [check_installer_is_valid] ERROR: com_apple_MobileAsset_MacSoftwareUpdate.xml not found. Check the mount point at /Volumes/Shared Support"
+            fi
+        else
+            echo "   [check_installer_is_valid] Mounting SharedSupport.dmg failed"
         fi
     else
         # if that fails, fallback to the method for 10.15 or less, which is less accurate
         echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
-        installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+        if [[ -f "$installer_app/Contents/Info.plist" ]]; then
+            installer_build=$( /usr/bin/defaults read "$installer_app/Contents/Info.plist" DTSDKBuild )
+        else
+            echo "   [check_installer_is_valid] Installer Info.plist could not be found!"
+        fi
+    fi
+    if [[ ! $installer_build ]]; then
+        echo "   [check_installer_is_valid] Build of existing installer could not be found!"
+        exit 1
     fi
 
     system_build=$( /usr/bin/sw_vers -buildVersion )
@@ -409,7 +425,8 @@ check_password() {
 	else
 		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
+        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
+        exit 1
     fi
 }
 
@@ -911,7 +928,7 @@ get_user_details() {
 
     # get password and check that the password is correct
     if ! account_password=$(ask_for_password) ; then
-        echo "   [get_user_details] Use cancelled."
+        echo "   [get_user_details] User cancelled."
         exit 1
     fi
     check_password "$account_shortname" "$account_password"
@@ -928,32 +945,19 @@ kill_process() {
 move_to_applications_folder() {
     if [[ $app_is_in_applications_folder == "yes" ]]; then
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
-        return
-    fi
-
-    # if dealing with a package we now have to extract it and check it's valid
-    if [[ -f "$installassistant_pkg" ]]; then
-        echo "   [move_to_applications_folder] Extracting $installassistant_pkg to /Applications folder"
-        /usr/sbin/installer -pkg "$installassistant_pkg" -tgt /
-        install_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-        if [[ -d "$install_macos_app" && "$keep_pkg" != "yes" ]]; then
-            echo "   [move_to_applications_folder] Deleting $installassistant_pkg"
-            rm -f "$installassistant_pkg"
+    else
+        echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
+        cp -R "$install_macos_app" $installer_directory/
+        existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+        if [[ -d "$existing_installer" ]]; then
+            echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
+            existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
+            diskutil unmount force "$existing_installer_mount_point"
         fi
-        return
+        rm -f "$macos_dmg" "$macos_sparseimage"
+        install_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
     fi
-
-    echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
-    cp -R "$install_macos_app" $installer_directory/
-    existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-    if [[ -d "$existing_installer" ]]; then
-        echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
-        existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
-        diskutil unmount force "$existing_installer_mount_point"
-    fi
-    rm -f "$macos_dmg" "$macos_sparseimage"
-    install_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
 }
 
 open_osascript_dialog() {
@@ -1160,7 +1164,7 @@ swu_fetch_full_installer() {
     if [[ $? == 0 ]]; then
         # Identify the installer
         if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
-            install_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
             # if we actually want to use this installer we should check that it's valid
             if [[ $erase == "yes" || $reinstall == "yes" ]]; then 
                 check_installer_is_valid
@@ -1182,6 +1186,24 @@ swu_fetch_full_installer() {
         kill_process jamfHelper
 	    kill_process DEPNotify
         exit 1
+    fi
+}
+
+unpack_pkg_to_applications_folder() {
+    # if dealing with a package we now have to extract it and check it's valid
+    if [[ -f "$installassistant_pkg" ]]; then
+        echo "   [unpack_pkg_to_applications_folder] Unpacking $installassistant_pkg into /Applications folder"
+        if /usr/sbin/installer -pkg "$installassistant_pkg" -tgt / ; then
+            install_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            if [[ -d "$install_macos_app" && "$keep_pkg" != "yes" ]]; then
+                echo "   [unpack_pkg_to_applications_folder] Deleting $installassistant_pkg"
+                rm -f "$installassistant_pkg"
+                installassistant_pkg=""
+            fi
+        else
+            echo "   [unpack_pkg_to_applications_folder] ERROR - $installassistant_pkg could not be unpacked"
+            exit 1
+        fi
     fi
 }
 
@@ -1384,7 +1406,9 @@ while test $# -gt 0 ; do
             ;;
         --current-user) use_current_user="yes"
             ;;
-        --user) account_shortname="yes"
+        --user)
+            shift
+            account_shortname="$1"
             ;;
         --test-run) test_run="yes"
             ;;
@@ -1490,7 +1514,7 @@ while test $# -gt 0 ; do
         --preinstall-command*)
             preinstall_command=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
-        -h|--help) show_help
+        -h|--help|*) show_help
             ;;
     esac
     shift
@@ -1573,7 +1597,7 @@ elif [[ $update_installer == "yes" && -d "$install_macos_app" && $overwrite != "
         exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$installassistant_pkg") && $overwrite != "yes" ]]; then
-    echo "   [$script_name] Checking for newer installer"
+    echo "   [$script_name] Checking for newer installer package"
     check_newer_available
     if [[ $newer_build_found == "yes" ]]; then 
         echo "   [$script_name] Newer installer found so deleting existing installer package"
@@ -1619,7 +1643,6 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
 fi
 
 if [[ (! -d "$install_macos_app" && ! -f "$installassistant_pkg") || $list ]]; then
-    echo "   [$script_name] Starting download process"
     # if erasing or reinstalling, open a dialog to state that the download is taking place.
     if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         if [[ $use_depnotify == "yes" ]]; then
@@ -1679,7 +1702,11 @@ if [[ $move == "yes" && ! $ffi ]]; then
     if [[ $use_depnotify == "yes" ]]; then
         echo "Status: Moving installer to Applications folder" >> $depnotify_log
     fi
-    move_to_applications_folder
+    if [[ -f "$installassistant_pkg" ]]; then
+        unpack_pkg_to_applications_folder
+    else
+        move_to_applications_folder
+    fi
 fi
 
 # Once finished downloading (and optionally moving), kill the jamfHelper or DEPNotify
@@ -1717,7 +1744,7 @@ fi
 echo
 if [[ -f "$installassistant_pkg" ]]; then
     # if we still have a packege we need to move it before we can install it
-    move_to_applications_folder
+    unpack_pkg_to_applications_folder
 fi
 
 if [[ ! -d "$install_macos_app" ]]; then

@@ -4,9 +4,19 @@
 
 No date
 
+## [24.1]
+
+27.10.2021
+
+- Script now exits if an incorrect password is entered (partially fixes #136).
+- Makefile uses `curl` to obtain DEPNotify.app without adding a quarantine bit (fixes #138).
+- Prevents incorrect entries in general (shows help and quits) (totally fixes #136).
+- Fixes for certain workflows involving the `--fetch-full-installer` (#140) and `--pkg` (#141) options.
+- Fixed `--user` option, which was not reading in the given user (#142, thanks @chymb).
+
 ## [24.0]
 
-No date
+25.10.2021
 
 - Removed the "0." from the version, as it's arbitrary and meaningless.
 - `--seed` is now analogous to `--seedprogram`.
@@ -357,7 +367,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v24.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v24.1...HEAD
+[24.1]: https://github.com/grahampugh/erase-install/compare/v24.0...v24.1
 [24.0]: https://github.com/grahampugh/erase-install/compare/v0.23.0...v24.0
 [0.22.0]: https://github.com/grahampugh/erase-install/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/grahampugh/erase-install/compare/v0.20.1...v0.21.0

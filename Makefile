@@ -1,4 +1,5 @@
 CURDIR := $(shell pwd)
+DEPNOTIFY_URL := "https://files.nomad.menu/DEPNotify.zip"
 DEPNOTIFY_ZIPPATH := $(CURDIR)/DEPNotify.zip
 MUNKIPKG := /usr/local/bin/munkipkg
 PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
@@ -59,8 +60,9 @@ depnotify:
 	@echo "Installing Python into /Library/Management/erase-install"
 	"$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
-	@echo "Extracting DEPNotify.app into /Applications/Utilities"
+	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
+	curl -L "$(DEPNOTIFY_URL)" -o "$(DEPNOTIFY_ZIPPATH)"
 	unzip -o "$(DEPNOTIFY_ZIPPATH)" -d "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
 	chmod -R 755 "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
 
@@ -75,11 +77,9 @@ depnotify:
 clean :
 	@echo "Cleaning up package root"
 	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/tests" ||:
 	rm -Rf "$(PKG_ROOT_NOPYTHON)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT_NOPYTHON)/Library/Management/erase-install/tests" ||:
 	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/"* ||:
-	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/tests" ||:
+	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities/"* ||:
 	rm $(CURDIR)/pkg/erase-install/build/*.pkg ||:
 	rm $(CURDIR)/pkg/erase-install-nopython/build/*.pkg ||:
 	rm $(CURDIR)/pkg/erase-install-depnotify/build/*.pkg ||:
