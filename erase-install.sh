@@ -1406,7 +1406,9 @@ while test $# -gt 0 ; do
             ;;
         --current-user) use_current_user="yes"
             ;;
-        --user) account_shortname="yes"
+        --user)
+            shift
+            account_shortname="$1"
             ;;
         --test-run) test_run="yes"
             ;;
