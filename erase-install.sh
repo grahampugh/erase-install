@@ -180,10 +180,15 @@ dialog_power_title_de="Warten auf AC-Netzteil"
 dialog_power_title_nl="Wachten op Stroomadapter"
 dialog_power_title_fr="En attente de l'alimentation secteur"
 
-dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
-dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
-dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder"
-dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée."
+dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
+dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird innerhalb der nächsten:"
+dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
+dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante :"
+
+dialog_nopower_desc_en="Exiting. AC power was not connected after waiting for:"
+dialog_nopower_desc_de="Beenden. Die Stromversorgung wurde nach einer Wartezeit nicht hergestellt:"
+dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het wachten op:"
+dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu :"
 
 # Dialogue localizations - ask for short name
 dialog_short_name_en="Please enter an account name to start the reinstallation process"
@@ -240,6 +245,7 @@ dialog_cancel_button=dialog_cancel_button_${user_language}
 dialog_enter_button=dialog_enter_button_${user_language}
 dialog_check_desc=dialog_check_desc_${user_language}
 dialog_power_desc=dialog_power_desc_${user_language}
+dialog_nopower_desc=dialog_nopower_desc_${user_language}
 dialog_power_title=dialog_power_title_${user_language}
 dialog_short_name=dialog_short_name_${user_language}
 dialog_user_invalid=dialog_user_invalid_${user_language}
@@ -435,8 +441,10 @@ check_power_status() {
     # If not, and our power_wait_timer is above 1, allow user to connect to power for specified time period
     # Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
 
-    # set default wait time to 60 seconds
+    # default power_wait_timer to 60 seconds
     [[ ! $power_wait_timer ]] && power_wait_timer=60
+
+    power_wait_timer_friendly=$( printf '%02dh:%02dm:%02ds\n' $((power_wait_timer/3600)) $((power_wait_timer%3600/60)) $((power_wait_timer%60)) )
 
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         echo "   [check_power_status] OK - AC power detected"
@@ -445,15 +453,15 @@ check_power_status() {
         if [[ "$power_wait_timer" -gt 0 ]]; then
             if [[ -f "$jamfHelper" ]]; then
                 # use jamfHelper if possible
-                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
+                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
                 wait_for_power "jamfHelper"
             else
                 # open_osascript_dialog syntax: title, message, button1, icon
-                open_osascript_dialog "${!dialog_power_desc}" "" "OK" stop &
+                open_osascript_dialog "${!dialog_power_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
                 wait_for_power "osascript"
             fi
         else
-            echo "   [check_power_status] ERROR - No AC power detected, cannot continue."
+            echo "   [check_power_status] ERROR - No AC power detected after ${power_wait_timer_friendly}, cannot continue."
             exit 1
         fi
     fi
@@ -1242,7 +1250,14 @@ wait_for_power() {
         ((power_wait_timer--))
     done
     kill_process "$process"
-    echo "   [wait_for_power] ERROR - No AC power detected, cannot continue."
+    if [[ -f "$jamfHelper" ]]; then
+        # use jamfHelper if possible
+        "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_nopower_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton 1 &
+    else
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+    fi
+    echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer_friendly}, cannot continue."
     exit 1
 }
 
