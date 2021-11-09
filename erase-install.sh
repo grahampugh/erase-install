@@ -129,7 +129,7 @@ dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
 dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
 
-dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
+dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and complete the installation."
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
@@ -186,10 +186,10 @@ dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is 
 dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée."
 
 # Dialogue localizations - ask for short name
-dialog_short_name_en="Please enter an account name to start the reinstallation process"
-dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
+dialog_short_name_en="Please enter an account name to start the installation process"
+dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Installation zu starten"
 dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
-dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
+dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus d'installation"
 
 # Dialogue localizations - ask for password
 dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
@@ -198,10 +198,10 @@ dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van 
 dialog_not_volume_owner_fr="le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
-dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
-dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
-dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
-dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
+dialog_user_invalid_en="This account cannot be used to to perform the installation"
+dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Installation verwendet werden"
+dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de installatie uit te voeren"
+dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la installation"
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
