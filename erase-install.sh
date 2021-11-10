@@ -669,7 +669,11 @@ dep_notify_progress() {
         done
         echo "Status: $dn_status - 0%" >> $depnotify_log
         echo "Command: DeterminateManual: 100" >> $depnotify_log
-
+        sleep 2
+        until [[ $current_progress_value -gt 0 && $current_progress_value -lt 100 ]]; do
+                current_progress_value=$(tail -1 $LOG_FILE | awk '{print substr($(NF-9), 1, length($NF))}')
+                sleep 2
+        done
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
