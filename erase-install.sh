@@ -419,11 +419,11 @@ check_password() {
     # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
-	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
-	if [[ -z "${password_matches}" ]]; then
-		echo "   [check_password] Success: the password entered is the correct login password for $user."
-	else
-		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+    password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+    if [[ -z "${password_matches}" ]]; then
+        echo "   [check_password] Success: the password entered is the correct login password for $user."
+    else
+        echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
         exit 1
@@ -1092,7 +1092,7 @@ run_installinstallmacos() {
     if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
         kill_process jamfHelper
-	    kill_process DEPNotify
+        kill_process DEPNotify
         echo
         exit 1
     fi
@@ -1128,7 +1128,7 @@ run_installinstallmacos() {
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
         kill_process jamfHelper
-	    kill_process DEPNotify
+        kill_process DEPNotify
         exit 1
     fi
 }
@@ -1180,20 +1180,20 @@ swu_fetch_full_installer() {
                 if [[ $invalid_installer_found == "yes" ]]; then
                     echo "   [swu_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
                     kill_process jamfHelper
-            	    kill_process DEPNotify
+                    kill_process DEPNotify
                     exit 1
                 fi
             fi
         else
             echo "   [swu_fetch_full_installer] No install app found. I guess nothing got downloaded."
             kill_process jamfHelper
-    	    kill_process DEPNotify
+            kill_process DEPNotify
             exit 1
         fi
     else
         echo "   [swu_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
         kill_process jamfHelper
-	    kill_process DEPNotify
+        kill_process DEPNotify
         exit 1
     fi
 }
