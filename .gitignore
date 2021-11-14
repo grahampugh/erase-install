@@ -111,3 +111,5 @@ content/
 softwareupdate.plist
 temp.sh
 DEPNotify.*
+__MACOSX/*
+

@@ -769,13 +769,12 @@ find_extra_packages() {
 }
 
 free_space_check() {
-    free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+    free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")  # with thanks to Pico
     
-    min_drive_bytes=$(( min_drive_space * 1000000 ))
-    if [[ $free_disk_space -ge $min_drive_bytes ]]; then
-        echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
+    if [[ $free_disk_space -ge $min_drive_space ]]; then
+        echo "   [free_space_check] OK - $free_disk_space GB free/purgeable disk space detected"
     else
-        echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
+        echo "   [free_space_check] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
             "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
         else
