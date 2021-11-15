@@ -323,7 +323,7 @@ check_installer_is_valid() {
     [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
     # now attempt to mount
     if [[ -f "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
-        if hdiutil attach -quiet -noverify "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        if hdiutil attach -nobrowse -quiet -noverify "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
             echo "   [check_installer_is_valid] Mounting $existing_installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
             build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
@@ -1095,8 +1095,6 @@ run_installinstallmacos() {
     # shellcheck disable=SC2086
     if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
-        kill_process jamfHelper
-        kill_process DEPNotify
         echo
         exit 1
     fi
@@ -1131,8 +1129,6 @@ run_installinstallmacos() {
         working_installer_pkg="$downloaded_installer_pkg"
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
-        kill_process jamfHelper
-        kill_process DEPNotify
         exit 1
     fi
 }
@@ -1183,21 +1179,15 @@ swu_fetch_full_installer() {
                 check_installer_is_valid
                 if [[ $invalid_installer_found == "yes" ]]; then
                     echo "   [swu_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    kill_process jamfHelper
-                    kill_process DEPNotify
                     exit 1
                 fi
             fi
         else
             echo "   [swu_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            kill_process jamfHelper
-            kill_process DEPNotify
             exit 1
         fi
     else
         echo "   [swu_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        kill_process jamfHelper
-        kill_process DEPNotify
         exit 1
     fi
 }
@@ -1362,6 +1352,25 @@ show_help() {
     "
     exit
 }
+
+finish() {
+    # kill caffeinate
+    kill_process "caffeinate"
+
+    # kill any dialogs if startosinstall ends before a reboot
+    kill_process "jamfHelper"
+    dep_notify_quit
+    kill_process DEPNotify
+
+    # if we promoted the user then we should demote it again
+    if [[ $promoted_user ]]; then
+        /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
+        echo "     [$script_name] User $promoted_user was demoted back to standard user"
+    fi
+}
+
+# ensure the finish function is executed when exit is signaled
+trap "finish" EXIT
 
 
 ###############
@@ -1599,8 +1608,6 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_i
     rm -f "$working_macos_app"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && -d "$working_macos_app" && $overwrite != "yes" ]]; then
@@ -1611,8 +1618,6 @@ elif [[ $update_installer == "yes" && -d "$working_macos_app" && $overwrite != "
         overwrite_existing_installer
     elif [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$working_installer_pkg") && $overwrite != "yes" ]]; then
@@ -1624,8 +1629,6 @@ elif [[ $update_installer == "yes" && ($pkg_installer && -f "$working_installer_
     fi
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
         exit
     fi
 elif [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
@@ -1635,14 +1638,10 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") &
     rm -f "$working_installer_pkg"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
         exit
     fi
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
-    # kill caffeinate
-    kill_process "caffeinate"
     exit 1
 fi
 
@@ -1654,8 +1653,6 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
         echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
         echo
-        # kill caffeinate
-        kill_process "caffeinate"
         exit 1
     fi
     get_user_details
@@ -1752,8 +1749,6 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     echo "   [$script_name] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"
 
-    # kill caffeinate
-    kill_process "caffeinate"
     echo
     exit
 fi
@@ -1768,8 +1763,6 @@ fi
 
 if [[ ! -d "$working_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
-    # kill caffeinate
-    kill_process "caffeinate"
     exit 1
 fi
 [[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $working_macos_app with eraseinstall option"
@@ -1917,17 +1910,4 @@ else
         echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction "${install_package_list[@]}"
     fi
     sleep 120
-fi
-
-# kill any dialogs if startosinstall ends before a reboot
-kill_process "jamfHelper"
-dep_notify_quit
-
-# kill caffeinate
-kill_process "caffeinate"
-
-# if we get this far and we promoted the user then we should demote it again
-if [[ $promoted_user ]]; then
-    /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-    echo "     [$script_name] User $promoted_user was demoted back to standard user"
 fi
