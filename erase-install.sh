@@ -438,13 +438,13 @@ check_password() {
     user="$1"
     password="$2"
     password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
-    if [[ -z "${password_matches}" ]]; then
+
+    if [[ -z "$password_matches" ]]; then
         echo "   [check_password] Success: the password entered is the correct login password for $user."
+        password_check="pass"
     else
         echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
-        # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
-        exit 1
+        password_check="fail"
     fi
 }
 
@@ -883,7 +883,7 @@ get_user_details() {
 
     if [[ $account_shortname == "" ]]; then
         if ! account_shortname=$(ask_for_shortname) ; then
-            echo "   [get_user_details] Use cancelled."
+            echo "   [get_user_details] User cancelled."
             exit 1
         fi
     fi
@@ -931,11 +931,23 @@ get_user_details() {
     fi
 
     # get password and check that the password is correct
-    if ! account_password=$(ask_for_password) ; then
-        echo "   [get_user_details] User cancelled."
-        exit 1
-    fi
-    check_password "$account_shortname" "$account_password"
+    password_attempts=0
+    password_check="fail"
+    while [[ "$password_check" != "pass" ]] ; do
+        if ! account_password=$(ask_for_password) ; then
+            echo "   [get_user_details] User cancelled."
+            exit 1
+        fi
+        check_password "$account_shortname" "$account_password"
+
+        password_attempts=$((password_attempts+1))
+        if [[ $password_attempts -ge 5 ]]; then
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 
+            exit 1
+        fi
+    done
+
 }
 
 kill_process() {
@@ -1369,13 +1381,13 @@ finish() {
     fi
 }
 
-# ensure the finish function is executed when exit is signaled
-trap "finish" EXIT
-
 
 ###############
 ## MAIN BODY ##
 ###############
+
+# ensure the finish function is executed when exit is signaled
+trap "finish" EXIT
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -1892,7 +1904,7 @@ if [[ $test_run != "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         if [[ "$erase" == "yes" ]]; then
-            echo  "   [get_user_details] updating preboot files (takes a few seconds)..."
+            echo  "   [$script_name] updating preboot files (takes a few seconds)..."
             /usr/sbin/diskutil apfs updatepreboot / > /dev/null
         fi        
         # shellcheck disable=SC2086
