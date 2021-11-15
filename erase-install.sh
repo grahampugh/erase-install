@@ -942,7 +942,8 @@ get_user_details() {
     password_attempts=0
     password_check="fail"
     while [[ "$password_check" != "pass" ]] ; do
-        if ! account_password=$(ask_for_password) ; then
+        account_password=$(ask_for_password)
+        if [[ ! "$account_password" ]]; then
             echo "   [get_user_details] User cancelled."
             exit 1
         fi
