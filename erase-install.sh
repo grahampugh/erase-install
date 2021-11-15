@@ -1095,8 +1095,6 @@ run_installinstallmacos() {
     # shellcheck disable=SC2086
     if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
-        kill_process jamfHelper
-        kill_process DEPNotify
         echo
         exit 1
     fi
@@ -1131,8 +1129,6 @@ run_installinstallmacos() {
         working_installer_pkg="$downloaded_installer_pkg"
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
-        kill_process jamfHelper
-        kill_process DEPNotify
         exit 1
     fi
 }
@@ -1183,21 +1179,15 @@ swu_fetch_full_installer() {
                 check_installer_is_valid
                 if [[ $invalid_installer_found == "yes" ]]; then
                     echo "   [swu_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    kill_process jamfHelper
-                    kill_process DEPNotify
                     exit 1
                 fi
             fi
         else
             echo "   [swu_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            kill_process jamfHelper
-            kill_process DEPNotify
             exit 1
         fi
     else
         echo "   [swu_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        kill_process jamfHelper
-        kill_process DEPNotify
         exit 1
     fi
 }
@@ -1370,6 +1360,7 @@ finish() {
     # kill any dialogs if startosinstall ends before a reboot
     kill_process "jamfHelper"
     dep_notify_quit
+    kill_process DEPNotify
 
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
