@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="24.1"
+version="25.0"
 
 # all output is written also to a log file
 LOG_FILE=/var/log/erase-install.log

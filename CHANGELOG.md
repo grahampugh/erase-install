@@ -4,6 +4,16 @@
 
 No date
 
+## [25.0]
+
+No date
+
+- Determine free space better by checking free and purgeable space (thanks to Pico in MacAdmins Slack).
+- Use exit traps to clean up after all abnormal exits (#140, #141; thanks to @ryangball).
+- Add `-nobrowse` to `hdiutil` to prevent mounted images appearing on the deaktop (thanks to @ryangball).
+- Allow 5 password attempts (#159).
+- Some dialog changes, to replace the word "reinstall", which some people have found confusing, with "install" (#149).
+
 ## [24.1]
 
 27.10.2021
