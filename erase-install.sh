@@ -181,14 +181,14 @@ dialog_power_title_nl="Wachten op Stroomadapter"
 dialog_power_title_fr="En attente de l'alimentation secteur"
 
 dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
-dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird innerhalb der nächsten:"
+dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung innerhalb der folgende Zeitdauer erkannt wird:"
 dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
-dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante :"
+dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
 
 dialog_nopower_desc_en="Exiting. AC power was not connected after waiting for:"
 dialog_nopower_desc_de="Beenden. Die Stromversorgung wurde nach einer Wartezeit nicht hergestellt:"
 dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het wachten op:"
-dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu :"
+dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
 
 # Dialogue localizations - ask for short name
 dialog_short_name_en="Please enter an account name to start the installation process"
