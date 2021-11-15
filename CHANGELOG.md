@@ -12,6 +12,7 @@ No date
 - Use exit traps to clean up after all abnormal exits (fixes #140, #141; thanks to @ryangball).
 - Add `-nobrowse` to `hdiutil` to prevent mounted images appearing on the deaktop (thanks to @ryangball).
 - Allow 5 password attempts (fixes #159).
+- Add dialog to show how much time is left in the power check (#144; thanks to @dan-snelson).
 - Some dialog changes, to replace the word "reinstall", which some people have found confusing, with "install" (addresses #149).
 
 ## [24.1]
