@@ -65,12 +65,12 @@ depnotify:
 	curl -L "$(DEPNOTIFY_URL)" -o "$(DEPNOTIFY_ZIPPATH)"
 	unzip -o "$(DEPNOTIFY_ZIPPATH)" -d "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
 	chmod -R 755 "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
+	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities/__MACOSX"
 
 	@echo "Making package in $(PKG_BUILD_DEPNOTIFY) directory"
 	cd $(CURDIR)/pkg && $(MUNKIPKG) erase-install-depnotify
 	open $(PKG_BUILD_DEPNOTIFY)
 
-	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities/__MACOSX"
 
 
 .PHONY : clean
