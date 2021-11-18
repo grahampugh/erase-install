@@ -14,6 +14,7 @@ No date
 - Allow 5 password attempts (fixes #159).
 - Add dialog to show how much time is left in the power check (#144; thanks to @dan-snelson).
 - Some dialog changes, to replace the word "reinstall", which some people have found confusing, with "install" (addresses #149).
+- Change log location to the `$workdir` so that it persists after an upgrade, and also so it is wiped if using the `--cleanup-after-use` option (fixes #161).
 
 ## [24.1]
 

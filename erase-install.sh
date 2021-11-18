@@ -40,10 +40,6 @@ script_name="erase-install"
 # Version of this script
 version="25.0"
 
-# all output is written also to a log file
-LOG_FILE=/var/log/erase-install.log
-exec > >(tee ${LOG_FILE}) 2>&1
-
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
 installinstallmacos_checksum="08ceb0187bd648e040c8ba23f79192f7d91b1250dbff47107c29cb2bca1ce433"
@@ -53,6 +49,10 @@ installer_directory="/Applications"
 
 # Temporary working directory
 workdir="/Library/Management/erase-install"
+
+# all output is written also to a log file
+LOG_FILE="$workdir/erase-install.log"
+exec > >(tee ${LOG_FILE}) 2>&1
 
 # bundled python directory
 relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
