@@ -94,7 +94,7 @@ fi
 # Dialogue localizations - download window
 dialog_dl_title_en="Downloading macOS"
 dialog_dl_title_de="Download macOS"
-dialog_dl_title_nl="Downloaden macOS"
+dialog_dl_title_nl="macOS downloaden"
 dialog_dl_title_fr="Téléchargement de macOS"
 
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
@@ -104,8 +104,8 @@ dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macO
 
 # Dialogue localizations - erase lockscreen
 dialog_erase_title_en="Erasing macOS"
-dialog_erase_title_de="macOS Wiederherstellen"
-dialog_erase_title_nl="macOS Herinstalleren"
+dialog_erase_title_de="macOS wiederherstellen"
+dialog_erase_title_nl="macOS herinstalleren"
 dialog_erase_title_fr="Effacement de macOS"
 
 dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
@@ -155,7 +155,7 @@ dialog_confirmation_status_fr="Appuyez sur Cmd + Ctrl + C pour annuler"
 # Dialogue buttons
 dialog_confirmation_button_en="Confirm"
 dialog_confirmation_button_de="Bestätigen"
-dialog_confirmation_button_nl="Ja"
+dialog_confirmation_button_nl="Bevestig"
 dialog_confirmation_button_fr="Confirmer"
 
 dialog_cancel_button_en="Stop"
@@ -170,19 +170,19 @@ dialog_enter_button_fr="Entrer"
 
 # Dialogue localizations - free space check
 dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
-dialog_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
-dialog_check_desc_nl="De macOS-upgrade kan niet worden geïnstalleerd op een computer met minder dan 45 GB schijfruimte."
+dialog_check_desc_de="Das macOS Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
+dialog_check_desc_nl="De macOS upgrade kan niet worden geïnstalleerd op een computer met minder dan 45 GB vrije schijfruimte."
 dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
 
 # Dialogue localizations - power check
 dialog_power_title_en="Waiting for AC Power Connection"
 dialog_power_title_de="Warten auf AC-Netzteil"
-dialog_power_title_nl="Wachten op Stroomadapter"
+dialog_power_title_nl="Wachten op stroomadapter"
 dialog_power_title_fr="En attente de l'alimentation secteur"
 
 dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
 dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
-dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder"
+dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd, gaat het proces verder"
 dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée."
 
 # Dialogue localizations - ask for short name
@@ -192,10 +192,10 @@ dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starte
 dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
 
 # Dialogue localizations - ask for password
-dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
+dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
 dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
 dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
-dialog_not_volume_owner_fr="le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
+dialog_not_volume_owner_fr="Le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
 dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
@@ -691,7 +691,7 @@ dep_notify_progress() {
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
-            until [ $current_progress_value -gt $last_progress_value ]; do
+            until [ "$current_progress_value" -gt "$last_progress_value" ]; do
                 current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
