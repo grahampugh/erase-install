@@ -17,6 +17,7 @@ No date
 - Changed log location to the `$workdir` so that it persists after an upgrade, and also so it is wiped if using the `--cleanup-after-use` option (fixes #161).
 - Remove check for membership of `staff` group for Apple Silicon Macs, since Volume Ownership is already checked it's not necessary, and was preventing non-admin AD users from proceeding (fixes #166).
 - Re-order some initial statements to ensure that the chosen $workdir has been created before DEPNotify is downloaded and the log file is determined (fixes #165).
+- Some minot changes to the Dutch translation (addresses #164, thanks @Alitekawi).
 
 ## [24.1]
 
