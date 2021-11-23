@@ -47,24 +47,13 @@ installinstallmacos_checksum="08ceb0187bd648e040c8ba23f79192f7d91b1250dbff47107c
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
-# Temporary working directory
+# Default working directory (may be overridden by the --workdir parameter)
 workdir="/Library/Management/erase-install"
-
-# all output is written also to a log file
-LOG_FILE="$workdir/erase-install.log"
-exec > >(tee ${LOG_FILE}) 2>&1
-
-# bundled python directory
-relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
 
 # URL for downloading macadmins python (with tag version) for standalone script running
 macadmins_python_version="v.3.9.5.09222021234106"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
-
-# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
-# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
-extras_directory="$workdir/extras"
 
 # Dialog helper apps
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
@@ -811,7 +800,7 @@ get_depnotify() {
             fi
         fi
         # check it did actually get downloaded
-        if [[  -d "$depnotify_app" ]]; then
+        if [[ -d "$depnotify_app" ]]; then
             echo "   [get_depnotify] DEPNotify is installed"
             use_depnotify="yes"
             dep_notify_quit
@@ -824,11 +813,6 @@ get_depnotify() {
 get_installinstallmacos() {
     # grab installinstallmacos.py if not already there
     # note this does a SHA256 checksum check and will delete the file and exit if this fails
-    if [[ ! -d "$workdir" ]]; then
-        echo "   [get_installinstallmacos] Making working directory at $workdir"
-        mkdir -p "$workdir"
-    fi
-
     if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
         if [[ ! $no_curl ]]; then
             echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
@@ -1472,7 +1456,7 @@ while test $# -gt 0 ; do
                 use_depnotify="yes"
                 dep_notify_quit
             else
-                get_depnotify
+                get_depnotify_app="yes"
             fi
             ;;
         --no-jamfhelper) jamfHelper=""
@@ -1574,13 +1558,24 @@ done
 echo
 echo "   [$script_name] v$version script execution started: $(date)"
 
-# if getting a list from softwareupdate then we don't need to make any OS checks
-if [[ $list_installers ]]; then
-    swu_list_full_installers
-    echo
-    exit
+# not giving an option for fetch-full-installer mode for now... /Applications is the path
+if [[ $ffi ]]; then
+    installer_directory="/Applications"
 fi
 
+# ensure installer_directory (--path) and workdir exists
+if [[ ! -d "$installer_directory" ]]; then
+    echo "   [$script_name] Making installer directory at $installer_directory"
+    /bin/mkdir -p "$installer_directory"
+fi
+if [[ ! -d "$workdir" ]]; then
+    echo "   [$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+
+# all output from now on is written also to a log file
+LOG_FILE="$workdir/erase-install.log"
+exec > >(tee "${LOG_FILE}") 2>&1
 
 # ensure computer does not go to sleep while running this script
 pid=$$
@@ -1588,16 +1583,22 @@ echo "   [$script_name] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -dimsu -w $pid &
 caffeinate_pid=$!
 
-# not giving an option for fetch-full-installer mode for now... /Applications is the path
-if [[ $ffi ]]; then
-    installer_directory="/Applications"
-fi
+# bundled python directory
+relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
 
-# ensure installer_directory exists
-/bin/mkdir -p "$installer_directory"
+# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
+# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
+extras_directory="$workdir/extras"
 
 # variable to prevent installinstallmacos getting downloaded twice
 iim_downloaded=0
+
+# if getting a list from softwareupdate then we don't need to make any OS checks
+if [[ $list_installers ]]; then
+    swu_list_full_installers
+    echo
+    exit
+fi
 
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
@@ -1615,6 +1616,11 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         echo "* Remove the --test-run argument to perform the erase or reinstall."
         echo "**********************"
         echo
+    fi
+
+    # get DEPNotify if specified
+    if [[ $get_depnotify_app == "yes" ]]; then
+        get_depnotify
     fi
 
     # check there is enough space
