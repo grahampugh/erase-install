@@ -6,15 +6,16 @@ No date
 
 ## [25.0]
 
-No date
+23.11.2021
 
-- Determine free space better by checking free and purgeable space (partial fix for #152; thanks to Pico in MacAdmins Slack).
-- Use exit traps to clean up after all abnormal exits (fixes #140, #141; thanks to @ryangball).
-- Add `-nobrowse` to `hdiutil` to prevent mounted images appearing on the deaktop (thanks to @ryangball).
-- Allow 5 password attempts (fixes #159).
-- Add dialog to show how much time is left in the power check (#144; thanks to @dan-snelson).
+- Determines free space better by checking free and purgeable space (partial fix for #152; thanks to Pico in MacAdmins Slack).
+- Uses exit traps to clean up after all abnormal exits (fixes #140, #141; thanks to @ryangball).
+- Adds `-nobrowse` to `hdiutil` to prevent mounted images appearing on the desktop (thanks to @ryangball).
+- Allows 5 password attempts (fixes #159).
+- Adds dialog to show how much time is left in the power check (#144; thanks to @dan-snelson).
 - Some dialog changes, to replace the word "reinstall", which some people have found confusing, with "install" (addresses #149).
-- Change log location to the `$workdir` so that it persists after an upgrade, and also so it is wiped if using the `--cleanup-after-use` option (fixes #161).
+- Changed log location to the `$workdir` so that it persists after an upgrade, and also so it is wiped if using the `--cleanup-after-use` option (fixes #161).
+- Remove check for membership of `staff` group for Apple Silicon Macs, since Volume Ownership is already checked it's not necessary, and was preventing non-admin AD users from proceeding (fixes #166).
 
 ## [24.1]
 

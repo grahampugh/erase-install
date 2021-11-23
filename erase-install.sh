@@ -896,25 +896,11 @@ get_user_details() {
         fi
     fi
 
-    # check that this user exists and is in the staff group (so not some system user)
-    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" staff ; then
-        echo "   [get_user_details] $account_shortname account cannot be used to perform reinstallation!"
+    # check that this user exists
+    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
+        echo "   [get_user_details] $account_shortname account cannot be found!"
         user_invalid
         exit 1
-    fi
-
-    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
-    if [[ $erase == "yes" ]]; then
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
-            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
-                echo "   [get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
-                promoted_user="$account_shortname"
-            else
-                echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                user_invalid
-                exit 1
-            fi
-        fi
     fi
 
     # check that the user is a Volume Owner
@@ -957,6 +943,19 @@ get_user_details() {
         fi
     done
 
+    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
+    if [[ $erase == "yes" ]]; then
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
+            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
+                echo "   [get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
+                promoted_user="$account_shortname"
+            else
+                echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
+                user_invalid
+                exit 1
+            fi
+        fi
+    fi
 }
 
 kill_process() {
