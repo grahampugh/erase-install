@@ -38,11 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="24.1"
-
-# all output is written also to a log file
-LOG_FILE=/var/log/erase-install.log
-exec > >(tee ${LOG_FILE}) 2>&1
+version="25.0"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
@@ -51,20 +47,13 @@ installinstallmacos_checksum="08ceb0187bd648e040c8ba23f79192f7d91b1250dbff47107c
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
 
-# Temporary working directory
+# Default working directory (may be overridden by the --workdir parameter)
 workdir="/Library/Management/erase-install"
-
-# bundled python directory
-relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
 
 # URL for downloading macadmins python (with tag version) for standalone script running
 macadmins_python_version="v.3.9.5.09222021234106"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
-
-# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
-# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
-extras_directory="$workdir/extras"
 
 # Dialog helper apps
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
@@ -93,8 +82,8 @@ fi
 
 # Dialogue localizations - download window
 dialog_dl_title_en="Downloading macOS"
-dialog_dl_title_de="Download macOS"
-dialog_dl_title_nl="Downloaden macOS"
+dialog_dl_title_de="macOS wird heruntergeladen"
+dialog_dl_title_nl="macOS downloaden"
 dialog_dl_title_fr="Téléchargement de macOS"
 
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
@@ -104,8 +93,8 @@ dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macO
 
 # Dialogue localizations - erase lockscreen
 dialog_erase_title_en="Erasing macOS"
-dialog_erase_title_de="macOS Wiederherstellen"
-dialog_erase_title_nl="macOS Herinstalleren"
+dialog_erase_title_de="macOS wiederherstellen"
+dialog_erase_title_nl="macOS herinstalleren"
 dialog_erase_title_fr="Effacement de macOS"
 
 dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
@@ -155,7 +144,7 @@ dialog_confirmation_status_fr="Appuyez sur Cmd + Ctrl + C pour annuler"
 # Dialogue buttons
 dialog_confirmation_button_en="Confirm"
 dialog_confirmation_button_de="Bestätigen"
-dialog_confirmation_button_nl="Ja"
+dialog_confirmation_button_nl="Bevestig"
 dialog_confirmation_button_fr="Confirmer"
 
 dialog_cancel_button_en="Stop"
@@ -170,20 +159,25 @@ dialog_enter_button_fr="Entrer"
 
 # Dialogue localizations - free space check
 dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
-dialog_check_desc_de="Das macOS-Upgrade kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
-dialog_check_desc_nl="De macOS-upgrade kan niet worden geïnstalleerd op een computer met minder dan 45 GB schijfruimte."
+dialog_check_desc_de="Das Upgrade von macOS kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
+dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
 dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
 
 # Dialogue localizations - power check
 dialog_power_title_en="Waiting for AC Power Connection"
 dialog_power_title_de="Warten auf AC-Netzteil"
-dialog_power_title_nl="Wachten op Stroomadapter"
+dialog_power_title_nl="Wachten op stroomadapter"
 dialog_power_title_fr="En attente de l'alimentation secteur"
 
-dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue once AC power is detected."
-dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung erkannt wird."
-dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder"
-dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée."
+dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
+dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung innerhalb der folgende Zeitdauer erkannt wird:"
+dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
+dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
+
+dialog_nopower_desc_en="Exiting. AC power was not connected after waiting for:"
+dialog_nopower_desc_de="Beenden. Die Stromversorgung wurde nach einer Wartezeit nicht hergestellt:"
+dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het wachten op:"
+dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
 
 # Dialogue localizations - ask for short name
 dialog_short_name_en="Please enter an account name to start the reinstallation process"
@@ -192,10 +186,10 @@ dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starte
 dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
 
 # Dialogue localizations - ask for password
-dialog_not_volume_owner_en="account is not a Volume Owner! Please login using one of the following accounts and try again"
+dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
 dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
 dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
-dialog_not_volume_owner_fr="le compte n'est pas propriétaire du volume ! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
+dialog_not_volume_owner_fr="Le compte n'est pas propriétaire du volume! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
 dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
@@ -240,6 +234,7 @@ dialog_cancel_button=dialog_cancel_button_${user_language}
 dialog_enter_button=dialog_enter_button_${user_language}
 dialog_check_desc=dialog_check_desc_${user_language}
 dialog_power_desc=dialog_power_desc_${user_language}
+dialog_nopower_desc=dialog_nopower_desc_${user_language}
 dialog_power_title=dialog_power_title_${user_language}
 dialog_short_name=dialog_short_name_${user_language}
 dialog_user_invalid=dialog_user_invalid_${user_language}
@@ -264,6 +259,24 @@ ask_for_shortname() {
     /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
+}
+
+check_free_space() {
+    # determine if the amount of free and purgable drive space is sufficient for the upgrade to take place.
+    free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")  # with thanks to Pico
+    
+    if [[ $free_disk_space -ge $min_drive_space ]]; then
+        echo "   [check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
+    else
+        echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
+        if [[ -f "$jamfHelper" ]]; then
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
+        else
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
+        fi
+        exit 1
+    fi
 }
 
 check_installer_pkg_is_valid() {
@@ -419,11 +432,14 @@ check_password() {
     # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
-	password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
-	if [[ -z "${password_matches}" ]]; then
-		echo "   [check_password] Success: the password entered is the correct login password for $user."
-	else
-		echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+    password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+
+    if [[ -z "$password_matches" ]]; then
+        echo "   [check_password] Success: the password entered is the correct login password for $user."
+        password_check="pass"
+    else
+        echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
+        password_check="fail"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
         exit 1
@@ -435,8 +451,10 @@ check_power_status() {
     # If not, and our power_wait_timer is above 1, allow user to connect to power for specified time period
     # Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
 
-    # set default wait time to 60 seconds
+    # default power_wait_timer to 60 seconds
     [[ ! $power_wait_timer ]] && power_wait_timer=60
+
+    power_wait_timer_friendly=$( printf '%02dh:%02dm:%02ds\n' $((power_wait_timer/3600)) $((power_wait_timer%3600/60)) $((power_wait_timer%60)) )
 
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         echo "   [check_power_status] OK - AC power detected"
@@ -445,15 +463,15 @@ check_power_status() {
         if [[ "$power_wait_timer" -gt 0 ]]; then
             if [[ -f "$jamfHelper" ]]; then
                 # use jamfHelper if possible
-                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
+                "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_power_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" &
                 wait_for_power "jamfHelper"
             else
                 # open_osascript_dialog syntax: title, message, button1, icon
-                open_osascript_dialog "${!dialog_power_desc}" "" "OK" stop &
+                open_osascript_dialog "${!dialog_power_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
                 wait_for_power "osascript"
             fi
         else
-            echo "   [check_power_status] ERROR - No AC power detected, cannot continue."
+            echo "   [check_power_status] ERROR - No AC power detected after ${power_wait_timer_friendly}, cannot continue."
             exit 1
         fi
     fi
@@ -645,7 +663,7 @@ dep_notify_progress() {
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
-        until grep -q "Preparing: \d" $LOG_FILE ; do
+        until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
         done
         echo "Status: $dn_status - 0%" >> $depnotify_log
@@ -654,7 +672,7 @@ dep_notify_progress() {
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
-                current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
             echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
@@ -664,16 +682,21 @@ dep_notify_progress() {
 
     elif [[ "$1" == "installinstallmacos" ]]; then
         # Wait for the download to start and set the progress bar to 100 steps
-        until grep -q "Total" $LOG_FILE ; do
+        until grep -q "Total" "$LOG_FILE" ; do
             sleep 2
         done
         echo "Status: $dn_status - 0%" >> $depnotify_log
         echo "Command: DeterminateManual: 100" >> $depnotify_log
+        sleep 2
+        until [[ $current_progress_value -gt 0 && $current_progress_value -lt 100 ]]; do
+                current_progress_value=$(tail -1 "$LOG_FILE" | awk '{print substr($(NF-9), 1, length($NF))}')
+                sleep 2
+        done
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
-                current_progress_value=$(tail -1 $LOG_FILE | awk '{print substr($(NF-9), 1, length($NF))}')
+                current_progress_value=$(tail -1 "$LOG_FILE" | awk '{print substr($(NF-9), 1, length($NF))}')
                 sleep 2
             done
             echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
@@ -683,7 +706,7 @@ dep_notify_progress() {
 
     elif [[ "$1" == "fetch-full-installer" ]]; then
         # Wait for the download to start and set the progress bar to 100 steps
-        until grep -q "Installing:" $LOG_FILE ; do
+        until grep -q "Installing:" "$LOG_FILE" ; do
             sleep 2
         done
         echo "Status: $dn_status - 0%" >> $depnotify_log
@@ -692,7 +715,7 @@ dep_notify_progress() {
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [ $current_progress_value -gt $last_progress_value ]; do
-                current_progress_value=$(tail -1 $LOG_FILE | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
             echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
@@ -764,24 +787,6 @@ find_extra_packages() {
     done
 }
 
-free_space_check() {
-    free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
-    
-    min_drive_bytes=$(( min_drive_space * 1000000 ))
-    if [[ $free_disk_space -ge $min_drive_bytes ]]; then
-        echo "   [free_space_check] OK - $free_disk_space KB free disk space detected"
-    else
-        echo "   [free_space_check] ERROR - $free_disk_space KB free disk space detected"
-        if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
-        else
-            # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
-        fi
-        exit 1
-    fi
-}
-
 get_depnotify() {
     # grab installinstallmacos.py if not already there
     # note this does a SHA256 checksum check and will delete the file and exit if this fails
@@ -799,7 +804,7 @@ get_depnotify() {
             fi
         fi
         # check it did actually get downloaded
-        if [[  -d "$depnotify_app" ]]; then
+        if [[ -d "$depnotify_app" ]]; then
             echo "   [get_depnotify] DEPNotify is installed"
             use_depnotify="yes"
             dep_notify_quit
@@ -812,11 +817,6 @@ get_depnotify() {
 get_installinstallmacos() {
     # grab installinstallmacos.py if not already there
     # note this does a SHA256 checksum check and will delete the file and exit if this fails
-    if [[ ! -d "$workdir" ]]; then
-        echo "   [get_installinstallmacos] Making working directory at $workdir"
-        mkdir -p "$workdir"
-    fi
-
     if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
         if [[ ! $no_curl ]]; then
             echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
@@ -879,30 +879,16 @@ get_user_details() {
 
     if [[ $account_shortname == "" ]]; then
         if ! account_shortname=$(ask_for_shortname) ; then
-            echo "   [get_user_details] Use cancelled."
+            echo "   [get_user_details] User cancelled."
             exit 1
         fi
     fi
 
-    # check that this user exists and is in the staff group (so not some system user)
-    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" staff ; then
-        echo "   [get_user_details] $account_shortname account cannot be used to perform reinstallation!"
+    # check that this user exists
+    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
+        echo "   [get_user_details] $account_shortname account cannot be found!"
         user_invalid
         exit 1
-    fi
-
-    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
-    if [[ $erase == "yes" ]]; then
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
-            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
-                echo "   [get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
-                promoted_user="$account_shortname"
-            else
-                echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                user_invalid
-                exit 1
-            fi
-        fi
     fi
 
     # check that the user is a Volume Owner
@@ -927,11 +913,37 @@ get_user_details() {
     fi
 
     # get password and check that the password is correct
-    if ! account_password=$(ask_for_password) ; then
-        echo "   [get_user_details] User cancelled."
-        exit 1
+    password_attempts=0
+    password_check="fail"
+    while [[ "$password_check" != "pass" ]] ; do
+        account_password=$(ask_for_password)
+        if [[ ! "$account_password" ]]; then
+            echo "   [get_user_details] User cancelled."
+            exit 1
+        fi
+        check_password "$account_shortname" "$account_password"
+
+        password_attempts=$((password_attempts+1))
+        if [[ $password_attempts -ge 5 ]]; then
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 
+            exit 1
+        fi
+    done
+
+    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
+    if [[ $erase == "yes" ]]; then
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
+            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
+                echo "   [get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
+                promoted_user="$account_shortname"
+            else
+                echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
+                user_invalid
+                exit 1
+            fi
+        fi
     fi
-    check_password "$account_shortname" "$account_password"
 }
 
 kill_process() {
@@ -1091,8 +1103,6 @@ run_installinstallmacos() {
     # shellcheck disable=SC2086
     if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
         echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
-        kill_process jamfHelper
-	    kill_process DEPNotify
         echo
         exit 1
     fi
@@ -1127,8 +1137,6 @@ run_installinstallmacos() {
         working_installer_pkg="$downloaded_installer_pkg"
     else
         echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
-        kill_process jamfHelper
-	    kill_process DEPNotify
         exit 1
     fi
 }
@@ -1179,21 +1187,15 @@ swu_fetch_full_installer() {
                 check_installer_is_valid
                 if [[ $invalid_installer_found == "yes" ]]; then
                     echo "   [swu_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    kill_process jamfHelper
-            	    kill_process DEPNotify
                     exit 1
                 fi
             fi
         else
             echo "   [swu_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            kill_process jamfHelper
-    	    kill_process DEPNotify
             exit 1
         fi
     else
         echo "   [swu_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        kill_process jamfHelper
-	    kill_process DEPNotify
         exit 1
     fi
 }
@@ -1242,7 +1244,14 @@ wait_for_power() {
         ((power_wait_timer--))
     done
     kill_process "$process"
-    echo "   [wait_for_power] ERROR - No AC power detected, cannot continue."
+    if [[ -f "$jamfHelper" ]]; then
+        # use jamfHelper if possible
+        "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_nopower_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton 1 &
+    else
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+    fi
+    echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer_friendly}, cannot continue."
     exit 1
 }
 
@@ -1359,16 +1368,37 @@ show_help() {
     exit
 }
 
+finish() {
+    # kill caffeinate
+    kill_process "caffeinate"
+
+    # kill any dialogs if startosinstall ends before a reboot
+    kill_process "jamfHelper"
+    dep_notify_quit
+    kill_process DEPNotify
+
+    # if we promoted the user then we should demote it again
+    if [[ $promoted_user ]]; then
+        /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
+        echo "     [$script_name] User $promoted_user was demoted back to standard user"
+    fi
+}
+
 
 ###############
 ## MAIN BODY ##
 ###############
+
+# ensure the finish function is executed when exit is signaled
+trap "finish" EXIT
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
 reinstall="no"
 
 # default minimum drive space in GB
+# Note that the amount of space required varies between macOS installer and system versions.
+# Override this default value with the --min-drive-space option.
 min_drive_space=45
 
 while test $# -gt 0 ; do
@@ -1430,7 +1460,7 @@ while test $# -gt 0 ; do
                 use_depnotify="yes"
                 dep_notify_quit
             else
-                get_depnotify
+                get_depnotify_app="yes"
             fi
             ;;
         --no-jamfhelper) jamfHelper=""
@@ -1532,13 +1562,24 @@ done
 echo
 echo "   [$script_name] v$version script execution started: $(date)"
 
-# if getting a list from softwareupdate then we don't need to make any OS checks
-if [[ $list_installers ]]; then
-    swu_list_full_installers
-    echo
-    exit
+# not giving an option for fetch-full-installer mode for now... /Applications is the path
+if [[ $ffi ]]; then
+    installer_directory="/Applications"
 fi
 
+# ensure installer_directory (--path) and workdir exists
+if [[ ! -d "$installer_directory" ]]; then
+    echo "   [$script_name] Making installer directory at $installer_directory"
+    /bin/mkdir -p "$installer_directory"
+fi
+if [[ ! -d "$workdir" ]]; then
+    echo "   [$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+
+# all output from now on is written also to a log file
+LOG_FILE="$workdir/erase-install.log"
+exec > >(tee "${LOG_FILE}") 2>&1
 
 # ensure computer does not go to sleep while running this script
 pid=$$
@@ -1546,16 +1587,22 @@ echo "   [$script_name] Caffeinating this script (pid=$pid)"
 /usr/bin/caffeinate -dimsu -w $pid &
 caffeinate_pid=$!
 
-# not giving an option for fetch-full-installer mode for now... /Applications is the path
-if [[ $ffi ]]; then
-    installer_directory="/Applications"
-fi
+# bundled python directory
+relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
 
-# ensure installer_directory exists
-/bin/mkdir -p "$installer_directory"
+# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
+# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
+extras_directory="$workdir/extras"
 
 # variable to prevent installinstallmacos getting downloaded twice
 iim_downloaded=0
+
+# if getting a list from softwareupdate then we don't need to make any OS checks
+if [[ $list_installers ]]; then
+    swu_list_full_installers
+    echo
+    exit
+fi
 
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
@@ -1574,7 +1621,16 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         echo "**********************"
         echo
     fi
-    free_space_check
+
+    # get DEPNotify if specified
+    if [[ $get_depnotify_app == "yes" ]]; then
+        get_depnotify
+    fi
+
+    # check there is enough space
+    check_free_space
+
+    # check for power
     [[ "$check_power" == "yes" ]] && check_power_status
 fi
 
@@ -1889,7 +1945,7 @@ if [[ $test_run != "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         if [[ "$erase" == "yes" ]]; then
-            echo  "   [get_user_details] updating preboot files (takes a few seconds)..."
+            echo  "   [$script_name] updating preboot files (takes a few seconds)..."
             /usr/sbin/diskutil apfs updatepreboot / > /dev/null
         fi        
         # shellcheck disable=SC2086
@@ -1907,17 +1963,4 @@ else
         echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction "${install_package_list[@]}"
     fi
     sleep 120
-fi
-
-# kill any dialogs if startosinstall ends before a reboot
-kill_process "jamfHelper"
-dep_notify_quit
-
-# kill caffeinate
-kill_process "caffeinate"
-
-# if we get this far and we promoted the user then we should demote it again
-if [[ $promoted_user ]]; then
-    /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-    echo "     [$script_name] User $promoted_user was demoted back to standard user"
 fi

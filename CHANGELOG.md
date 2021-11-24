@@ -4,6 +4,21 @@
 
 No date
 
+## [25.0]
+
+23.11.2021
+
+- Determines free space better by checking free and purgeable space (partial fix for #152; thanks to Pico in MacAdmins Slack).
+- Uses exit traps to clean up after all abnormal exits (fixes #140, #141; thanks to @ryangball).
+- Adds `-nobrowse` to `hdiutil` to prevent mounted images appearing on the desktop (thanks to @ryangball).
+- Allows 5 password attempts (fixes #159).
+- Adds dialog to show how much time is left in the power check (#144; thanks to @dan-snelson).
+- Some dialog changes, to replace the word "reinstall", which some people have found confusing, with "install" (addresses #149).
+- Changed log location to the `$workdir` so that it persists after an upgrade, and also so it is wiped if using the `--cleanup-after-use` option (fixes #161).
+- Remove check for membership of `staff` group for Apple Silicon Macs, since Volume Ownership is already checked it's not necessary, and was preventing non-admin AD users from proceeding (fixes #166).
+- Re-order some initial statements to ensure that the chosen $workdir has been created before DEPNotify is downloaded and the log file is determined (fixes #165).
+- Some minot changes to the Dutch translation (addresses #164, thanks @Alitekawi).
+
 ## [24.1]
 
 27.10.2021
@@ -366,7 +381,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v24.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v25.0...HEAD
+[25.0]: https://github.com/grahampugh/erase-install/compare/v24.1...v25.0
 [24.1]: https://github.com/grahampugh/erase-install/compare/v24.0...v24.1
 [24.0]: https://github.com/grahampugh/erase-install/compare/v0.23.0...v24.0
 [0.22.0]: https://github.com/grahampugh/erase-install/compare/v0.21.0...v0.22.0
