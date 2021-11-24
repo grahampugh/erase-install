@@ -118,7 +118,7 @@ dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
 dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
 
-dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and complete the installation."
+dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
@@ -180,10 +180,10 @@ dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het w
 dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
 
 # Dialogue localizations - ask for short name
-dialog_short_name_en="Please enter an account name to start the installation process"
-dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Installation zu starten"
+dialog_short_name_en="Please enter an account name to start the reinstallation process"
+dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
 dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
-dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus d'installation"
+dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
 
 # Dialogue localizations - ask for password
 dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
@@ -192,10 +192,10 @@ dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van 
 dialog_not_volume_owner_fr="Le compte n'est pas propriétaire du volume! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
 
 # Dialogue localizations - invalid user
-dialog_user_invalid_en="This account cannot be used to to perform the installation"
-dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Installation verwendet werden"
-dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de installatie uit te voeren"
-dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la installation"
+dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
+dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
+dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
+dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
@@ -318,7 +318,7 @@ check_installer_is_valid() {
     [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
     # now attempt to mount
     if [[ -f "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
-        if hdiutil attach -nobrowse -quiet -noverify "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        if hdiutil attach -quiet -noverify "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
             echo "   [check_installer_is_valid] Mounting $existing_installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
             build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
@@ -440,6 +440,9 @@ check_password() {
     else
         echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         password_check="fail"
+        # open_osascript_dialog syntax: title, message, button1, icon
+        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
+        exit 1
     fi
 }
 
@@ -689,6 +692,7 @@ dep_notify_progress() {
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk '{print substr($(NF-9), 1, length($NF))}')
                 sleep 2
         done
+
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
@@ -1641,6 +1645,8 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_i
     rm -f "$working_macos_app"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && -d "$working_macos_app" && $overwrite != "yes" ]]; then
@@ -1651,6 +1657,8 @@ elif [[ $update_installer == "yes" && -d "$working_macos_app" && $overwrite != "
         overwrite_existing_installer
     elif [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $update_installer == "yes" && ($pkg_installer && -f "$working_installer_pkg") && $overwrite != "yes" ]]; then
@@ -1662,6 +1670,8 @@ elif [[ $update_installer == "yes" && ($pkg_installer && -f "$working_installer_
     fi
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
@@ -1671,10 +1681,14 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") &
     rm -f "$working_installer_pkg"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
+        # kill caffeinate
+        kill_process "caffeinate"
         exit
     fi
 elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
     echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 
@@ -1686,6 +1700,8 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
         echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
         echo
+        # kill caffeinate
+        kill_process "caffeinate"
         exit 1
     fi
     get_user_details
@@ -1782,6 +1798,8 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     echo "   [$script_name] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"
 
+    # kill caffeinate
+    kill_process "caffeinate"
     echo
     exit
 fi
@@ -1796,6 +1814,8 @@ fi
 
 if [[ ! -d "$working_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
+    # kill caffeinate
+    kill_process "caffeinate"
     exit 1
 fi
 [[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $working_macos_app with eraseinstall option"
