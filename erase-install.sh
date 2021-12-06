@@ -62,6 +62,11 @@ depnotify_log="/var/tmp/depnotify.log"
 depnotify_confirmation_file="/var/tmp/com.depnotify.provisioning.done"
 depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 
+# Older catalogs have started to be problematic as Apple are failing to update them.
+# So we set the catalog to the latest available one here, to override the default set in 
+# installinstallmacos.py. It can still be overridden with the --catalogurl argument.
+catalogurl="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+
 
 ###################
 ## LOCALIZATIONS ##
