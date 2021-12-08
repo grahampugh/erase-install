@@ -4,6 +4,12 @@
 
 No date
 
+## [25.1]
+
+No date
+
+- Use the latest software update catalog for all versions of macOS rather than the defaults set in `installinstallmacos.py`. This is to address omissions in the catalogs for older OSes (addresses #169, #160).
+
 ## [25.0]
 
 23.11.2021
