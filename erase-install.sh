@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="25.0"
+version="25.1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
