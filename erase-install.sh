@@ -898,13 +898,36 @@ get_user_details() {
     while read -r line ; do
         user=$(/usr/bin/cut -d, -f1 <<< "$line")
         guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+		# passwords are case sensitive, account names are not
+		shopt -s nocasematch
         if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
-            enabled_users+="$user "  
-            if [[ "$account_shortname" == "$user" ]]; then
-                echo "   [get_user_details] $account_shortname is a Volume Owner"
-                user_is_volume_owner=1
-            fi
+            enabled_users+="$user "
+			# The entered username might not match the output of fdesetup, so we compare
+			# all RecordNames for the canonical name given by fdesetup against the entered
+			# username, and then use the canonical version. The entered username might
+			# even be the RealName, and we still would end up here.
+			# Example:
+			# RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
+			# says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
+            for userline in $( /usr/bin/dscl -q /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName | /usr/bin/awk -F': ' '{print $2}' ); do
+				if [[ "$account_shortname" == "$userline" ]]; then
+					account_shortname=$user
+					echo "   [get_user_details] $account_shortname is a Volume Owner"
+					user_is_volume_owner=1
+					break
+				fi
+			done
+			# if needed, compare the RealName (which might contain spaces)
+			if [[ $user_is_volume_owner = 0 ]]; then
+				realname=$(/usr/bin/dscl -q /Search -read Users/$user RealName | /usr/bin/tail -1 | /usr/bin/cut -d' ' -f 2-)
+				if [[ "$account_shortname" == "$realname" ]]; then
+					account_shortname=$user
+					echo "   [get_user_details] $account_shortname is a Volume Owner"
+					user_is_volume_owner=1
+				fi
+			fi
         fi
+		shopt -u nocasematch
     done <<< "$(/usr/bin/fdesetup list)"
     if [[ $enabled_users != "" && $user_is_volume_owner = 0 ]]; then
         echo "   [get_user_details] $account_shortname is not a Volume Owner"
