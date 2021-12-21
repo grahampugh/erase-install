@@ -9,6 +9,7 @@ No date
 No date
 
 - Use the latest software update catalog for all versions of macOS rather than the defaults set in `installinstallmacos.py`. This is to address omissions in the catalogs for older OSes (addresses #169, #160).
+- Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
 
 ## [25.0]
 
