@@ -74,7 +74,9 @@ catalogurl="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.1
 
 # Grab currently logged in user to set the language for Dialogue messages
 current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+# Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
+current_user_homedir=$(/usr/bin/dscl /Search -read /Users/${current_user} NFSHomeDirectory | /usr/bin/awk -F': ' '{print $2}')
+language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
 if [[ $language = de* ]]; then
     user_language="de"
 elif [[ $language = nl* ]]; then
