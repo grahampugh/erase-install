@@ -75,7 +75,7 @@ catalogurl="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.1
 # Grab currently logged in user to set the language for Dialogue messages
 current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
 # Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
-current_user_homedir=$(/usr/bin/dscl /Search -read /Users/${current_user} NFSHomeDirectory | /usr/bin/awk -F': ' '{print $2}')
+current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read /Users/${current_user} NFSHomeDirectory)")
 language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
 if [[ $language = de* ]]; then
     user_language="de"
@@ -916,18 +916,25 @@ get_user_details() {
 			# Example:
 			# RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
 			# says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-            for userline in $( /usr/bin/dscl -q /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName | /usr/bin/awk -F': ' '{print $2}' ); do
-				if [[ "$account_shortname" == "$userline" ]]; then
+			recordNameXML=$( /usr/bin/dscl -plist /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName )
+			# loop through recordName array until error (we do not know the size of the array)
+			iCounter=0
+			while [[ :: ]]; do
+				recordName=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${iCounter}" /dev/stdin 2>/dev/null <<< "$recordNameXML")
+				[[ $? -eq 0 ]] || break
+				if [[ "$account_shortname" == "$recordName" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
 					user_is_volume_owner=1
 					break
 				fi
+				let "iCounter += 1"
+				sleep 1
 			done
 			# if needed, compare the RealName (which might contain spaces)
 			if [[ $user_is_volume_owner = 0 ]]; then
-				realname=$(/usr/bin/dscl -q /Search -read Users/$user RealName | /usr/bin/tail -1 | /usr/bin/cut -d' ' -f 2-)
-				if [[ "$account_shortname" == "$realname" ]]; then
+				realName=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read Users/$user RealName)")
+				if [[ "$account_shortname" == "$realName" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
 					user_is_volume_owner=1
