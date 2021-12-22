@@ -929,7 +929,6 @@ get_user_details() {
 					break
 				fi
 				let "iCounter += 1"
-				sleep 1
 			done
 			# if needed, compare the RealName (which might contain spaces)
 			if [[ $user_is_volume_owner = 0 ]]; then
