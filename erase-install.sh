@@ -916,24 +916,24 @@ get_user_details() {
 			# Example:
 			# RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
 			# says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-			recordNameXML=$( /usr/bin/dscl -plist /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName )
+			user_record_names_xml=$(/usr/bin/dscl -plist /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName)
 			# loop through recordName array until error (we do not know the size of the array)
-			iCounter=0
+			record_name_index=0
 			while [[ :: ]]; do
-				recordName=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${iCounter}" /dev/stdin 2>/dev/null <<< "$recordNameXML")
+				user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml")
 				[[ $? -eq 0 ]] || break
-				if [[ "$account_shortname" == "$recordName" ]]; then
+				if [[ "$account_shortname" == "$user_record_name" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
 					user_is_volume_owner=1
 					break
 				fi
-				let "iCounter += 1"
+				record_name_index=$((record_name_index+1))
 			done
 			# if needed, compare the RealName (which might contain spaces)
 			if [[ $user_is_volume_owner = 0 ]]; then
-				realName=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read Users/$user RealName)")
-				if [[ "$account_shortname" == "$realName" ]]; then
+				user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read Users/$user RealName)")
+				if [[ "$account_shortname" == "$user_real_name" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
 					user_is_volume_owner=1
