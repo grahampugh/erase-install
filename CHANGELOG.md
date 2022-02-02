@@ -12,6 +12,8 @@ No date
 - Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
 - Adds `--cloneuser` option for Apple Silicon (Monterey or greater).
 - Adds `--rebootdelay` option (Big Sur or later) (#193).
+- DEPNotify counts down the rebootdelay time.
+- User can dismiss the DEPNotify downlaod and preparation windows if `--rebootdelay` is set to at least 10 seconds.
 
 ## [25.0]
 

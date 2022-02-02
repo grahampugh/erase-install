@@ -108,11 +108,6 @@ dialog_reinstall_title_de="Upgrading macOS"
 dialog_reinstall_title_nl="macOS upgraden"
 dialog_reinstall_title_fr="Mise à niveau de macOS"
 
-dialog_reinstall_status_en="Preparing macOS for installation"
-dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
-dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
-dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
-
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
@@ -122,6 +117,21 @@ dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
+
+dialog_reinstall_status_en="Preparing macOS for installation"
+dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
+dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
+dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
+
+dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
+dialog_rebooting_heading_de="Das Upgrade ist nun parat. Bitte deiner Arbeitsdateien speichen!"
+dialog_rebooting_heading_nl="The upgrade is now ready for installation. Please save your work!"
+dialog_rebooting_heading_fr="The upgrade is now ready for installation. Please save your work!"
+
+dialog_rebooting_status_en="Preparation complete - restarting in"
+dialog_rebooting_status_de="Vorbereitung fertig - neustarten in"
+dialog_rebooting_status_nl="Preparation complete - restarting in"
+dialog_rebooting_status_fr="Préparation terminé - redémarrera en"
 
 # Dialogue localizations - confirmation window (erase)
 dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
@@ -224,6 +234,9 @@ dialog_reinstall_title=dialog_reinstall_title_${user_language}
 dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 dialog_reinstall_status=dialog_reinstall_status_${user_language}
+dialog_rebooting_title=dialog_rebooting_title_${user_language}
+dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
+dialog_rebooting_status=dialog_rebooting_status_${user_language}
 dialog_erase_confirmation_title=dialog_erase_confirmation_title_${user_language}
 dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 dialog_confirmation_status=dialog_confirmation_status_${user_language}
@@ -730,6 +743,21 @@ dep_notify_progress() {
             echo "Status: $dn_status - $current_progress_value%" >> $depnotify_log
             last_progress_value=$current_progress_value
         done
+
+    elif [[ "$1" == "reboot-delay" ]]; then
+        # Countdown seconds to reboot (a bit shorter than rebootdelay)
+        countdown=$((rebootdelay-5))
+        echo "Status: $dn_status - ${countdown}s" >> $depnotify_log
+        echo "Command: DeterminateManual: $rebootdelay" >> $depnotify_log
+        until [ "$countdown" -eq 0 ]; do
+            sleep 1
+            countdown=$((countdown-1))
+            current_progress_value=$countdown
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
+            echo "Status: $dn_status - ${countdown}s" >> $depnotify_log
+            last_progress_value=$current_progress_value
+        done
+
     fi
 }
 
@@ -1439,6 +1467,24 @@ finish() {
     fi
 }
 
+post_prep_work() {
+    # set DEPNotify status for rebootdelay if set
+    if [[ "$rebootdelay" -gt 10 ]]; then
+        dn_title="${!dialog_reinstall_title}"
+        dn_desc="${!dialog_rebooting_heading}"
+        dn_status="${!dialog_rebooting_status}"
+        dep_notify
+        dep_notify_progress reboot-delay >/dev/null 2>&1 &
+        echo $! >> /tmp/depnotify_progress_pid
+    fi
+    sleep "$rebootdelay"
+
+    # then shut everything down and return to startosinstaller 
+    kill_process "Self Service"
+    finish
+    exit
+}
+
 
 ###############
 ## MAIN BODY ##
@@ -1446,6 +1492,9 @@ finish() {
 
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
+
+# ensure some cleanup is done after startosinstall is run (thanks @frogor!)
+trap "post_prep_work" SIGUSR1  # 30 is the numerical representation of SIGUSR1 (thanks @n8felton)
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -1662,10 +1711,8 @@ LOG_FILE="$workdir/erase-install.log"
 exec > >(tee "${LOG_FILE}") 2>&1
 
 # ensure computer does not go to sleep while running this script
-pid=$$
-echo "   [$script_name] Caffeinating this script (pid=$pid)"
-/usr/bin/caffeinate -dimsu -w $pid &
-caffeinate_pid=$!
+echo "   [$script_name] Caffeinating this script (pid=$$)"
+/usr/bin/caffeinate -dimsu -w $$ &
 
 # bundled python directory
 relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
@@ -1795,6 +1842,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             dn_title="${!dialog_dl_title}"
             dn_desc="${!dialog_dl_desc}"
             dn_status="${!dialog_dl_title}"
+            dn_button="OK"
             dn_icon="$dialog_dl_icon"
             dep_notify
         elif [[ -f "$jamfHelper" ]]; then
@@ -1948,7 +1996,6 @@ if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
     install_args+=("$rebootdelay")
 fi
 
-
 # macOS 12 (Darwin 21) and above can use the --cloneuser option on Apple Silicon
 if [[ $installer_darwin_version -ge 21 && "$arch" == "arm64" && "$cloneuser" == "yes" ]]; then
     install_args+=("--cloneuser")
@@ -1974,19 +2021,19 @@ if [[ $erase == "yes" ]]; then
         dn_desc="${!dialog_erase_desc}"
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
+        if [[ "$rebootdelay" -gt 10 ]]; then
+            dn_button="OK"
+        fi
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
-        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
-        PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_erase_desc}" "" "OK" stop &
-        PID=$!
     fi
 
 # dialogs for reinstallation
@@ -2000,16 +2047,13 @@ elif [[ $reinstall == "yes" ]]; then
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
-        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
-        PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_reinstall_desc}" "" "OK" stop &
-        PID=$!
     fi
 fi
 
@@ -2041,18 +2085,17 @@ if [[ $test_run != "yes" ]]; then
             /usr/sbin/diskutil apfs updatepreboot / > /dev/null
         fi        
         # shellcheck disable=SC2086
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password & wait $!
     else
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
     fi
-    # kill Self Service if running
-    kill_process "Self Service"
+
 else
     echo "   [$script_name] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
+        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]" "& wait $!"
     else
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction "${install_package_list[@]}"
+        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" "& wait $!"
     fi
     sleep 120
 fi
