@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="25.1"
+version="26.0"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
@@ -61,11 +61,6 @@ depnotify_app="/Applications/Utilities/DEPNotify.app"
 depnotify_log="/var/tmp/depnotify.log"
 depnotify_confirmation_file="/var/tmp/com.depnotify.provisioning.done"
 depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
-
-# Older catalogs have started to be problematic as Apple are failing to update them.
-# So we set the catalog to the latest available one here, to override the default set in 
-# installinstallmacos.py. It can still be overridden with the --catalogurl argument.
-catalogurl="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 
 
 ###################
@@ -394,6 +389,11 @@ check_newer_available() {
         echo "   [check_newer_available] Non-standard seedprogram selected"
         installinstallmacos_args+=("--seed")
         installinstallmacos_args+=("$seedprogram")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
+        installinstallmacos_args+=("--catalog")
+        installinstallmacos_args+=("$darwin_version")
     fi
     if [[ $beta == "yes" ]]; then
         echo "   [check_newer_available] Beta versions included"
@@ -637,9 +637,12 @@ dep_notify() {
     chown "$current_user":staff "$DEP_NOTIFY_CONFIG_PLIST"
 
     # Configure the window's look
-    echo "Command: Image: $dn_icon" >> "$depnotify_log"
-    echo "Command: MainTitle: $dn_title" >> "$depnotify_log"
-    echo "Command: MainText: $dn_desc" >> "$depnotify_log"
+    {
+        echo "Command: Image: $dn_icon"
+        echo "Command: MainTitle: $dn_title"
+        echo "Command: MainText: $dn_desc"
+    } >> "$depnotify_log"
+
     if [[ $dn_button ]]; then
         echo "Command: ContinueButton: $dn_button" >> "$depnotify_log"
     fi
@@ -720,8 +723,8 @@ dep_notify_progress() {
         echo "Command: DeterminateManual: 100" >> $depnotify_log
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
-        until [[ $current_progress_value -ge 100 ]]; do
-            until [ $current_progress_value -gt $last_progress_value ]; do
+        until [[ "$current_progress_value" -ge 100 ]]; do
+            until [ "$current_progress_value" -gt "$last_progress_value" ]; do
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
@@ -792,6 +795,19 @@ find_extra_packages() {
             install_package_list+=("$file")
         fi
     done
+}
+
+get_darwin_from_os_version() {
+    # convert a macOS major version to a darwin version
+    os_version="$1"
+    if [[ "${os_version:0:2}" == "10" ]]; then
+        darwin_version=${os_version:3:2}
+        darwin_version=$((darwin_version+4))
+    else
+        darwin_version=${os_version:0:2}
+        darwin_version=$((darwin_version+9))
+    fi
+    echo "$darwin_version"
 }
 
 get_depnotify() {
@@ -985,8 +1001,11 @@ get_user_details() {
 kill_process() {
     process="$1"
     if /usr/bin/pgrep -a "$process" >/dev/null ; then 
-        /usr/bin/pkill -a "$process" && echo "   [$script_name] '$process' ended" || \
-        echo "   [$script_name] '$process' could not be killed"
+        if /usr/bin/killall -s "$process" >/dev/null ; then 
+            echo "   [$script_name] '$process' ended"
+        else
+            echo "   [$script_name] '$process' could not be killed"
+        fi
     fi
 }
 
@@ -1081,6 +1100,11 @@ run_installinstallmacos() {
         echo "   [run_installinstallmacos] Non-standard seedprogram selected"
         installinstallmacos_args+=("--seed")
         installinstallmacos_args+=("$seedprogram")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
+        installinstallmacos_args+=("--catalog")
+        installinstallmacos_args+=("$darwin_version")
     fi
 
     if [[ $beta == "yes" ]]; then
@@ -1311,6 +1335,7 @@ show_help() {
     --list              List available updates only using installinstallmacos 
                         (don't download anything)
     --seed ...          Select a non-standard seed program
+    --catalog ...       Override the default catalog with one from a different OS (overrides seedprogram)
     --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
     --samebuild         Finds the build of macOS that matches the
                         existing system version, downloads it.
@@ -1364,6 +1389,7 @@ show_help() {
       this script cannot be run at the login window or from remote terminal.
     --current-user      Authenticate startosinstall using the current user
     --user XYZ          Supply a user with which to authenticate startosinstall
+    --cloneuser         Copy account settings for the owner provided with --user (--erase only)
 
     Experimental features for macOS 10.15+:
     --list-full-installers
@@ -1376,6 +1402,7 @@ show_help() {
     Experimental features for macOS 11+:
     --pkg               Downloads a package installer rather than the installer app.
                         Can be used with the --reinstall and --erase options.
+    --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -1485,6 +1512,15 @@ while test $# -gt 0 ; do
             shift
             account_shortname="$1"
             ;;
+        --cloneuser) cloneuser="yes"
+            ;;
+        --rebootdelay)
+            shift
+            rebootdelay="$1"
+            if [[ $rebootdelay -gt 300 ]]; then
+                rebootdelay=300
+            fi
+            ;;
         --test-run) test_run="yes"
             ;;
         --clear-cache-only) clear_cache="yes"
@@ -1519,6 +1555,10 @@ while test $# -gt 0 ; do
         --catalogurl)
             shift
             catalogurl="$1"
+            ;;
+        --catalog)
+            shift
+            catalog="$1"
             ;;
         --path)
             shift
@@ -1565,6 +1605,9 @@ while test $# -gt 0 ; do
         --catalogurl*)
             catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
+        --catalog*)
+            catalog=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
         --path*)
             installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -1576,6 +1619,15 @@ while test $# -gt 0 ; do
             ;;
         --os*)
             prechosen_os=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --user*)
+            account_shortname=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --rebootdelay*)
+            rebootdelay=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            if [[ $rebootdelay -gt 300 ]]; then
+                rebootdelay=300
+            fi
             ;;
         --version*)
             prechosen_version=$(echo "$1" | sed -e 's|^[^=]*=||g')
@@ -1896,6 +1948,18 @@ fi
 # macOS 11 (Darwin 20) and above requires the --allowremoval option
 if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
+fi
+
+# macOS 11 (Darwin 20) and above can use the --rebootdelay option
+if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
+    install_args+=("--rebootdelay")
+    install_args+=("$rebootdelay")
+fi
+
+
+# macOS 12 (Darwin 21) and above can use the --cloneuser option on Apple Silicon
+if [[ $installer_darwin_version -ge 21 && "$arch" == "arm64" && "$cloneuser" == "yes" ]]; then
+    install_args+=("--cloneuser")
 fi
 
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
