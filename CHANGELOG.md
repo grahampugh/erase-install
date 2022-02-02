@@ -4,12 +4,14 @@
 
 No date
 
-## [25.1]
+## [26.0]
 
 No date
 
-- Use the latest software update catalog for all versions of macOS rather than the defaults set in `installinstallmacos.py`. This is to address omissions in the catalogs for older OSes (addresses #169, #160).
+- Adds `--catalog` to allow an easier way to select which software update catalog to use, rather than the defaults set in `installinstallmacos.py`. Example: `--catalog 10.15` will use the catalog for Darwin version 19, `--catalog 11` will use Darwin version 20. This is to address omissions in the catalogs for older OSes (somewhat addresses #169, #160).
 - Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
+- Adds `--cloneuser` option for Apple Silicon (Monterey or greater).
+- Adds `--rebootdelay` option (Big Sur or later) (#193).
 
 ## [25.0]
 
