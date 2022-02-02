@@ -70,7 +70,7 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 # Grab currently logged in user to set the language for Dialogue messages
 current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
 # Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
-current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read /Users/${current_user} NFSHomeDirectory)")
+current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
 language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
 if [[ $language = de* ]]; then
     user_language="de"
@@ -960,12 +960,13 @@ get_user_details() {
 			# Example:
 			# RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
 			# says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-			user_record_names_xml=$(/usr/bin/dscl -plist /Search -read Users/$user RecordName dsAttrTypeStandard:RecordName)
+			user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
 			# loop through recordName array until error (we do not know the size of the array)
 			record_name_index=0
-			while [[ :: ]]; do
-				user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml")
-				[[ $? -eq 0 ]] || break
+			while true; do
+				if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
+				    break
+                fi
 				if [[ "$account_shortname" == "$user_record_name" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
@@ -976,7 +977,7 @@ get_user_details() {
 			done
 			# if needed, compare the RealName (which might contain spaces)
 			if [[ $user_is_volume_owner = 0 ]]; then
-				user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read Users/$user RealName)")
+				user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
 				if [[ "$account_shortname" == "$user_real_name" ]]; then
 					account_shortname=$user
 					echo "   [get_user_details] $account_shortname is a Volume Owner"
@@ -1478,12 +1479,17 @@ finish() {
 post_prep_work() {
     # set DEPNotify status for rebootdelay if set
     if [[ "$rebootdelay" -gt 10 ]]; then
-        dn_title="${!dialog_reinstall_title}"
-        dn_desc="${!dialog_rebooting_heading}"
-        dn_status="${!dialog_rebooting_status}"
-        dep_notify
-        dep_notify_progress reboot-delay >/dev/null 2>&1 &
-        echo $! >> /tmp/depnotify_progress_pid
+        if [[ "$use_depnotify" == "yes" ]]; then
+            dn_title="${!dialog_reinstall_title}"
+            dn_desc="${!dialog_rebooting_heading}"
+            dn_status="${!dialog_rebooting_status}"
+            dep_notify
+            dep_notify_progress reboot-delay >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
+        else
+            # TODO some output from JamfHelper or osascript
+            echo "Waiting for $rebootdelay seconds to restart"
+        fi
     fi
     sleep "$rebootdelay"
 
