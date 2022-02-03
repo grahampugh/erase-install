@@ -27,10 +27,10 @@ build:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	"$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
+	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 	@echo "Making package in $(PKG_BUILD) directory"
-	cd $(CURDIR)/pkg && $(MUNKIPKG) erase-install
+	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
 	open $(PKG_BUILD)
 
 .PHONY : nopython
@@ -44,7 +44,7 @@ nopython:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT_NOPYTHON)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Making package in $(PKG_BUILD_NOPYTHON) directory"
-	cd $(CURDIR)/pkg && $(MUNKIPKG) erase-install-nopython
+	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install-nopython
 	open $(PKG_BUILD_NOPYTHON)
 
 .PHONY : depnotify
@@ -58,7 +58,7 @@ depnotify:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	"$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
+	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
@@ -68,7 +68,7 @@ depnotify:
 	rm -Rf "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities/__MACOSX"
 
 	@echo "Making package in $(PKG_BUILD_DEPNOTIFY) directory"
-	cd $(CURDIR)/pkg && $(MUNKIPKG) erase-install-depnotify
+	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install-depnotify
 	open $(PKG_BUILD_DEPNOTIFY)
 
 
