@@ -13,7 +13,10 @@ No date
 - Adds `--cloneuser` option for Apple Silicon (Monterey or greater).
 - Adds `--rebootdelay` option (Big Sur or later) (#193).
 - DEPNotify counts down the rebootdelay time.
-- User can dismiss the DEPNotify downlaod and preparation windows if `--rebootdelay` is set to at least 10 seconds.
+- User can dismiss the DEPNotify download and preparation windows if `--rebootdelay` is set to at least 10 seconds.
+- Multiple `--preinstall-command` arguments can now be supplied. These run immediately before `startosinstall` is run.
+- Multiple `--postinstall-command` arguments can now be supplied. These run after `startosinstall` has finished.
+
 
 ## [25.0]
 

@@ -1499,7 +1499,7 @@ post_prep_work() {
             sleep 0.5
             echo "   [post_prep_work] Opening jamfHelper message (language=$user_language)"
             window_type="utility"
-            "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_rebooting_heading}" -description "${!dialog_rebooting_status} ~${rebootdelay}s" -icon "$dialog_reinstall_icon" -timeout "$rebootdelay" -countdown &
+            "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_rebooting_heading}" -description "${!dialog_rebooting_status} ${rebootdelay}s" -icon "$dialog_reinstall_icon" &
         else
             echo "   [post_prep_work] Opening osascript dialog (language=$user_language)"
             # open_osascript_dialog syntax: title, message, button1, icon
