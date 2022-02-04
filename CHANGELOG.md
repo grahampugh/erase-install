@@ -17,7 +17,6 @@ No date
 - Multiple `--preinstall-command` arguments can now be supplied. These run immediately before `startosinstall` is run.
 - Multiple `--postinstall-command` arguments can now be supplied. These run after `startosinstall` has finished.
 
-
 ## [25.0]
 
 23.11.2021
