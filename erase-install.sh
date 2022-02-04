@@ -41,7 +41,7 @@ script_name="erase-install"
 version="25.0"
 
 # URL for downloading installinstallmacos.py
-installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
+installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
 installinstallmacos_checksum="62e56bc9204b024df16483c729533a6180616308e03c3211e044eb8e2fd3ab5b"
 
 # Directory in which to place the macOS installer. Overridden with --path
