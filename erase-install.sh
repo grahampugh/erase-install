@@ -41,7 +41,7 @@ script_name="erase-install"
 version="26.0"
 
 # URL for downloading installinstallmacos.py
-installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/main/installinstallmacos.py"
+installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
 installinstallmacos_checksum="79374afbc9c249a1b094cf2a2b1b5abea5a60f8ffc0c3ddb866db8c7a5a7d777"
 
 # Directory in which to place the macOS installer. Overridden with --path
@@ -1424,7 +1424,6 @@ show_help() {
       this script cannot be run at the login window or from remote terminal.
     --current-user      Authenticate startosinstall using the current user
     --user XYZ          Supply a user with which to authenticate startosinstall
-    --cloneuser         Copy account settings for the owner provided with --user (--erase only)
 
     Experimental features for macOS 10.15+:
     --list-full-installers
@@ -1588,8 +1587,6 @@ while test $# -gt 0 ; do
         --user)
             shift
             account_shortname="$1"
-            ;;
-        --cloneuser) cloneuser="yes"
             ;;
         --rebootdelay)
             shift
@@ -1886,7 +1883,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             dn_title="${!dialog_dl_title}"
             dn_desc="${!dialog_dl_desc}"
             dn_status="${!dialog_dl_title}"
-            dn_button="Understood"
+            dn_button="OK"
             dn_icon="$dialog_dl_icon"
             dep_notify
             if [[ -f "$depnotify_confirmation_file" ]]; then
@@ -2044,11 +2041,6 @@ if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
 else
     # cancel rebootdelay for older systems as we don't support it
     rebootdelay=0
-fi
-
-# macOS 12 (Darwin 21) and above can use the --cloneuser option on Apple Silicon
-if [[ $installer_darwin_version -ge 21 && "$arch" == "arm64" && "$cloneuser" == "yes" ]]; then
-    install_args+=("--cloneuser")
 fi
 
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options

@@ -10,12 +10,12 @@ No date
 
 - Adds `--catalog` to allow an easier way to select which software update catalog to use, rather than the defaults set in `installinstallmacos.py`. Example: `--catalog 10.15` will use the catalog for Darwin version 19, `--catalog 11` will use Darwin version 20. This is to address omissions in the catalogs for older OSes (somewhat addresses #169, #160).
 - Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
-- Adds `--cloneuser` option for Apple Silicon (Monterey or greater).
 - Adds `--rebootdelay` option (Big Sur or later) (#193).
 - DEPNotify counts down the rebootdelay time.
 - User can dismiss the DEPNotify download and preparation windows if `--rebootdelay` is set to at least 10 seconds.
 - Multiple `--preinstall-command` arguments can now be supplied. These run immediately before `startosinstall` is run.
 - Multiple `--postinstall-command` arguments can now be supplied. These run after `startosinstall` has finished.
+- Checksums of `installinstallmacos.py` are now pinned to a tag of the `macadmins-scripts` repo so that updates to the script don't break a particular version of `erase-install.sh` from working.
 
 ## [25.0]
 
