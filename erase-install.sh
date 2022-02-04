@@ -2141,8 +2141,12 @@ if [[ $test_run != "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         if [[ "$erase" == "yes" ]]; then
-            echo  "   [$script_name] updating preboot files (takes a few seconds)..."
-            /usr/sbin/diskutil apfs updatepreboot / > /dev/null
+            echo "   [$script_name] updating preboot files (takes a few seconds)..."
+            if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
+                echo "   [$script_name] preboot files updated"
+            else
+                echo "   [$script_name] WARNING! preboot files could not be updated."
+            fi
         fi        
         # shellcheck disable=SC2086
         "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password & wait $!
