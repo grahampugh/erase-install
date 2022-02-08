@@ -42,7 +42,7 @@ version="26.0"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="79374afbc9c249a1b094cf2a2b1b5abea5a60f8ffc0c3ddb866db8c7a5a7d777"
+installinstallmacos_checksum="ae7fa803f1c05fd43a8c7c3167aed585a85ffe18c803ef484a8c248bc0350366"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
