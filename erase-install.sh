@@ -69,6 +69,7 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 
 # Grab currently logged in user to set the language for Dialogue messages
 current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+current_uid=$(/usr/bin/id -u "$current_user")
 # Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
 current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
 language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
@@ -264,14 +265,14 @@ dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
 ask_for_password() {
     # required for Silicon Macs
-    /usr/bin/osascript <<END
+    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
 }
 
 ask_for_shortname() {
     # required for Silicon Macs
-    /usr/bin/osascript <<END
+    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
 }
@@ -554,6 +555,11 @@ confirm() {
     if [[ $use_depnotify == "yes" ]]; then
         # DEPNotify dialog option
         echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
+        if [[ $fs == "yes" && ! $rebootdelay -gt 10 ]]; then 
+            window_type="fs"
+        else
+            window_type="utility"
+        fi
         if [[ $erase == "yes" ]]; then
             dn_title="${!dialog_erase_title}"
             dn_desc="${!dialog_erase_confirmation_desc}"
@@ -602,7 +608,7 @@ confirm() {
             osa_desc="${!dialog_reinstall_confirmation_desc}"
         fi
         answer=$(
-            /usr/bin/osascript <<-END
+            /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
                 set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
 END
 )
@@ -1030,12 +1036,14 @@ get_user_details() {
 
 kill_process() {
     process="$1"
-    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
-        if /usr/bin/killall -s "$process" >/dev/null ; then 
-            echo "   [$script_name] '$process' ended"
-        else
-            echo "   [$script_name] '$process' could not be killed"
+    echo
+    if process_pid=$(/usr/bin/pgrep -a "$process" 2>/dev/null) ; then 
+        echo "   [$script_name] attempting to terminate the '$process' process - Termination message indicates success"
+        kill "$process_pid" 2> /dev/null
+        if /usr/bin/pgrep -a "$process" >/dev/null ; then 
+            echo "   [$script_name] ERROR: '$process' could not be killed"
         fi
+        echo
     fi
 }
 
@@ -1064,7 +1072,7 @@ open_osascript_dialog() {
     icon="$4"
 
     if [[ $message ]]; then
-        /usr/bin/osascript <<-END
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
             display dialog "$message" ¬
             buttons {"$button1"} ¬
             default button 1 ¬
@@ -1072,7 +1080,7 @@ open_osascript_dialog() {
             with icon $icon
 END
     else
-        /usr/bin/osascript <<-END
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
             display dialog "$title" ¬
             buttons {"$button1"} ¬
             default button 1 ¬
@@ -1395,6 +1403,8 @@ show_help() {
                         system and reinstalling macOS. 
     --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
                         Only applicable with --reinstall and --erase arguments.
+    --fs                Uses full-screen DEPNotify windows for all stages, not just the
+                        preparation phase. Only works with DEPNotify, not jamfHelper.
     --reinstall         After download, reinstalls macOS without erasing the
                         current system
     --overwrite         Download macOS installer even if an installer
@@ -1579,6 +1589,8 @@ while test $# -gt 0 ; do
         --no-curl) no_curl="yes"
             ;;
         --no-fs) no_fs="yes"
+            ;;
+        --fs) fs="yes"
             ;;
         --skip-validation) skip_validation="yes"
             ;;
@@ -1880,10 +1892,20 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
     if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         if [[ $use_depnotify == "yes" ]]; then
             echo "   [$script_name] Opening DEPNotify download message (language=$user_language)"
+            # if fs is set, show a full screen display instead of the utility window
+            if [[ $fs == "yes" && ! $rebootdelay -gt 10 ]]; then 
+                window_type="fs"
+            else
+                window_type="utility"
+            fi
             dn_title="${!dialog_dl_title}"
             dn_desc="${!dialog_dl_desc}"
             dn_status="${!dialog_dl_title}"
-            dn_button="OK"
+            if [[ $reinstall == "yes" && "$rebootdelay" -gt 10 ]]; then
+                dn_button="OK"
+            else
+                dn_button=""
+            fi
             dn_icon="$dialog_dl_icon"
             dep_notify
             if [[ -f "$depnotify_confirmation_file" ]]; then
@@ -2059,7 +2081,7 @@ else
     window_type="fs"
 fi
 
-# dialogs for reinstallation
+# dialogs for erase
 if [[ $erase == "yes" ]]; then
     if [[ $use_depnotify == "yes" ]]; then
         echo "   [$script_name] Opening DEPNotify message (language=$user_language)"
@@ -2067,9 +2089,7 @@ if [[ $erase == "yes" ]]; then
         dn_desc="${!dialog_erase_desc}"
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
-        if [ "$rebootdelay" -gt 10 ]; then
-            dn_button="OK"
-        fi
+        dn_button=""
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
@@ -2093,8 +2113,10 @@ elif [[ $reinstall == "yes" ]]; then
         dn_desc="${!dialog_reinstall_desc}"
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
-        if [ "$rebootdelay" -gt 10 ]; then
+        if [[ "$rebootdelay" -gt 10 ]]; then
             dn_button="OK"
+        else
+            dn_button=""
         fi
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
