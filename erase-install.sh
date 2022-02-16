@@ -1486,8 +1486,8 @@ finish() {
     kill_process "caffeinate"
 
     # kill any dialogs if startosinstall ends before a reboot
-    kill_process "jamfHelper"
-    dep_notify_quit
+    # kill_process "jamfHelper"
+    # dep_notify_quit
 }
 
 post_prep_work() {
@@ -1518,7 +1518,7 @@ post_prep_work() {
     # run the postinstall commands
     for command in "${postinstall_command[@]}"; do
         echo "   [$script_name] Now running arbitrary command: $command"
-        $command
+        /bin/bash -c "$command"
     done
 
     # finish the delay
@@ -2142,7 +2142,7 @@ fi
 # run preinstall commands
 for command in "${preinstall_command[@]}"; do
     echo "   [$script_name] Now running arbitrary command: $command"
-    $command
+    /bin/bash -c "$command"
 done
 
 # now actually run startosinstall
