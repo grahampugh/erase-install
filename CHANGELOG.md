@@ -6,7 +6,7 @@ No date
 
 ## [26.0]
 
-No date
+22.02.22
 
 - Adds `--catalog` to allow an easier way to select which software update catalog to use, rather than the defaults set in `installinstallmacos.py`. Example: `--catalog 10.15` will use the catalog for Darwin version 19, `--catalog 11` will use Darwin version 20. This is to address omissions in the catalogs for older OSes (somewhat addresses #169, #160).
 - Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
