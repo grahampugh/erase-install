@@ -38,11 +38,11 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="25.0"
+version="26.0"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="62e56bc9204b024df16483c729533a6180616308e03c3211e044eb8e2fd3ab5b"
+installinstallmacos_checksum="ae7fa803f1c05fd43a8c7c3167aed585a85ffe18c803ef484a8c248bc0350366"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -69,7 +69,10 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 
 # Grab currently logged in user to set the language for Dialogue messages
 current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/Users/${current_user}/Library/Preferences/.GlobalPreferences.plist")
+current_uid=$(/usr/bin/id -u "$current_user")
+# Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
+current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
+language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
 if [[ $language = de* ]]; then
     user_language="de"
 elif [[ $language = nl* ]]; then
@@ -108,11 +111,6 @@ dialog_reinstall_title_de="Upgrading macOS"
 dialog_reinstall_title_nl="macOS upgraden"
 dialog_reinstall_title_fr="Mise à niveau de macOS"
 
-dialog_reinstall_status_en="Preparing macOS for installation"
-dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
-dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
-dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
-
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
 dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
@@ -122,6 +120,21 @@ dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed
 dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
+
+dialog_reinstall_status_en="Preparing macOS for installation"
+dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
+dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
+dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
+
+dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
+dialog_rebooting_heading_de="Das Upgrade ist nun bereit für die Installation. Bitte speichern Sie Ihre Arbeit!"
+dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
+dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
+
+dialog_rebooting_status_en="Preparation complete - restarting in"
+dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in "
+dialog_rebooting_status_nl="Voorbereiding compleet - herstart over"
+dialog_rebooting_status_fr="Préparation terminée - redémarrage dans"
 
 # Dialogue localizations - confirmation window (erase)
 dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
@@ -224,6 +237,9 @@ dialog_reinstall_title=dialog_reinstall_title_${user_language}
 dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 dialog_reinstall_status=dialog_reinstall_status_${user_language}
+dialog_rebooting_title=dialog_rebooting_title_${user_language}
+dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
+dialog_rebooting_status=dialog_rebooting_status_${user_language}
 dialog_erase_confirmation_title=dialog_erase_confirmation_title_${user_language}
 dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 dialog_confirmation_status=dialog_confirmation_status_${user_language}
@@ -249,14 +265,14 @@ dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
 ask_for_password() {
     # required for Silicon Macs
-    /usr/bin/osascript <<END
+    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
 }
 
 ask_for_shortname() {
     # required for Silicon Macs
-    /usr/bin/osascript <<END
+    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
 }
@@ -264,6 +280,11 @@ END
 check_free_space() {
     # determine if the amount of free and purgable drive space is sufficient for the upgrade to take place.
     free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")  # with thanks to Pico
+
+    if [[ ! "$free_disk_space" ]]; then
+        # fall back to df -h if the above fails
+        free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+    fi
     
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         echo "   [check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
@@ -387,6 +408,11 @@ check_newer_available() {
         echo "   [check_newer_available] Non-standard seedprogram selected"
         installinstallmacos_args+=("--seed")
         installinstallmacos_args+=("$seedprogram")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
+        installinstallmacos_args+=("--catalog")
+        installinstallmacos_args+=("$darwin_version")
     fi
     if [[ $beta == "yes" ]]; then
         echo "   [check_newer_available] Beta versions included"
@@ -534,6 +560,11 @@ confirm() {
     if [[ $use_depnotify == "yes" ]]; then
         # DEPNotify dialog option
         echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
+        if [[ $fs == "yes" && ! $rebootdelay -gt 10 ]]; then 
+            window_type="fs"
+        else
+            window_type="utility"
+        fi
         if [[ $erase == "yes" ]]; then
             dn_title="${!dialog_erase_title}"
             dn_desc="${!dialog_erase_confirmation_desc}"
@@ -582,7 +613,7 @@ confirm() {
             osa_desc="${!dialog_reinstall_confirmation_desc}"
         fi
         answer=$(
-            /usr/bin/osascript <<-END
+            /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
                 set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
 END
 )
@@ -630,16 +661,20 @@ dep_notify() {
     chown "$current_user":staff "$DEP_NOTIFY_CONFIG_PLIST"
 
     # Configure the window's look
-    echo "Command: Image: $dn_icon" >> "$depnotify_log"
-    echo "Command: MainTitle: $dn_title" >> "$depnotify_log"
-    echo "Command: MainText: $dn_desc" >> "$depnotify_log"
-    if [[ $dn_button ]]; then
+    {
+        echo "Command: Image: $dn_icon"
+        echo "Command: MainTitle: $dn_title"
+        echo "Command: MainText: $dn_desc"
+    } >> "$depnotify_log"
+
+    if [[ "$dn_button" ]]; then
+        echo "Adding DEPNotify button $dn_button" ## TEMP
         echo "Command: ContinueButton: $dn_button" >> "$depnotify_log"
     fi
 
     if ! pgrep DEPNotify ; then
         # Opening the app after initial configuration
-        if [[ "$window_type" == "fs" ]]; then
+        if [[ "$window_type" == "fs" && ! "$rebootdelay" -gt 10 ]]; then
             sudo -u "$current_user" open -a "$depnotify_app" --args -path "$depnotify_log" -fullScreen
         else
             sudo -u "$current_user" open -a "$depnotify_app" --args -path "$depnotify_log"
@@ -713,8 +748,8 @@ dep_notify_progress() {
         echo "Command: DeterminateManual: 100" >> $depnotify_log
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
-        until [[ $current_progress_value -ge 100 ]]; do
-            until [ $current_progress_value -gt $last_progress_value ]; do
+        until [[ "$current_progress_value" -ge 100 ]]; do
+            until [ "$current_progress_value" -gt "$last_progress_value" ]; do
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
@@ -722,6 +757,21 @@ dep_notify_progress() {
             echo "Status: $dn_status - $current_progress_value%" >> $depnotify_log
             last_progress_value=$current_progress_value
         done
+
+    elif [[ "$1" == "reboot-delay" ]]; then
+        # Countdown seconds to reboot (a bit shorter than rebootdelay)
+        countdown=$((rebootdelay-5))
+        echo "Status: $dn_status - ${countdown}s" >> $depnotify_log
+        echo "Command: DeterminateManual: $rebootdelay" >> $depnotify_log
+        until [ "$countdown" -eq 0 ]; do
+            sleep 1
+            countdown=$((countdown-1))
+            current_progress_value=$countdown
+            echo "Command: DeterminateManualStep: $((current_progress_value-last_progress_value))" >> $depnotify_log
+            echo "Status: $dn_status - ${countdown}s" >> $depnotify_log
+            last_progress_value=$current_progress_value
+        done
+
     fi
 }
 
@@ -785,6 +835,19 @@ find_extra_packages() {
             install_package_list+=("$file")
         fi
     done
+}
+
+get_darwin_from_os_version() {
+    # convert a macOS major version to a darwin version
+    os_version="$1"
+    if [[ "${os_version:0:2}" == "10" ]]; then
+        darwin_version=${os_version:3:2}
+        darwin_version=$((darwin_version+4))
+    else
+        darwin_version=${os_version:0:2}
+        darwin_version=$((darwin_version+9))
+    fi
+    echo "$darwin_version"
 }
 
 get_depnotify() {
@@ -898,13 +961,43 @@ get_user_details() {
     while read -r line ; do
         user=$(/usr/bin/cut -d, -f1 <<< "$line")
         guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+		# passwords are case sensitive, account names are not
+		shopt -s nocasematch
         if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
-            enabled_users+="$user "  
-            if [[ "$account_shortname" == "$user" ]]; then
-                echo "   [get_user_details] $account_shortname is a Volume Owner"
-                user_is_volume_owner=1
-            fi
+            enabled_users+="$user "
+			# The entered username might not match the output of fdesetup, so we compare
+			# all RecordNames for the canonical name given by fdesetup against the entered
+			# username, and then use the canonical version. The entered username might
+			# even be the RealName, and we still would end up here.
+			# Example:
+			# RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
+			# says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
+			user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
+			# loop through recordName array until error (we do not know the size of the array)
+			record_name_index=0
+			while true; do
+				if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
+				    break
+                fi
+				if [[ "$account_shortname" == "$user_record_name" ]]; then
+					account_shortname=$user
+					echo "   [get_user_details] $account_shortname is a Volume Owner"
+					user_is_volume_owner=1
+					break
+				fi
+				record_name_index=$((record_name_index+1))
+			done
+			# if needed, compare the RealName (which might contain spaces)
+			if [[ $user_is_volume_owner = 0 ]]; then
+				user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
+				if [[ "$account_shortname" == "$user_real_name" ]]; then
+					account_shortname=$user
+					echo "   [get_user_details] $account_shortname is a Volume Owner"
+					user_is_volume_owner=1
+				fi
+			fi
         fi
+		shopt -u nocasematch
     done <<< "$(/usr/bin/fdesetup list)"
     if [[ $enabled_users != "" && $user_is_volume_owner = 0 ]]; then
         echo "   [get_user_details] $account_shortname is not a Volume Owner"
@@ -948,9 +1041,14 @@ get_user_details() {
 
 kill_process() {
     process="$1"
-    if /usr/bin/pgrep -a "$process" >/dev/null ; then 
-        /usr/bin/pkill -a "$process" && echo "   [$script_name] '$process' ended" || \
-        echo "   [$script_name] '$process' could not be killed"
+    echo
+    if process_pid=$(/usr/bin/pgrep -a "$process" 2>/dev/null) ; then 
+        echo "   [$script_name] attempting to terminate the '$process' process - Termination message indicates success"
+        kill "$process_pid" 2> /dev/null
+        if /usr/bin/pgrep -a "$process" >/dev/null ; then 
+            echo "   [$script_name] ERROR: '$process' could not be killed"
+        fi
+        echo
     fi
 }
 
@@ -979,7 +1077,7 @@ open_osascript_dialog() {
     icon="$4"
 
     if [[ $message ]]; then
-        /usr/bin/osascript <<-END
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
             display dialog "$message" ¬
             buttons {"$button1"} ¬
             default button 1 ¬
@@ -987,7 +1085,7 @@ open_osascript_dialog() {
             with icon $icon
 END
     else
-        /usr/bin/osascript <<-END
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
             display dialog "$title" ¬
             buttons {"$button1"} ¬
             default button 1 ¬
@@ -1045,6 +1143,11 @@ run_installinstallmacos() {
         echo "   [run_installinstallmacos] Non-standard seedprogram selected"
         installinstallmacos_args+=("--seed")
         installinstallmacos_args+=("$seedprogram")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
+        installinstallmacos_args+=("--catalog")
+        installinstallmacos_args+=("$darwin_version")
     fi
 
     if [[ $beta == "yes" ]]; then
@@ -1275,6 +1378,7 @@ show_help() {
     --list              List available updates only using installinstallmacos 
                         (don't download anything)
     --seed ...          Select a non-standard seed program
+    --catalog ...       Override the default catalog with one from a different OS (overrides seedprogram)
     --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
     --samebuild         Finds the build of macOS that matches the
                         existing system version, downloads it.
@@ -1304,6 +1408,8 @@ show_help() {
                         system and reinstalling macOS. 
     --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
                         Only applicable with --reinstall and --erase arguments.
+    --fs                Uses full-screen DEPNotify windows for all stages, not just the
+                        preparation phase. Only works with DEPNotify, not jamfHelper.
     --reinstall         After download, reinstalls macOS without erasing the
                         current system
     --overwrite         Download macOS installer even if an installer
@@ -1318,6 +1424,11 @@ show_help() {
     --preinstall-command 'some arbitrary command'
                         Supply a shell command to run immediately prior to startosinstall
                         running. An example might be 'jamf recon -department Spare'.
+                        Ensure that the command is in quotes.
+    --postinstall-command 'some arbitrary command'
+                        Supply a shell command to run immediately after startosinstall
+                        completes preparation, but before reboot. 
+                        An example might be 'jamf recon -department Spare'.
                         Ensure that the command is in quotes.
                       
 
@@ -1340,6 +1451,7 @@ show_help() {
     Experimental features for macOS 11+:
     --pkg               Downloads a package installer rather than the installer app.
                         Can be used with the --reinstall and --erase options.
+    --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
 
     Note: If existing installer is found, this script will not check
           to see if it matches the installed system version. It will
@@ -1369,19 +1481,58 @@ show_help() {
 }
 
 finish() {
-    # kill caffeinate
-    kill_process "caffeinate"
-
-    # kill any dialogs if startosinstall ends before a reboot
-    kill_process "jamfHelper"
-    dep_notify_quit
-    kill_process DEPNotify
-
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
         echo "     [$script_name] User $promoted_user was demoted back to standard user"
     fi
+
+    # kill caffeinate
+    kill_process "caffeinate"
+
+    # kill any dialogs if startosinstall ends before a reboot
+    # kill_process "jamfHelper"
+    # dep_notify_quit
+}
+
+post_prep_work() {
+    # set DEPNotify status for rebootdelay if set
+    if [[ "$rebootdelay" -gt 10 ]]; then
+        if [[ "$use_depnotify" == "yes" ]]; then
+            dep_notify_quit
+            echo "   [post_prep_work] Opening DEPNotify full screen message (language=$user_language)"
+            dn_title="${!dialog_reinstall_title}"
+            dn_desc="${!dialog_rebooting_heading}"
+            dn_status="${!dialog_rebooting_status}"
+            dn_button=""
+            dep_notify
+            dep_notify_progress reboot-delay >/dev/null 2>&1 &
+            echo $! >> /tmp/depnotify_progress_pid
+        elif [[ -f "$jamfHelper" ]]; then
+            kill_process "jamfHelper"
+            sleep 0.5
+            echo "   [post_prep_work] Opening jamfHelper message (language=$user_language)"
+            window_type="utility"
+            "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_rebooting_heading}" -description "${!dialog_rebooting_status} ${rebootdelay}s" -icon "$dialog_reinstall_icon" &
+        else
+            echo "   [post_prep_work] Opening osascript dialog (language=$user_language)"
+            # open_osascript_dialog syntax: title, message, button1, icon
+            open_osascript_dialog "${!dialog_rebooting_heading}" "" "OK" stop &
+        fi
+    fi
+    # run the postinstall commands
+    for command in "${postinstall_command[@]}"; do
+        echo "   [$script_name] Now running arbitrary command: $command"
+        /bin/bash -c "$command"
+    done
+
+    # finish the delay
+    sleep "$rebootdelay"
+
+    # then shut everything down
+    kill_process "Self Service"
+    finish
+    exit
 }
 
 
@@ -1391,6 +1542,9 @@ finish() {
 
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
+
+# ensure some cleanup is done after startosinstall is run (thanks @frogor!)
+trap "post_prep_work" SIGUSR1  # 30 is the numerical representation of SIGUSR1 (thanks @n8felton)
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -1441,6 +1595,8 @@ while test $# -gt 0 ; do
             ;;
         --no-fs) no_fs="yes"
             ;;
+        --fs) fs="yes"
+            ;;
         --skip-validation) skip_validation="yes"
             ;;
         --current-user) use_current_user="yes"
@@ -1448,6 +1604,13 @@ while test $# -gt 0 ; do
         --user)
             shift
             account_shortname="$1"
+            ;;
+        --rebootdelay)
+            shift
+            rebootdelay="$1"
+            if [[ $rebootdelay -gt 300 ]]; then
+                rebootdelay=300
+            fi
             ;;
         --test-run) test_run="yes"
             ;;
@@ -1484,6 +1647,10 @@ while test $# -gt 0 ; do
             shift
             catalogurl="$1"
             ;;
+        --catalog)
+            shift
+            catalog="$1"
+            ;;
         --path)
             shift
             installer_directory="$1"
@@ -1514,8 +1681,11 @@ while test $# -gt 0 ; do
             ;;
         --preinstall-command)
             shift
-            preinstall_command="$1"
-            echo "Preinstall: $preinstall_command"
+            preinstall_command+=("$1")
+            ;;
+        --postinstall-command)
+            shift
+            postinstall_command+=("$1")
             ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
@@ -1529,6 +1699,9 @@ while test $# -gt 0 ; do
         --catalogurl*)
             catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
+        --catalog*)
+            catalog=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
         --path*)
             installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -1541,6 +1714,15 @@ while test $# -gt 0 ; do
         --os*)
             prechosen_os=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
+        --user*)
+            account_shortname=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --rebootdelay*)
+            rebootdelay=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            if [[ $rebootdelay -gt 300 ]]; then
+                rebootdelay=300
+            fi
+            ;;
         --version*)
             prechosen_version=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -1551,7 +1733,12 @@ while test $# -gt 0 ; do
             workdir=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --preinstall-command*)
-            preinstall_command=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            command=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            preinstall_command+=("$command")
+            ;;
+        --postinstall-command*)
+            command=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            postinstall_command+=("$command")
             ;;
         -h|--help) show_help
             ;;
@@ -1582,10 +1769,8 @@ LOG_FILE="$workdir/erase-install.log"
 exec > >(tee "${LOG_FILE}") 2>&1
 
 # ensure computer does not go to sleep while running this script
-pid=$$
-echo "   [$script_name] Caffeinating this script (pid=$pid)"
-/usr/bin/caffeinate -dimsu -w $pid &
-caffeinate_pid=$!
+echo "   [$script_name] Caffeinating this script (pid=$$)"
+/usr/bin/caffeinate -dimsu -w $$ &
 
 # bundled python directory
 relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
@@ -1712,11 +1897,25 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
     if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         if [[ $use_depnotify == "yes" ]]; then
             echo "   [$script_name] Opening DEPNotify download message (language=$user_language)"
+            # if fs is set, show a full screen display instead of the utility window
+            if [[ $fs == "yes" && ! $rebootdelay -gt 10 ]]; then 
+                window_type="fs"
+            else
+                window_type="utility"
+            fi
             dn_title="${!dialog_dl_title}"
             dn_desc="${!dialog_dl_desc}"
             dn_status="${!dialog_dl_title}"
+            if [[ $reinstall == "yes" && "$rebootdelay" -gt 10 ]]; then
+                dn_button="OK"
+            else
+                dn_button=""
+            fi
             dn_icon="$dialog_dl_icon"
             dep_notify
+            if [[ -f "$depnotify_confirmation_file" ]]; then
+                dep_notify_quit
+            fi
         elif [[ -f "$jamfHelper" ]]; then
             echo "   [$script_name] Opening jamfHelper download message (language=$user_language)"
             "$jamfHelper" -windowType hud -windowPosition ul -title "${!dialog_dl_title}" -alignHeading center -alignDescription left -description "${!dialog_dl_desc}" -lockHUD -icon  "$dialog_dl_icon" -iconSize 100 &
@@ -1862,6 +2061,15 @@ if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
+# macOS 11 (Darwin 20) and above can use the --rebootdelay option
+if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
+    install_args+=("--rebootdelay")
+    install_args+=("$rebootdelay")
+else
+    # cancel rebootdelay for older systems as we don't support it
+    rebootdelay=0
+fi
+
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
 if [[  $installer_darwin_version -ge 19 ]]; then    
     install_args+=("--forcequitapps")
@@ -1872,52 +2080,62 @@ dialog_erase_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
 dialog_reinstall_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
 
 # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
-[[ $no_fs == "yes" ]] && window_type="utility" || window_type="fs"
+if [[ $no_fs == "yes" || $rebootdelay -gt 10 ]]; then 
+    window_type="utility"
+else
+    window_type="fs"
+fi
 
-# dialogs for reinstallation
+# dialogs for erase
 if [[ $erase == "yes" ]]; then
     if [[ $use_depnotify == "yes" ]]; then
-        echo "   [$script_name] Opening DEPNotify full screen message (language=$user_language)"
+        echo "   [$script_name] Opening DEPNotify message (language=$user_language)"
         dn_title="${!dialog_erase_title}"
         dn_desc="${!dialog_erase_desc}"
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_erase_icon"
+        dn_button=""
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
-        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        if [[ -f "$depnotify_confirmation_file" ]]; then
+            dep_notify_quit
+        fi
     elif [[ -f "$jamfHelper" ]]; then
-        echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
+        echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_erase_title}" -heading "${!dialog_erase_title}" -description "${!dialog_erase_desc}" -icon "$dialog_erase_icon" &
-        PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_erase_desc}" "" "OK" stop &
-        PID=$!
     fi
 
 # dialogs for reinstallation
 elif [[ $reinstall == "yes" ]]; then
     if [[ $use_depnotify == "yes" ]]; then
-        echo "   [$script_name] Opening DEPNotify full screen message (language=$user_language)"
+        echo "   [$script_name] Opening DEPNotify message (language=$user_language)"
         dn_title="${!dialog_reinstall_title}"
         dn_desc="${!dialog_reinstall_desc}"
         dn_status="${!dialog_reinstall_status}"
         dn_icon="$dialog_reinstall_icon"
+        if [[ "$rebootdelay" -gt 10 ]]; then
+            dn_button="OK"
+        else
+            dn_button=""
+        fi
         dep_notify
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
-        PID=$(pgrep -l "DEPNotify" | cut -d " " -f1)
+        if [[ -f "$depnotify_confirmation_file" ]]; then
+            dep_notify_quit
+        fi
     elif [[ -f "$jamfHelper" ]]; then
-        echo "   [$script_name] Opening jamfHelper full screen message (language=$user_language)"
+        echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
         "$jamfHelper" -windowType $window_type -title "${!dialog_reinstall_title}" -heading "${!dialog_reinstall_heading}" -description "${!dialog_reinstall_desc}" -icon "$dialog_reinstall_icon" &
-        PID=$!
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_reinstall_desc}" "" "OK" stop &
-        PID=$!
     fi
 fi
 
@@ -1926,17 +2144,14 @@ if [[ $cleanup_after_use != "" ]]; then
     echo "   [$script_name] Writing LaunchDaemon which will remove $workdir at next boot"
 fi
 
-# run an arbitrary command if preinstall_command is set
-if [[ $preinstall_command != "" ]]; then
-    echo "   [$script_name] Now running arbitrary command: $preinstall_command"
-fi
+# run preinstall commands
+for command in "${preinstall_command[@]}"; do
+    echo "   [$script_name] Now running arbitrary command: $command"
+    /bin/bash -c "$command"
+done
 
 # now actually run startosinstall
 if [[ $test_run != "yes" ]]; then
-    if [[ $preinstall_command != "" ]]; then
-        # run an arbitrary command if preinstall_command is set
-        $preinstall_command
-    fi
     if [[ $cleanup_after_use != "" ]]; then
         # set launchdaemon to remove $workdir if $cleanup_after_use is set
         create_launchdaemon_to_remove_workdir
@@ -1945,22 +2160,26 @@ if [[ $test_run != "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         if [[ "$erase" == "yes" ]]; then
-            echo  "   [$script_name] updating preboot files (takes a few seconds)..."
-            /usr/sbin/diskutil apfs updatepreboot / > /dev/null
+            echo "   [$script_name] updating preboot files (takes a few seconds)..."
+            if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
+                echo "   [$script_name] preboot files updated"
+            else
+                echo "   [$script_name] WARNING! preboot files could not be updated."
+            fi
         fi        
         # shellcheck disable=SC2086
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password
+        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password & wait $!
     else
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --agreetolicense --nointeraction "${install_package_list[@]}"
+        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
     fi
-    # kill Self Service if running
-    kill_process "Self Service"
+
 else
     echo "   [$script_name] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]"
+        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]" "& wait $!"
     else
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $PID --pidtosignal $caffeinate_pid --agreetolicense --nointeraction "${install_package_list[@]}"
+        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" "& wait $!"
     fi
-    sleep 120
+    sleep 30
+    post_prep_work
 fi

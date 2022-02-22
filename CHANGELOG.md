@@ -4,6 +4,24 @@
 
 No date
 
+## [26.0]
+
+No date
+
+- Adds `--catalog` to allow an easier way to select which software update catalog to use, rather than the defaults set in `installinstallmacos.py`. Example: `--catalog 10.15` will use the catalog for Darwin version 19, `--catalog 11` will use Darwin version 20. This is to address omissions in the catalogs for older OSes (somewhat addresses #169, #160).
+- Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
+- Adds `--rebootdelay` option (Big Sur or later) (#193).
+- DEPNotify counts down the rebootdelay time.
+- Adds `--fs` option which makes all the DEPNotify windows full screen (download, confirm, preparation).
+- User can dismiss the DEPNotify download and preparation windows if `--rebootdelay` is set to at least 10 seconds.
+- Multiple `--preinstall-command` arguments can now be supplied. These run immediately before `startosinstall` is run.
+- Multiple `--postinstall-command` arguments can now be supplied. These run after `startosinstall` has finished.
+- Checksums of `installinstallmacos.py` are now pinned to a tag of the `macadmins-scripts` repo so that updates to the script don't break a particular version of `erase-install.sh` from working.
+- Add a message about process Terminations, which some people were mistakenly believing to be errors.
+- Fixed the actual killing of jamfHelper and caffeinate.
+- `osascript` dialog windows now run as the user (addresses #198, thanks to @anewhouse).
+- Fixed an issue concerning the catalog for macOS High Sierra 10.13 which has an item without a version string listed, which was causing installinstallmacos.py to error out (addresses #169).
+
 ## [25.0]
 
 23.11.2021
@@ -48,7 +66,7 @@ No date
 
 - The package now includes a relocatable python installation (version 3.9.5) for use with `installinstallmacos.py`. This replaces the reliance on the macOS python2.7 distribution.
 - For standalone script runs, erase-install.sh will now check for an existing relocatable python or MacAdmins Python installation. If neither exists, and `--no-curl` is not set, the script will download and install the minimum MacAdmins Python signed package, for use with `installinstallmacos.py`. If `--no-curl` is set, the script will fall back to python 2.
-- If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum. Note: this is calculated using the command: ``
+- If `installinstallmacos.py` is downloaded using curl, it is now checked against a defined SHA256 checksum. Note: this is calculated using the command: `shasum -a 256 installinstallmacos.py | cut -d' ' -f1`.
 - Add download progress information to the DEPNotify bar (#127, thanks @andredb90, addresses #116).
 - Rationalised version comparisons in the code from 3 to 1.
 
