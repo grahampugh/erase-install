@@ -38,11 +38,11 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="26.0"
+version="26.1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="ae7fa803f1c05fd43a8c7c3167aed585a85ffe18c803ef484a8c248bc0350366"
+installinstallmacos_checksum="1caf2a100439db07aa80f6121b16af6fd67133cffd3f9decb1d4f5a08718a1ef"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -51,7 +51,7 @@ installer_directory="/Applications"
 workdir="/Library/Management/erase-install"
 
 # URL for downloading macadmins python (with tag version) for standalone script running
-macadmins_python_version="v.3.9.5.09222021234106"
+macadmins_python_version="v.3.10.2.80694"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
@@ -2168,7 +2168,7 @@ if [[ $test_run != "yes" ]]; then
             fi
         fi        
         # shellcheck disable=SC2086
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password & wait $!
+        echo $account_password | "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" & wait $!
     else
         "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
     fi
@@ -2176,9 +2176,9 @@ if [[ $test_run != "yes" ]]; then
 else
     echo "   [$script_name] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]" "& wait $!"
+        echo "echo \"[PASSWORD REDACTED]\" | \"$working_macos_app/Contents/Resources/startosinstall\" \"" "${install_args[@]}" "\" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user \"$account_shortname\" \"" "${install_package_list[@]}" "\" & wait $!"
     else
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" "& wait $!"
+        echo "$working_macos_app/Contents/Resources/startosinstall\" \"" "${install_args[@]}" "\" --pidtosignal $$ --agreetolicense --nointeraction \"" "${install_package_list[@]}" "\" & wait $!"
     fi
     sleep 30
     post_prep_work

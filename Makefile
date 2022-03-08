@@ -9,7 +9,7 @@ PKG_BUILD_NOPYTHON := $(CURDIR)/pkg/erase-install-nopython/build
 PKG_ROOT_DEPNOTIFY := $(CURDIR)/pkg/erase-install-depnotify/payload
 PKG_BUILD_DEPNOTIFY := $(CURDIR)/pkg/erase-install-depnotify/build
 PKG_VERSION := $(shell defaults read $(CURDIR)/pkg/erase-install/build-info.plist version)
-PYTHON_VERSION := 3.9.5
+PYTHON_VERSION := 3.10.2
 PYTHON_INSTALLER_SCRIPT := $(CURDIR)/../relocatable-python/make_relocatable_python_framework.py
 PYTHON_REQUIREMENTS := $(CURDIR)/requirements_python3.txt
 
@@ -27,7 +27,7 @@ build:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
+	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 	@echo "Making package in $(PKG_BUILD) directory"
 	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
@@ -58,7 +58,7 @@ depnotify:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --pip-requirements="$(PYTHON_REQUIREMENTS)"
+	python3 "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"

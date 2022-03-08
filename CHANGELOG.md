@@ -4,6 +4,13 @@
 
 No date
 
+## [26.1]
+
+8.3.22
+
+- Universal python build packages.
+- Use `packaging` instead of `distutils` where available (allows for removal if `distutils` in python 3.12 - addresses [grahampugh/macadmin-scripts/issues/47](https://github.com/grahampugh/macadmin-scripts/issues/47)).
+
 ## [26.0]
 
 22.02.22
@@ -400,6 +407,7 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v26.0...HEAD
+[26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
 [26.0]: https://github.com/grahampugh/erase-install/compare/v25.0...v26.0
 [25.0]: https://github.com/grahampugh/erase-install/compare/v24.1...v25.0
 [24.1]: https://github.com/grahampugh/erase-install/compare/v24.0...v24.1
