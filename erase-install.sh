@@ -42,7 +42,7 @@ version="26.1"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="1caf2a100439db07aa80f6121b16af6fd67133cffd3f9decb1d4f5a08718a1ef"
+installinstallmacos_checksum="bb21421f277090a0fe163815796058313859633804fc992a07e8b4cc9779d0cf"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -51,7 +51,7 @@ installer_directory="/Applications"
 workdir="/Library/Management/erase-install"
 
 # URL for downloading macadmins python (with tag version) for standalone script running
-macadmins_python_version="v.3.10.2.80694"
+macadmins_python_version="v3.10.2.80694"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
