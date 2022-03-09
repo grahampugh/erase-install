@@ -908,6 +908,18 @@ get_installinstallmacos() {
        
 }
 
+: <<-LICENSE_BLOCK
+ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+LICENSE_BLOCK
+
+#v1.0.3 - use the minified function below to embed ljt into your shell script
+ljt() ( 
+	[ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
+	try {var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if (query[0]==='/'){ query = query.split('/').slice(1).map(function (f){return "["+JSON.stringify(f)+"]"}).join('')}if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split('').reverse().join('').replace(/(["'])(.*?)\1(?!\\)/g, ""))){throw new Error("Invalid path: "+ query)};if(query[0]==="$"){query=query.slice(1,query.length)};var data=JSON.parse(readFile(file));var result=eval("(data)"+query)}catch(e){printErr(e);quit()};if(result !==undefined){result!==null&&result.constructor===String?print(result): print(JSON.stringify(result,null,2))}else{printErr("Node not found.")}
+	EOT
+	queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+)
+
 get_relocatable_python() {
     # grab macadmins python and install it if not already there - used when running this script as a standalone
     if [[ -L "$relocatable_python_path" && -e "$relocatable_python_path" ]]; then
@@ -919,7 +931,8 @@ get_relocatable_python() {
     else
         if [[ ! $no_curl ]]; then
             echo "   [get_relocatable_python] Downloading MacAdmins Python package..."
-            macadmins_python_pkg=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" | grep signed | grep url | sed 's|^.*"browser_download_url": ||' | sed 's|\"||g' )
+            macadmins_python_json=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" )
+            macadmins_python_pkg=$( ljt /assets/1/browser_download_url <<< "$macadmins_python_json" )
             /usr/bin/curl -L "$macadmins_python_pkg" -o "$workdir/macadmins_python-$macadmins_python_version.pkg"
             installer -pkg "$workdir/macadmins_python-$macadmins_python_version.pkg" -target /
         fi
