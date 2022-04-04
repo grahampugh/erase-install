@@ -517,10 +517,17 @@ compare_build_versions() {
     second_build_minor_no=${second_build_minor//[!0-9]/}
     first_build_minor_beta=${first_build_minor//[0-9]/}
     second_build_minor_beta=${second_build_minor//[0-9]/}
+
+    builds_match="no"
+    versions_match="no"
+    os_matches="no"
+
     echo "   [compare_build_versions] Comparing (1) $first_build with (2) $second_build"
     if [[ "$first_build" == "$second_build" ]]; then
         echo "   [compare_build_versions] $first_build = $second_build"
         builds_match="yes"
+        versions_match="yes"
+        os_matches="yes"
         return
     elif [[ $first_build_darwin -gt $second_build_darwin ]]; then
         echo "   [compare_build_versions] $first_build > $second_build"
@@ -531,26 +538,35 @@ compare_build_versions() {
         echo "   [compare_build_versions] $first_build > $second_build"
         first_build_newer="yes"
         first_build_minor_newer="yes"
+        os_matches="yes"
         return
     elif [[ ! $first_build_minor_beta && $second_build_minor_beta && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
         echo "   [compare_build_versions] $first_build > $second_build (production > beta)"
         first_build_newer="yes"
         first_build_patch_newer="yes"
+        versions_match="yes"
+        os_matches="yes"
         return
     elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -lt 1000 && $second_build_minor_no -lt 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
         echo "   [compare_build_versions] $first_build > $second_build"
         first_build_newer="yes"
         first_build_patch_newer="yes"
+        versions_match="yes"
+        os_matches="yes"
         return
     elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
         echo "   [compare_build_versions] $first_build > $second_build (both betas)"
         first_build_newer="yes"
         first_build_patch_newer="yes"
+        versions_match="yes"
+        os_matches="yes"
         return
     elif [[ $first_build_minor_beta && $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
         echo "   [compare_build_versions] $first_build > $second_build (both betas)"
         first_build_patch_newer="yes"
         first_build_newer="yes"
+        versions_match="yes"
+        os_matches="yes"
         return
     fi
 
@@ -1847,6 +1863,15 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_i
         kill_process "caffeinate"
         exit
     fi
+elif [[ "$prechosen_build" != "" && "$builds_match" != "yes" ]]; then
+    echo "   [$script_name] Existing installer does not match requested build, so replacing..."
+    overwrite_existing_installer
+elif [[ "$prechosen_version" != "" && "$versions_match" != "yes" ]]; then
+    echo "   [$script_name] Existing installer does not match requested version, so replacing..."
+    overwrite_existing_installer
+elif [[ "$prechosen_os" != "" && "$os_matches" != "yes" ]]; then
+    echo "   [$script_name] Existing installer does not match requested version, so replacing..."
+    overwrite_existing_installer
 elif [[ $update_installer == "yes" && -d "$working_macos_app" && $overwrite != "yes" ]]; then
     echo "   [$script_name] Checking for newer installer"
     check_newer_available
