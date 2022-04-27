@@ -339,7 +339,7 @@ check_installer_is_valid() {
     [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
     # now attempt to mount
     if [[ -f "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
-        if hdiutil attach -quiet -noverify "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
             echo "   [check_installer_is_valid] Mounting $existing_installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
             build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
