@@ -467,7 +467,7 @@ check_password() {
         echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         password_check="fail"
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 &
+        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
         exit 1
     fi
 }
