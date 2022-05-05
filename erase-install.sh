@@ -1509,7 +1509,7 @@ show_help() {
 }
 
 finish() {
-	local exit_code=$?
+    local exit_code=$?
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
