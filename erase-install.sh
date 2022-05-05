@@ -468,7 +468,6 @@ check_password() {
         password_check="fail"
         # open_osascript_dialog syntax: title, message, button1, icon
         open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
-        exit 1
     fi
 }
 
@@ -1510,6 +1509,7 @@ show_help() {
 }
 
 finish() {
+	local exit_code=$?
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
@@ -1522,6 +1522,7 @@ finish() {
     # kill any dialogs if startosinstall ends before a reboot
     # kill_process "jamfHelper"
     # dep_notify_quit
+    exit $exit_code
 }
 
 post_prep_work() {
