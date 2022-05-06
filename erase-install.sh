@@ -212,7 +212,7 @@ dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la r
 
 # Dialogue localizations - invalid password
 dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
-dialog_invalid_password_de="ERROR: Das eingegebene Kennwort ist NICHT das Anmeldekennwort für"
+dialog_invalid_password_de="ERROR: Das eingegebene Passwort ist NICHT das Anmeldepasswort für"
 dialog_invalid_password_nl="FOUT: Het ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
 dialog_invalid_password_fr="ERREUR : Le mot de passe entré n'est PAS le mot de passe de connexion pour"
 
@@ -265,9 +265,15 @@ dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
 ask_for_password() {
     # required for Silicon Macs
-    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
+    if [[ $max_password_attempts == "infinite" ]]; then
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}"} default button 1 with icon 2)
+END
+    else
+        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
 END
+    fi
 }
 
 ask_for_shortname() {
@@ -466,8 +472,7 @@ check_password() {
     else
         echo "   [check_password] ERROR: The password entered is NOT the login password for $user."
         password_check="fail"
-        # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2
+        /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"
     fi
 }
 
@@ -1038,16 +1043,18 @@ get_user_details() {
     password_check="fail"
     while [[ "$password_check" != "pass" ]] ; do
         account_password=$(ask_for_password)
-        if [[ ! "$account_password" ]]; then
+        ask_for_password_rc=$?
+        # prevent accidental cancelling by simply pressing return (entering an empty password)
+        if [[ "$ask_for_password_rc" -ne 0 ]]; then
             echo "   [get_user_details] User cancelled."
             exit 1
         fi
         check_password "$account_shortname" "$account_password"
 
         password_attempts=$((password_attempts+1))
-        if [[ $password_attempts -ge 5 ]]; then
+        if [[ ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_user_invalid}: $user" "" "OK" 2 
+            open_osascript_dialog "${!dialog_invalid_password}: $user" "" "OK" 2 
             exit 1
         fi
     done
@@ -1467,6 +1474,10 @@ show_help() {
       this script cannot be run at the login window or from remote terminal.
     --current-user      Authenticate startosinstall using the current user
     --user XYZ          Supply a user with which to authenticate startosinstall
+    --max-password-attempts NN | infinity
+                        Overrides the default of 5 attempts to ask for the user's password. Using
+                        "infinity" will disable the Cancel button and asking until the password is
+                        successfully verified.
 
     Experimental features for macOS 10.15+:
     --list-full-installers
@@ -1585,6 +1596,9 @@ reinstall="no"
 # Override this default value with the --min-drive-space option.
 min_drive_space=45
 
+# default max_password_attempts to 5
+max_password_attempts=5
+
 while test $# -gt 0 ; do
     case "$1" in
         -l|--list) list="yes"
@@ -1634,6 +1648,11 @@ while test $# -gt 0 ; do
         --user)
             shift
             account_shortname="$1"
+            ;;
+        --max-password-attempts)
+            shift
+            max_password_attempts="$1"
+            echo "set max_password_attempts to $max_password_attempts"
             ;;
         --rebootdelay)
             shift
