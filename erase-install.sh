@@ -1039,9 +1039,10 @@ get_user_details() {
     fi
 
     # get password and check that the password is correct
-    password_attempts=0
+    password_attempts=1
     password_check="fail"
     while [[ "$password_check" != "pass" ]] ; do
+        echo "   [get_user_details] ask for password (attempt $password_attempts/$max_password_attempts)"
         account_password=$(ask_for_password)
         ask_for_password_rc=$?
         # prevent accidental cancelling by simply pressing return (entering an empty password)
@@ -1051,12 +1052,12 @@ get_user_details() {
         fi
         check_password "$account_shortname" "$account_password"
 
-        password_attempts=$((password_attempts+1))
         if [[ ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
             # open_osascript_dialog syntax: title, message, button1, icon
             open_osascript_dialog "${!dialog_invalid_password}: $user" "" "OK" 2 
             exit 1
         fi
+        password_attempts=$((password_attempts+1))
     done
 
     # if we are performing eraseinstall the user needs to be an admin so let's promote the user
@@ -1651,8 +1652,9 @@ while test $# -gt 0 ; do
             ;;
         --max-password-attempts)
             shift
-            max_password_attempts="$1"
-            echo "set max_password_attempts to $max_password_attempts"
+            if [[ ( $1 == "infinity" ) || ( $1 -gt 0 ) ]]; then
+                max_password_attempts="$1"
+            fi
             ;;
         --rebootdelay)
             shift
