@@ -1475,9 +1475,9 @@ show_help() {
       this script cannot be run at the login window or from remote terminal.
     --current-user      Authenticate startosinstall using the current user
     --user XYZ          Supply a user with which to authenticate startosinstall
-    --max-password-attempts NN | infinity
+    --max-password-attempts NN | infinite
                         Overrides the default of 5 attempts to ask for the user's password. Using
-                        "infinity" will disable the Cancel button and asking until the password is
+                        "infinite" will disable the Cancel button and asking until the password is
                         successfully verified.
 
     Experimental features for macOS 10.15+:
@@ -1652,7 +1652,7 @@ while test $# -gt 0 ; do
             ;;
         --max-password-attempts)
             shift
-            if [[ ( $1 == "infinity" ) || ( $1 -gt 0 ) ]]; then
+            if [[ ( $1 == "infinite" ) || ( $1 -gt 0 ) ]]; then
                 max_password_attempts="$1"
             fi
             ;;
