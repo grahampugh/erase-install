@@ -9,7 +9,7 @@ No date
 8.3.22
 
 - Universal python build packages.
-- Use `packaging` instead of `distutils` where available (allows for removal if `distutils` in python 3.12 - addresses [grahampugh/macadmin-scripts/issues/47](https://github.com/grahampugh/macadmin-scripts/issues/47)).
+- Use `pkg_resources` instead of `distutils` where available (allows for removal if `distutils` in python 3.12 - addresses [grahampugh/macadmin-scripts/issues/47](https://github.com/grahampugh/macadmin-scripts/issues/47)).
 
 ## [26.0]
 
