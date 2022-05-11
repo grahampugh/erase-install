@@ -389,10 +389,8 @@ check_installer_is_valid() {
 check_newer_available() {
     # Download installinstallmacos.py and MacAdmins python
     get_installinstallmacos
-    get_relocatable_python
     if [[ ! -f "$python_path" ]]; then
-        # fall back to python2
-        python_path=$(which python)
+        get_relocatable_python
     fi
 
     # build arguments for installinstallmacos
@@ -957,6 +955,8 @@ get_relocatable_python() {
             python_path="$macadmins_python_path"
         else
             echo "   [get_relocatable_python] Could not download MacAdmins Python."
+            # fall back to python2
+            python_path=$(which python)
         fi
     fi
 }
@@ -1142,7 +1142,9 @@ overwrite_existing_installer() {
 run_installinstallmacos() {
     # Download installinstallmacos.py and MacAdmins Python
     get_installinstallmacos
-    get_relocatable_python
+    if [[ ! -f "$python_path" ]]; then
+        get_relocatable_python
+    fi
 
     # Use installinstallmacos.py to download the desired version of macOS
     installinstallmacos_args=()
