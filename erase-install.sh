@@ -1477,7 +1477,7 @@ show_help() {
     --user XYZ          Supply a user with which to authenticate startosinstall
     --max-password-attempts NN | infinite
                         Overrides the default of 5 attempts to ask for the user's password. Using
-                        "infinite" will disable the Cancel button and asking until the password is
+                        'infinite' will disable the Cancel button and asking until the password is
                         successfully verified.
 
     Experimental features for macOS 10.15+:
