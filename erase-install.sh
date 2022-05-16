@@ -291,7 +291,6 @@ check_free_space() {
         # fall back to df -h if the above fails
         free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
     fi
-        echo "   [check_free_space] min_drive_space: $free_disk_space vs $min_drive_space"
     
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         echo "   [check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
