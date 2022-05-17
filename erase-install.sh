@@ -297,7 +297,7 @@ check_free_space() {
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "1" -cancelButton "0"
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
         else
             # open_osascript_dialog syntax: title, message, button1, icon
             open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
