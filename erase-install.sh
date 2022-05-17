@@ -1773,7 +1773,7 @@ while test $# -gt 0 ; do
         --max-password-attempts*)
             new_max_password_attempts=$(echo "$1" | sed -e 's|^[^=]*=||g')
             if [[ ( $new_max_password_attempts == "infinite" ) || ( $new_max_password_attempts -gt 0 ) ]]; then
-                max_password_attempts="$1"
+                max_password_attempts="$new_max_password_attempts"
             fi
             ;;
         --rebootdelay*)
