@@ -132,19 +132,19 @@ dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw wer
 dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
 
 dialog_rebooting_status_en="Preparation complete - restarting in"
-dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in "
+dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in"
 dialog_rebooting_status_nl="Voorbereiding compleet - herstart over"
 dialog_rebooting_status_fr="Préparation terminée - redémarrage dans"
 
 # Dialogue localizations - confirmation window (erase)
 dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
-dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
+dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
 dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
 dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
 
 # Dialogue localizations - confirmation window (reinstall)
 dialog_reinstall_confirmation_desc_en="Please confirm that you want to upgrade macOS on this system now"
-dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten"
+dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
 dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
 dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
 
