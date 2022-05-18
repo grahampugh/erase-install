@@ -1093,7 +1093,8 @@ move_to_applications_folder() {
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
         echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
-        cp -R "$working_macos_app" $installer_directory/
+        cp -Rc "$working_macos_app" "$installer_directory/" \
+            || cp -R "$working_macos_app" "$installer_directory/"
         existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         if [[ -d "$existing_installer" ]]; then
             echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
