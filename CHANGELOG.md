@@ -10,6 +10,14 @@ No date
 
 - Universal python build packages.
 - Use `pkg_resources` instead of `distutils` where available (allows for removal if `distutils` in python 3.12 - addresses [grahampugh/macadmin-scripts/issues/47](https://github.com/grahampugh/macadmin-scripts/issues/47)).
+- Allows the usage of spaces in `--workdir` and `--path`.
+- Fixed an issue with `--max-password-attempts=NN`.
+- Fixed an issue with the first password check always failing.
+- Changes dialogs so that the cancel button is on the left, and default button is on the right.
+- Script now uses `sysctl` to check for Apple Silicon (addresses #225).
+- Some minor changes to the german translation.
+- Adds an additional check for `--min-drive-space` right before start of the installation (should address #242).
+- Adds `-nobrowse` to all instances of `hdiutil` to prevent mounted images appearing on the desktop 
 
 ## [26.0]
 

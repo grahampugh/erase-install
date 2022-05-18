@@ -820,12 +820,12 @@ find_existing_installer() {
 
     if [[ -f "$existing_macos_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $existing_macos_dmg."
-        hdiutil attach "$existing_macos_dmg"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_macos_dmg"
         existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -f "$existing_sparseimage" ]]; then
         echo "   [find_existing_installer] Installer sparse image found at $existing_sparseimage."
-        hdiutil attach "$existing_sparseimage"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_sparseimage"
         existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -d "$existing_installer_app" ]]; then
@@ -1259,7 +1259,7 @@ run_installinstallmacos() {
 
     if [[ -f "$downloaded_macos_dmg" ]]; then
         echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
-        if hdiutil attach "$downloaded_macos_dmg" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_macos_dmg" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_macos_dmg"
@@ -1267,7 +1267,7 @@ run_installinstallmacos() {
         fi
     elif [[ -f "$downloaded_sparseimage" ]]; then
         echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
-        if hdiutil attach "$downloaded_sparseimage" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_sparseimage" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_sparseimage"
