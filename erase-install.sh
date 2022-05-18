@@ -1052,7 +1052,7 @@ get_user_details() {
         fi
         check_password "$account_shortname" "$account_password"
 
-        if [[ ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
+        if [[ ( "$password_check" != "pass" ) && ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
             # open_osascript_dialog syntax: title, message, button1, icon
             open_osascript_dialog "${!dialog_invalid_password}: $user" "" "OK" 2 
             exit 1
