@@ -2073,6 +2073,9 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     exit
 fi
 
+# re-check if there is enough space after a possible installer download
+check_free_space
+
 ## Steps beyond here are to run startosinstall
 
 echo
