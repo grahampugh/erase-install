@@ -1948,7 +1948,9 @@ fi
 # Silicon Macs require a username and password to run startosinstall
 # We therefore need to be logged in to proceed, if we are going to erase or reinstall
 # This goes before the download so users aren't waiting for the prompt for username
-arch=$(/usr/bin/arch)
+# Check for Apple Silicon using sysctl, because arch will not report arm64 if running under Rosetta.
+[[ $(/usr/sbin/sysctl -q -n "hw.optional.arm64") -eq 1 ]] && arch="arm64" || arch=$(/usr/bin/arch)
+echo "   [$script_name] Running on architecture $arch"
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     if ! pgrep -q Finder ; then
         echo "    [$script_name] ERROR! The startosinstall binary requires a user to be logged in."
