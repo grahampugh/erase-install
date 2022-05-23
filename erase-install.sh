@@ -271,7 +271,7 @@ ask_for_password() {
 END
     else
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
     fi
 }
@@ -279,7 +279,7 @@ END
 ask_for_shortname() {
     # required for Silicon Macs
     /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
 }
 
@@ -297,7 +297,7 @@ check_free_space() {
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
         else
             # open_osascript_dialog syntax: title, message, button1, icon
             open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
@@ -604,9 +604,9 @@ confirm() {
         # DEPNotify creates a bom file if the user presses the confirmation button
         # but not if they cancel
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            confirmation=2
-        else
             confirmation=0
+        else
+            confirmation=2
         fi
         # now clear the button, quit key and dialog
         dep_notify_quit
@@ -620,7 +620,7 @@ confirm() {
             jh_title="${!dialog_reinstall_title}"
             jh_desc="${!dialog_reinstall_confirmation_desc}"
         fi
-        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
+        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_confirmation_button}" -button2 "${!dialog_cancel_button}" -defaultButton 0 -cancelButton 2 2> /dev/null
         confirmation=$?
     else
         # osascript dialog option
@@ -632,19 +632,19 @@ confirm() {
         fi
         answer=$(
             /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
-                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
+                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_cancel_button}", "${!dialog_confirmation_button}"} default button "${!dialog_cancel_button}" with icon 2)
 END
 )
         if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
-            confirmation=2
-        else
             confirmation=0
+        else
+            confirmation=2
         fi
     fi
-    if [[ "$confirmation" == "0"* ]]; then
+    if [[ "$confirmation" == "2"* ]]; then
         echo "   [$script_name] User DECLINED erase-install or reinstall"
         exit 0
-    elif [[ "$confirmation" == "2"* ]]; then
+    elif [[ "$confirmation" == "0"* ]]; then
         echo "   [$script_name] User CONFIRMED erase-install or reinstall"
     else
         echo "   [$script_name] User FAILED to confirm erase-install or reinstall"
