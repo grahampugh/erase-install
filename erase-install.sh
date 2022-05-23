@@ -90,7 +90,7 @@ dialog_dl_title_nl="macOS downloaden"
 dialog_dl_title_fr="Téléchargement de macOS"
 
 dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
-dialog_dl_desc_de="Der macOS Installer wird heruntergeladen, dies dauert mehrere Minuten."
+dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen; dies kann einige Minuten dauern."
 dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
 dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur, cela prendra plusieurs minutes."
 
@@ -101,23 +101,23 @@ dialog_erase_title_nl="macOS herinstalleren"
 dialog_erase_title_fr="Effacement de macOS"
 
 dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
-dialog_erase_desc_de="Das Vorbereiten des Installationsprogramms kann bis zu 30 Minuten dauern. Nach Abschluss wird Ihr Computer neu gestartet und die Neuinstallation fortgesetzt."
+dialog_erase_desc_de="Das Vorbereiten der Installation kann bis zu 30 Minuten dauern. Danach wird der Computer neu gestartet und die Neuinstallation fortgesetzt."
 dialog_erase_desc_nl="Het voorbereiden van het installatieprogramma kan tot 30 minuten duren. Zodra het proces is voltooid, wordt uw computer opnieuw opgestart en wordt de herinstallatie voortgezet."
 dialog_erase_desc_fr="La préparation de l'installation peut prendre jusqu'à 30 minutes. Une fois terminée, votre ordinateur redémarrera et poursuivra la réinstallation."
 
 # Dialogue localizations - reinstall lockscreen
 dialog_reinstall_title_en="Upgrading macOS"
-dialog_reinstall_title_de="Upgrading macOS"
+dialog_reinstall_title_de="macOS aktualisieren"
 dialog_reinstall_title_nl="macOS upgraden"
 dialog_reinstall_title_fr="Mise à niveau de macOS"
 
 dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-dialog_reinstall_heading_de="Bitte warten, das Upgrade macOS wird ausgeführt."
+dialog_reinstall_heading_de="Die macOS-Aktualisierung wird vorbereitet."
 dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
 dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
 
 dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
-dialog_reinstall_desc_de="Dieser Prozess benötigt bis zu 30 Minuten. Der Mac startet anschliessend neu und beginnt mit dem Update."
+dialog_reinstall_desc_de="Dieser Prozess kann bis zu 30 Minuten benötigen. Der Computer startet anschliessend neu und beginnt mit der Aktualisierung."
 dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
 dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
 
@@ -127,24 +127,24 @@ dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
 dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
 
 dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
-dialog_rebooting_heading_de="Das Upgrade ist nun bereit für die Installation. Bitte speichern Sie Ihre Arbeit!"
+dialog_rebooting_heading_de="Das macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
 dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
 dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
 
 dialog_rebooting_status_en="Preparation complete - restarting in"
-dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in "
+dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in"
 dialog_rebooting_status_nl="Voorbereiding compleet - herstart over"
 dialog_rebooting_status_fr="Préparation terminée - redémarrage dans"
 
 # Dialogue localizations - confirmation window (erase)
 dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
-dialog_erase_confirmation_desc_de="Bitte bestätigen, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen"
+dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
 dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
 dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
 
 # Dialogue localizations - confirmation window (reinstall)
 dialog_reinstall_confirmation_desc_en="Please confirm that you want to upgrade macOS on this system now"
-dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten"
+dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
 dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
 dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
 
@@ -172,18 +172,18 @@ dialog_enter_button_fr="Entrer"
 
 # Dialogue localizations - free space check
 dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
-dialog_check_desc_de="Das Upgrade von macOS kann nicht installiert werden, da nicht genügend Speicherplatz auf dem Laufwerk vorhanden ist."
+dialog_check_desc_de="macOS kann nicht aktualisiert werden, da nicht genügend Speicherplatz auf dem Laufwerk frei ist."
 dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
 dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
 
 # Dialogue localizations - power check
 dialog_power_title_en="Waiting for AC Power Connection"
-dialog_power_title_de="Warten auf AC-Netzteil"
+dialog_power_title_de="Auf Netzteil warten"
 dialog_power_title_nl="Wachten op stroomadapter"
 dialog_power_title_fr="En attente de l'alimentation secteur"
 
 dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
-dialog_power_desc_de="Bitte schließen Sie Ihren Computer mit einem AC-Netzteil an das Stromnetz an. Dieser Prozess wird fortgesetzt, sobald die AC-Stromversorgung innerhalb der folgende Zeitdauer erkannt wird:"
+dialog_power_desc_de="Bitte verbinden Sie Ihren Computer mit einem Netzteil. Dieser Prozess wird fortgesetzt, wenn eine Stromversorgung innerhalb der folgenden Zeit erkannt wird:"
 dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
 dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
 
@@ -271,7 +271,7 @@ ask_for_password() {
 END
     else
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
     fi
 }
@@ -279,7 +279,7 @@ END
 ask_for_shortname() {
     # required for Silicon Macs
     /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_enter_button}", "${!dialog_cancel_button}"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
 }
 
@@ -297,7 +297,7 @@ check_free_space() {
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton "0" -cancelButton "1"
+            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
         else
             # open_osascript_dialog syntax: title, message, button1, icon
             open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
@@ -604,9 +604,9 @@ confirm() {
         # DEPNotify creates a bom file if the user presses the confirmation button
         # but not if they cancel
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            confirmation=2
-        else
             confirmation=0
+        else
+            confirmation=2
         fi
         # now clear the button, quit key and dialog
         dep_notify_quit
@@ -620,7 +620,7 @@ confirm() {
             jh_title="${!dialog_reinstall_title}"
             jh_desc="${!dialog_reinstall_confirmation_desc}"
         fi
-        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -button2 "${!dialog_confirmation_button}" -defaultButton 1 -cancelButton 1 2> /dev/null
+        "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_confirmation_button}" -button2 "${!dialog_cancel_button}" -defaultButton 0 -cancelButton 2 2> /dev/null
         confirmation=$?
     else
         # osascript dialog option
@@ -632,19 +632,19 @@ confirm() {
         fi
         answer=$(
             /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<-END
-                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_confirmation_button}", "${!dialog_cancel_button}"} default button "${!dialog_cancel_button}" with icon 2)
+                set nameentry to button returned of (display dialog "$osa_desc" buttons {"${!dialog_cancel_button}", "${!dialog_confirmation_button}"} default button "${!dialog_cancel_button}" with icon 2)
 END
 )
         if [[ "$answer" == "${!dialog_confirmation_button}" ]]; then
-            confirmation=2
-        else
             confirmation=0
+        else
+            confirmation=2
         fi
     fi
-    if [[ "$confirmation" == "0"* ]]; then
+    if [[ "$confirmation" == "2"* ]]; then
         echo "   [$script_name] User DECLINED erase-install or reinstall"
         exit 0
-    elif [[ "$confirmation" == "2"* ]]; then
+    elif [[ "$confirmation" == "0"* ]]; then
         echo "   [$script_name] User CONFIRMED erase-install or reinstall"
     else
         echo "   [$script_name] User FAILED to confirm erase-install or reinstall"
@@ -813,19 +813,19 @@ dep_notify_quit() {
 find_existing_installer() {
     # Search for an existing download
     # First let's see if this script has been run before and left an installer
-    existing_macos_dmg=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    existing_macos_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     existing_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
     existing_installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     existing_installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     if [[ -f "$existing_macos_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $existing_macos_dmg."
-        hdiutil attach "$existing_macos_dmg"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_macos_dmg"
         existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -f "$existing_sparseimage" ]]; then
         echo "   [find_existing_installer] Installer sparse image found at $existing_sparseimage."
-        hdiutil attach "$existing_sparseimage"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_sparseimage"
         existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -d "$existing_installer_app" ]]; then
@@ -1093,7 +1093,7 @@ move_to_applications_folder() {
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
         echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
-        cp -R "$working_macos_app" $installer_directory/
+        cp -R "$working_macos_app" "$installer_directory/"
         existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         if [[ -d "$existing_installer" ]]; then
             echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
@@ -1253,13 +1253,13 @@ run_installinstallmacos() {
     fi
 
     # Identify the installer dmg
-    downloaded_macos_dmg=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
-    downloaded_sparseimage=$( find $workdir -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
-    downloaded_installer_pkg=$( find $workdir/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    downloaded_macos_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
+    downloaded_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
+    downloaded_installer_pkg=$( find "$workdir"/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     if [[ -f "$downloaded_macos_dmg" ]]; then
         echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
-        if hdiutil attach "$downloaded_macos_dmg" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_macos_dmg" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_macos_dmg"
@@ -1267,7 +1267,7 @@ run_installinstallmacos() {
         fi
     elif [[ -f "$downloaded_sparseimage" ]]; then
         echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
-        if hdiutil attach "$downloaded_sparseimage" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_sparseimage" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_sparseimage"
