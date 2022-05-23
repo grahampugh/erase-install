@@ -813,19 +813,19 @@ dep_notify_quit() {
 find_existing_installer() {
     # Search for an existing download
     # First let's see if this script has been run before and left an installer
-    existing_macos_dmg=$( find $workdir/*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    existing_macos_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     existing_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
     existing_installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
     existing_installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     if [[ -f "$existing_macos_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $existing_macos_dmg."
-        hdiutil attach "$existing_macos_dmg"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_macos_dmg"
         existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -f "$existing_sparseimage" ]]; then
         echo "   [find_existing_installer] Installer sparse image found at $existing_sparseimage."
-        hdiutil attach "$existing_sparseimage"
+        hdiutil attach -quiet -noverify -nobrowse "$existing_sparseimage"
         existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
     elif [[ -d "$existing_installer_app" ]]; then
@@ -1093,7 +1093,7 @@ move_to_applications_folder() {
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
         echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
-        cp -R "$working_macos_app" $installer_directory/
+        cp -R "$working_macos_app" "$installer_directory/"
         existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         if [[ -d "$existing_installer" ]]; then
             echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
@@ -1253,13 +1253,13 @@ run_installinstallmacos() {
     fi
 
     # Identify the installer dmg
-    downloaded_macos_dmg=$( find $workdir -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
-    downloaded_sparseimage=$( find $workdir -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
-    downloaded_installer_pkg=$( find $workdir/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    downloaded_macos_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
+    downloaded_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
+    downloaded_installer_pkg=$( find "$workdir"/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
     if [[ -f "$downloaded_macos_dmg" ]]; then
         echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
-        if hdiutil attach "$downloaded_macos_dmg" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_macos_dmg" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_macos_dmg"
@@ -1267,7 +1267,7 @@ run_installinstallmacos() {
         fi
     elif [[ -f "$downloaded_sparseimage" ]]; then
         echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
-        if hdiutil attach "$downloaded_sparseimage" ; then
+        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_sparseimage" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         else
             echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_sparseimage"
