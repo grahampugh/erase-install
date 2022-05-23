@@ -1301,7 +1301,9 @@ swu_list_full_installers() {
     # for 10.15.7 and above we can use softwareupdate --list-full-installers
     set_seedprogram
     echo
-    /usr/sbin/softwareupdate --list-full-installers
+    if ! /usr/sbin/softwareupdate --list-full-installers > "$workdir/ffi-list-full-installers.txt"; then
+        echo "   [swu_list_full_installers] Could not obtain installer information using softwareupdate. Cannot continue."
+    fi
 }
 
 swu_fetch_full_installer() {
@@ -1310,9 +1312,28 @@ swu_fetch_full_installer() {
 
     softwareupdate_args=''
     if [[ $prechosen_version ]]; then
-        echo "   [swu_fetch_full_installer] Trying to download version $prechosen_version"
-        softwareupdate_args+=" --full-installer-version $prechosen_version"
+        # check that this version is available in the list
+        swu_list_full_installers
+        ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
+        if [[ $ffi_available -ge 1 ]]; then 
+            # get the chosen version. If there are more than one of the same version we have to 
+            # guess which one will get downloaded
+            echo "   [swu_fetch_full_installer] Trying to download version $prechosen_version"
+            softwareupdate_args+=" --full-installer-version $prechosen_version"
+        fi
+    else
+        # if no version is selected, we want to obtain the latest. The list obtained from 
+        # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
+        swu_list_full_installers
+        latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+        if [[ $latest_ffi ]]; then
+            softwareupdate_args+=" --full-installer-version $latest_ffi"
+        else
+            echo "   [swu_fetch_full_installer] Could not obtain installer information using softwareupdate. Cannot continue."
+            exit 1
+        fi
     fi
+    
     # now download the installer
     echo "   [swu_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
     # shellcheck disable=SC2086
@@ -1604,10 +1625,6 @@ max_password_attempts=5
 
 while test $# -gt 0 ; do
     case "$1" in
-        -l|--list) list="yes"
-            ;;
-        -lfi|--list-full-installers) list_installers="yes"
-            ;;
         -e|--erase) erase="yes"
             ;;
         -r|--reinstall) reinstall="yes"
@@ -1630,7 +1647,15 @@ while test $# -gt 0 ; do
             ;;
         --preservecontainer) preservecontainer="yes"
             ;;
-        -f|--fetch-full-installer) ffi="yes"
+        -f|--ffi|--fetch-full-installer) ffi="yes"
+            ;;
+        -l|--list) list="yes"
+            if [[ $ffi == "yes" ]]; then
+                list_installers="yes"
+            fi
+            ;;
+        --lfi|--list-full-installers) 
+            list_installers="yes"
             ;;
         --pkg) pkg_installer="yes"
             ;;
@@ -1844,6 +1869,7 @@ iim_downloaded=0
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list_installers ]]; then
     swu_list_full_installers
+    /bin/cat "$workdir/ffi-list-full-installers.txt"
     echo
     exit
 fi
