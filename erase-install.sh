@@ -935,7 +935,7 @@ ljt() (
 	[ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
 	try {var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if (query[0]==='/'){ query = query.split('/').slice(1).map(function (f){return "["+JSON.stringify(f)+"]"}).join('')}if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split('').reverse().join('').replace(/(["'])(.*?)\1(?!\\)/g, ""))){throw new Error("Invalid path: "+ query)};if(query[0]==="$"){query=query.slice(1,query.length)};var data=JSON.parse(readFile(file));var result=eval("(data)"+query)}catch(e){printErr(e);quit()};if(result !==undefined){result!==null&&result.constructor===String?print(result): print(JSON.stringify(result,null,2))}else{printErr("Node not found.")}
 	EOT
-	queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+	queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);{ [ -f "${queryArg}" ] && [ -z "${fileArg}" ]; } && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
 )
 
 get_relocatable_python() {
@@ -1286,11 +1286,9 @@ set_seedprogram() {
     if [[ $seedprogram ]]; then
         echo "   [set_seedprogram] $seedprogram seed program selected"
         /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll "$seedprogram" >/dev/null
-        # /usr/sbin/softwareupdate -l -a >/dev/null
     else
         echo "   [set_seedprogram] Standard seed program selected"
         /System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll >/dev/null
-        # /usr/sbin/softwareupdate -l -a >/dev/null
     fi
     sleep 5
     current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
@@ -1301,15 +1299,24 @@ swu_list_full_installers() {
     # for 10.15.7 and above we can use softwareupdate --list-full-installers
     set_seedprogram
     echo
-    if ! /usr/sbin/softwareupdate --list-full-installers > "$workdir/ffi-list-full-installers.txt"; then
+    # try up to 3 times to workaround bug when changing seed programs
+    try=3
+    while [[ $try -gt 0 ]]; do
+        if /usr/sbin/softwareupdate --list-full-installers > "$workdir/ffi-list-full-installers.txt"; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+                break
+            fi
+        fi
+        try=$(( try-1 ))
+    done
+    if [[ $try -eq 0 ]]; then
         echo "   [swu_list_full_installers] Could not obtain installer information using softwareupdate. Cannot continue."
+        exit 1
     fi
 }
 
 swu_fetch_full_installer() {
     # for 10.15+ we can use softwareupdate --fetch-full-installer
-    set_seedprogram
-
     softwareupdate_args=''
     if [[ $prechosen_version ]]; then
         # check that this version is available in the list
@@ -1325,7 +1332,11 @@ swu_fetch_full_installer() {
         # if no version is selected, we want to obtain the latest. The list obtained from 
         # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
         swu_list_full_installers
-        latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+        if [[ "$beta" == "yes" ]]; then
+            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+        else
+            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+        fi
         if [[ $latest_ffi ]]; then
             softwareupdate_args+=" --full-installer-version $latest_ffi"
         else
