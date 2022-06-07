@@ -19,9 +19,10 @@ No date
 - Adds an additional check for `--min-drive-space` right before start of the installation (should address #242, thanks to @cvgs).
 - Adds `-nobrowse` to all instances of `hdiutil` to prevent mounted images appearing on the desktop (thanks to @cvgs).
 
+
 ## [26.0]
 
-22.02.22
+No date
 
 - Adds `--catalog` to allow an easier way to select which software update catalog to use, rather than the defaults set in `installinstallmacos.py`. Example: `--catalog 10.15` will use the catalog for Darwin version 19, `--catalog 11` will use Darwin version 20. This is to address omissions in the catalogs for older OSes (somewhat addresses #169, #160).
 - Allow for more lenient checks for Volume Ownership against the entered username (#177, thanks to @cvgs)
@@ -415,7 +416,6 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v26.0...HEAD
-[26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
 [26.0]: https://github.com/grahampugh/erase-install/compare/v25.0...v26.0
 [25.0]: https://github.com/grahampugh/erase-install/compare/v24.1...v25.0
 [24.1]: https://github.com/grahampugh/erase-install/compare/v24.0...v24.1
