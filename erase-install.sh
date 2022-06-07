@@ -5,7 +5,7 @@
 # shellcheck disable=SC2034
 # this is due to the dynamic variable assignments used in the localization strings
 
-:<<DOC
+: <<DOC
 erase-install.sh
 by Graham Pugh
 
