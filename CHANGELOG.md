@@ -4,6 +4,22 @@
 
 No date
 
+## [26.1]
+
+23.03.22
+
+- Universal python build packages.
+- Use `pkg_resources` instead of `distutils` where available (allows for removal if `distutils` in python 3.12 - addresses [grahampugh/macadmin-scripts/issues/47](https://github.com/grahampugh/macadmin-scripts/issues/47)).
+- Improves the `--fetch-full-installer` option by looking for the latest version if not specified, and checking that a pre-chosen version is in the list. `--list` in conjunction with `--ffi` also now uses `--list-full-installers` instead of reverting to `installinstallmacos.py`.
+- Allows the usage of spaces in `--workdir` and `--path` (thanks to @cvgs).
+- Added `--max-password-attempts=NN` option, which can also be set to `infinite` to prevent canceling the password dialog (addresses #216, thanks to @cvgs).
+- Changes dialogs so that the Cancel button is on the left, and default button is on the right (thanks to @cvgs).
+- Script now uses `sysctl` to check for Apple Silicon (addresses #225, thanks to @cvgs).
+- Some minor changes to the German translation (thanks to @cvgs).
+- Adds an additional check for `--min-drive-space` right before start of the installation (should address #242, thanks to @cvgs).
+- Adds `-nobrowse` to all instances of `hdiutil` to prevent mounted images appearing on the desktop (thanks to @cvgs).
+
+
 ## [26.0]
 
 No date
