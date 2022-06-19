@@ -1662,9 +1662,6 @@ while test $# -gt 0 ; do
         -f|--ffi|--fetch-full-installer) ffi="yes"
             ;;
         -l|--list) list="yes"
-            if [[ $ffi == "yes" ]]; then
-                list_installers="yes"
-            fi
             ;;
         --lfi|--list-full-installers) 
             list_installers="yes"
@@ -1848,6 +1845,9 @@ echo "   [$script_name] v$version script execution started: $(date)"
 # not giving an option for fetch-full-installer mode for now... /Applications is the path
 if [[ $ffi ]]; then
     installer_directory="/Applications"
+    if [[ $list == "yes" ]]; then
+        list_installers="yes"
+    fi
 fi
 
 # ensure installer_directory (--path) and workdir exists
