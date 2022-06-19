@@ -5,7 +5,7 @@
 # shellcheck disable=SC2034
 # this is due to the dynamic variable assignments used in the localization strings
 
-: <<DOC
+:<<DOC
 erase-install.sh
 by Graham Pugh
 
@@ -706,7 +706,6 @@ dep_notify() {
     if [[ $dn_quit_key ]]; then
         echo "Command: QuitKey: $dn_quit_key" >> "$depnotify_log"
     fi
-
 }
 
 dep_notify_progress() {
@@ -715,6 +714,7 @@ dep_notify_progress() {
     current_progress_value=0
 
     if [[ "$1" == "startosinstall" ]]; then
+        echo "Status: UNDERGOING TEST" >> $depnotify_log # TEMP
         # Wait for the preparing process to start and set the progress bar to 100 steps
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
@@ -974,7 +974,8 @@ get_user_details() {
     fi
 
     if [[ $account_shortname == "" ]]; then
-        if ! account_shortname=$(ask_for_shortname) ; then
+        account_shortname=$(ask_for_shortname)
+        if [[ -z $account_shortname ]]; then
             echo "   [get_user_details] User cancelled."
             exit 1
         fi
@@ -1566,8 +1567,8 @@ finish() {
     kill_process "caffeinate"
 
     # kill any dialogs if startosinstall ends before a reboot
-    # kill_process "jamfHelper"
-    # dep_notify_quit
+    kill_process "jamfHelper"
+    dep_notify_quit
     exit $exit_code
 }
 
@@ -2278,17 +2279,17 @@ if [[ $test_run != "yes" ]]; then
             fi
         fi        
         # shellcheck disable=SC2086
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user "$account_shortname" "${install_package_list[@]}" <<< $account_password & wait $!
+        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" --user "$account_shortname" --stdinpass <<< "$account_password" & wait $!
     else
-        "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
+        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
     fi
 
 else
     echo "   [$script_name] Run without '--test-run' to run this command:"
     if [ "$arch" == "arm64" ]; then
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction --stdinpass --user" "$account_shortname" "${install_package_list[@]}" "<<< [PASSWORD REDACTED]" "& wait $!"
+        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " --user \"$account_shortname\" --stdinpass <<< \"$account_password\" & wait "'$!'
     else
-        echo "$working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" "& wait $!"
+        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall " "${install_args[@]}" " --pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " & wait "'$!'
     fi
     sleep 30
     post_prep_work
