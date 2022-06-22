@@ -127,7 +127,7 @@ dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
 dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
 
 dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
-dialog_rebooting_heading_de="Das macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
+dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
 dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
 dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
 
@@ -1560,7 +1560,7 @@ finish() {
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-        echo "     [$script_name] User $promoted_user was demoted back to standard user"
+        echo "     [finish] User $promoted_user was demoted back to standard user"
     fi
 
     # kill caffeinate
