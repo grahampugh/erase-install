@@ -36,6 +36,7 @@ DOC
 
 # script name
 script_name="erase-install"
+pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
 version="26.1"
@@ -1563,13 +1564,22 @@ finish() {
         echo "     [$script_name] User $promoted_user was demoted back to standard user"
     fi
 
+    # remove pipe files
+    [[ -e "${pipe_input}" ]] && /bin/rm -f "${pipe_input}"
+    [[ -e "${pipe_output}" ]] && /bin/rm -f "${pipe_output}"
+
     # kill caffeinate
     kill_process "caffeinate"
 
-    # kill any dialogs if startosinstall ends before a reboot
-    kill_process "jamfHelper"
-    dep_notify_quit
-    exit $exit_code
+    # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
+    if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
+        kill_process "jamfHelper"
+        dep_notify_quit
+    fi
+
+    # set final exit code and quit, but do not call finish() again
+    echo "   [finish] Script exit code: $exit_code"
+    (exit $exit_code)
 }
 
 post_prep_work() {
@@ -1599,17 +1609,82 @@ post_prep_work() {
     fi
     # run the postinstall commands
     for command in "${postinstall_command[@]}"; do
-        echo "   [$script_name] Now running arbitrary command: $command"
-        /bin/bash -c "$command"
+        if [[ $test_run != "yes" ]]; then
+            echo "   [post_prep_work] Now running postinstall command: $command"
+            /bin/bash -c "$command"
+        else
+            echo "   [post_prep_work] Simulating postinstall command: $command"
+        fi
     done
 
-    # finish the delay
-    sleep "$rebootdelay"
+    if [[ $test_run != "yes" ]]; then
+        # we need to quit so our management system can report back home before being killed by startosinstall
+        echo "   [post_prep_work] Skipping rebootdelay of ${rebootdelay}s"
+    else
+        echo "   [post_prep_work] Waiting ${rebootdelay}s"
+        sleep "$rebootdelay"
+    fi
 
     # then shut everything down
     kill_process "Self Service"
-    finish
-    exit
+    # set exit code to 0 and call finish()
+    exit 0
+}
+
+launch_startosinstall() {
+    local path_stdin="${1}"
+    local path_stdout="${2}"
+    local path_stderr="${3}"
+    local install_arg
+    local combined_args=()
+    local launch_daemon_args=()
+    # get unique label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall.$$"
+    launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    # prepare command parameters
+    OLDIFS=$IFS
+    IFS=$'\x00'
+    if [[ $test_run != "yes" ]]; then
+        programPath="$working_macos_app/Contents/Resources/startosinstall"
+        combined_args=("${install_args[@]}" "--pidtosignal" "$$" "--agreetolicense" "--nointeraction" "${install_package_list[@]}")
+    else
+        programPath="/bin/zsh"
+        combined_args=("-c" "echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+        echo "   [launch_startosinstall] Run without '--test-run' to run this command:"
+        echo "   [launch_startosinstall] $working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}"
+    fi
+    launch_daemon_args=()
+    for install_arg in $programPath "${combined_args[@]}"; do
+        launch_daemon_args+=("-string")
+        launch_daemon_args+=("$install_arg")
+    done
+    # Create the plist
+    /usr/bin/defaults delete "$launch_daemon" 2>/dev/null
+    /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
+    /usr/bin/defaults write "$launch_daemon" RunAtLoad -boolean yes
+    /usr/bin/defaults write "$launch_daemon" LaunchOnlyOnce -boolean yes
+    /usr/bin/defaults write "$launch_daemon" StandardInPath -string "${path_stdin}"
+    /usr/bin/defaults write "$launch_daemon" StandardOutPath -string "${path_stdout}"
+    /usr/bin/defaults write "$launch_daemon" StandardErrorPath -string "${path_stderr}"
+    /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
+        "${launch_daemon_args[@]}"
+    IFS=$OLDIFS
+    # Start LaunchDaemon
+    /usr/sbin/chown root:wheel "$launch_daemon"
+    /bin/chmod 644 "$launch_daemon"
+    echo "   [launch_startosinstall] Launching startosinstall"
+    /bin/launchctl bootstrap system "${launch_daemon}"
+    /bin/rm -f "${launch_daemon}"
+    return 0
+}
+
+create_pipe() {
+    local pipe_name=${1}
+    local pipe_file
+    pipe_file=$( /usr/bin/mktemp -u -t "$pipe_name" || exit 12 )
+    /usr/bin/mkfifo -m go-rw "$pipe_file" || exit 13
+    echo "$pipe_file"
+    return 0
 }
 
 
@@ -2251,46 +2326,55 @@ elif [[ $reinstall == "yes" ]]; then
 fi
 
 # set launchdaemon to remove $workdir if $cleanup_after_use is set
-if [[ $cleanup_after_use != "" ]]; then
+if [[ $cleanup_after_use != "" && $test_run != "yes" ]]; then
     echo "   [$script_name] Writing LaunchDaemon which will remove $workdir at next boot"
+    create_launchdaemon_to_remove_workdir
 fi
 
 # run preinstall commands
 for command in "${preinstall_command[@]}"; do
-    echo "   [$script_name] Now running arbitrary command: $command"
-    /bin/bash -c "$command"
+    if [[ $test_run != "yes" ]]; then
+        echo "   [$script_name] Now running preinstall command: $command"
+        /bin/bash -c "$command"
+    else
+        echo "   [$script_name] Simulating preinstall command: $command"
+    fi
 done
 
-# now actually run startosinstall
-if [[ $test_run != "yes" ]]; then
-    if [[ $cleanup_after_use != "" ]]; then
-        # set launchdaemon to remove $workdir if $cleanup_after_use is set
-        create_launchdaemon_to_remove_workdir
-    fi
-    if [ "$arch" == "arm64" ]; then
+# preparation for arm64
+if [ "$arch" == "arm64" ]; then
+    install_args+=("--stdinpass")
+    install_args+=("--user")
+    install_args+=("$account_shortname")
+    if [[ $test_run != "yes" && "$erase" == "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
-        if [[ "$erase" == "yes" ]]; then
-            echo "   [$script_name] updating preboot files (takes a few seconds)..."
-            if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
-                echo "   [$script_name] preboot files updated"
-            else
-                echo "   [$script_name] WARNING! preboot files could not be updated."
-            fi
-        fi        
-        # shellcheck disable=SC2086
-        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" --user "$account_shortname" --stdinpass <<< "$account_password" & wait $!
-    else
-        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
+        echo "   [$script_name] updating preboot files (takes a few seconds)..."
+        if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
+            echo "   [$script_name] preboot files updated"
+        else
+            echo "   [$script_name] WARNING! preboot files could not be updated."
+        fi
     fi
-
-else
-    echo "   [$script_name] Run without '--test-run' to run this command:"
-    if [ "$arch" == "arm64" ]; then
-        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " --user \"$account_shortname\" --stdinpass <<< \"$account_password\" & wait "'$!'
-    else
-        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall " "${install_args[@]}" " --pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " & wait "'$!'
-    fi
-    sleep 30
-    post_prep_work
 fi
+
+# Prepare Pipes for communication with startosinstall
+pipe_input=$( create_pipe "$script_name.in" )
+exec 3<> "$pipe_input"
+pipe_output=$( create_pipe "$script_name.out" )
+exec 4<> "$pipe_output"
+/bin/cat <&4 &
+pipePID=$!
+# now actually run startosinstall
+launch_startosinstall "$pipe_input" "$pipe_output" "$pipe_output"
+if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
+    echo "   [$script_name] Sending password to startosinstall"
+    /bin/cat >&3 <<< "$account_password"
+fi
+exec 3>&-
+# wait for cat command to quit, but no longer than 1 hour
+(sleep 3600; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
+wait $pipePID
+# we are not supposed to end up here due to USR1 signalling, so something went wrong.
+echo "   [$script_name] Reached end of script. Exit with error 42."
+exit 42

@@ -4,6 +4,11 @@
 
 No date
 
+- Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine.
+- Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field).
+- Allows `rebootdelay` to be used in macOS 10.15 (verified to be available in macOS 10.15.3)
+- Small fix to the German translation
+
 ## [26.1]
 
 27.06.22
