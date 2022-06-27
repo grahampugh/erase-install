@@ -1756,7 +1756,7 @@ while test $# -gt 0 ; do
             shift
             prechosen_os="$1"
             ;;
-        --newvolumename) renamevolume="yes"
+        --newvolumename) rename_volume="yes"
             shift
             newvolumename="$1"
             ;;
@@ -2193,7 +2193,7 @@ if [[  $installer_darwin_version -ge 19 ]]; then
 fi
 
 # pass new volume name if specified
-if [[ $erase == "yes" && "$renamevolume" == "yes" ]]; then
+if [[ $erase == "yes" && "$rename_volume" == "yes" ]]; then
     install_args+=("--newvolumename")
     install_args+=("$newvolumename")
 fi
