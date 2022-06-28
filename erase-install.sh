@@ -1475,6 +1475,8 @@ show_help() {
     --path /path/to     Overrides the destination of --move to a specified directory
     --erase             After download, erases the current system
                         and reinstalls macOS.
+    --newvolumename     If using the --erase option, lets you customize the name of the
+                        clean volume. Default is 'Macintosh HD'.
     --confirm           Displays a confirmation dialog prior to erasing the current
                         system and reinstalling macOS. 
     --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
@@ -1753,6 +1755,10 @@ while test $# -gt 0 ; do
         --os)
             shift
             prechosen_os="$1"
+            ;;
+        --newvolumename)
+            shift
+            newvolumename="$1"
             ;;
         --version)
             shift
@@ -2184,6 +2190,12 @@ fi
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
 if [[  $installer_darwin_version -ge 19 ]]; then    
     install_args+=("--forcequitapps")
+fi
+
+# pass new volume name if specified
+if [[ $erase == "yes" && $newvolumename ]]; then
+    install_args+=("--newvolumename")
+    install_args+=("$newvolumename")
 fi
 
 # icons for Jamf Helper erase and re-install windows
