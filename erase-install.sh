@@ -2178,8 +2178,8 @@ if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
-# macOS 11 (Darwin 20) and above can use the --rebootdelay option
-if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
+# macOS 10.15 (Darwin 19) and above can use the --rebootdelay option
+if [[ $installer_darwin_version -ge 19 && "$rebootdelay" -gt 0 ]]; then
     install_args+=("--rebootdelay")
     install_args+=("$rebootdelay")
 else
