@@ -714,7 +714,6 @@ dep_notify_progress() {
     current_progress_value=0
 
     if [[ "$1" == "startosinstall" ]]; then
-        echo "Status: UNDERGOING TEST" >> $depnotify_log # TEMP
         # Wait for the preparing process to start and set the progress bar to 100 steps
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
