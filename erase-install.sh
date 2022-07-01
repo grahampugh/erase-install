@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="26.1"
+version="26.2"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
@@ -1936,12 +1936,21 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_i
         kill_process "caffeinate"
         exit
     fi
-elif [[ "$prechosen_build" != "" && "$builds_match" != "yes" ]]; then
-    echo "   [$script_name] Existing installer does not match requested build, so replacing..."
-    overwrite_existing_installer
-elif [[ "$prechosen_version" != "" && "$versions_match" != "yes" ]]; then
-    echo "   [$script_name] Existing installer does not match requested version, so replacing..."
-    overwrite_existing_installer
+elif [[ "$prechosen_build" != "" ]]; then 
+    echo "   [$script_name] Checking if the existing installer matches requested build..."
+    compare_build_versions "$prechosen_build" "$installer_build"
+    if [[ "$builds_match" != "yes" ]]; then
+        echo "   [$script_name] Existing installer does not match requested build, so replacing..."
+        overwrite_existing_installer
+    else
+        echo "   [$script_name] Existing installer matches requested build."
+    fi
+# elif [[ "$prechosen_version" != "" ]]; then 
+#     # TODO - how can we compare a preferred version with any existing installer. I think we would need to get the correct build number from installinstallmacos.py and then compare it, but that's a whole new function
+#     if [[ "$versions_match" != "yes" ]]; then
+#         echo "   [$script_name] Existing installer does not match requested version, so replacing..."
+#         overwrite_existing_installer
+#     fi
 elif [[ "$prechosen_os" != "" && "$os_matches" != "yes" ]]; then
     echo "   [$script_name] Existing installer does not match requested version, so replacing..."
     overwrite_existing_installer
