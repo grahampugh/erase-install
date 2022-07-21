@@ -1918,6 +1918,10 @@ fi
 # Look for the installer, download it if it is not present
 echo "   [$script_name] Looking for existing installer app or pkg"
 find_existing_installer
+if [[ "$prechosen_build" != "" && "$installer_build" != "" ]]; then
+  # compare build of found installer to what we choose
+  compare_build_versions "$prechosen_build" "$installer_build"
+fi
 
 if [[ $invalid_installer_found == "yes" && -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
     overwrite_existing_installer
