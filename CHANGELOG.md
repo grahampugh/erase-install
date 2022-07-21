@@ -1,13 +1,23 @@
 # CHANGELOG
 
+**Known issue**: We don't have a useful way of comparing a preferred version supplied with the `--version` parameter, and an existing installer. This is because our version comparisons are done using build numbers. I don't have a solution for this yet.
+
 ## [Untagged]
 
 No date
 
+## [27.0]
+
 - Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine.
 - Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field).
-- Allows `rebootdelay` to be used in macOS 10.15 (verified to be available in macOS 10.15.3)
-- Small fix to the German translation
+
+## [26.2]
+
+No date
+
+- Allows `rebootdelay` for 10.15 (thanks to @cvgs).
+- New `--newvolumename` key which will set the volume name after an `eraseinstall` workflow (thanks to @bmacphail).
+- Now correctly validates whether a selected build value matches the cached installer.
 
 ## [26.1]
 
@@ -420,7 +430,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v26.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v26.2...HEAD
+[26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
 [26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
 [26.0]: https://github.com/grahampugh/erase-install/compare/v25.0...v26.0
 [25.0]: https://github.com/grahampugh/erase-install/compare/v24.1...v25.0
