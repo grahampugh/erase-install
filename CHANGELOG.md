@@ -1,8 +1,18 @@
 # CHANGELOG
 
+**Known issue**: We don't have a useful way of comparing a preferred version supplied with the `--version` parameter, and an existing installer. This is because our version comparisons are done using build numbers. I don't have a solution for this yet.
+
 ## [Untagged]
 
 No date
+
+## [26.2]
+
+No date
+
+- Allows `rebootdelay` for 10.15 (thanks to @cvgs).
+- New `--newvolumename` key which will set the volume name after an `eraseinstall` workflow (thanks to @bmacphail).
+- Now correctly validates whether a selected build value matches the cached installer.
 
 ## [26.1]
 
@@ -415,7 +425,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v26.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v26.2...HEAD
+[26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
 [26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
 [26.0]: https://github.com/grahampugh/erase-install/compare/v25.0...v26.0
 [25.0]: https://github.com/grahampugh/erase-install/compare/v24.1...v25.0

@@ -38,7 +38,7 @@ DOC
 script_name="erase-install"
 
 # Version of this script
-version="26.1"
+version="26.2"
 
 # URL for downloading installinstallmacos.py
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
@@ -127,7 +127,7 @@ dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
 dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
 
 dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
-dialog_rebooting_heading_de="Das macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
+dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
 dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
 dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
 
@@ -1474,6 +1474,8 @@ show_help() {
     --path /path/to     Overrides the destination of --move to a specified directory
     --erase             After download, erases the current system
                         and reinstalls macOS.
+    --newvolumename     If using the --erase option, lets you customize the name of the
+                        clean volume. Default is 'Macintosh HD'.
     --confirm           Displays a confirmation dialog prior to erasing the current
                         system and reinstalling macOS.
     --depnotify         Uses DEPNotify for dialogs instead of jamfHelper, if installed.
@@ -1559,7 +1561,7 @@ finish() {
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-        echo "     [$script_name] User $promoted_user was demoted back to standard user"
+        echo "     [finish] User $promoted_user was demoted back to standard user"
     fi
 
     # kill caffeinate
@@ -1753,6 +1755,10 @@ while test $# -gt 0 ; do
             shift
             prechosen_os="$1"
             ;;
+        --newvolumename)
+            shift
+            newvolumename="$1"
+            ;;
         --version)
             shift
             prechosen_version="$1"
@@ -1930,12 +1936,21 @@ elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_i
         kill_process "caffeinate"
         exit
     fi
-elif [[ "$prechosen_build" != "" && "$builds_match" != "yes" ]]; then
-    echo "   [$script_name] Existing installer does not match requested build, so replacing..."
-    overwrite_existing_installer
-elif [[ "$prechosen_version" != "" && "$versions_match" != "yes" ]]; then
-    echo "   [$script_name] Existing installer does not match requested version, so replacing..."
-    overwrite_existing_installer
+elif [[ "$prechosen_build" != "" ]]; then 
+    echo "   [$script_name] Checking if the existing installer matches requested build..."
+    compare_build_versions "$prechosen_build" "$installer_build"
+    if [[ "$builds_match" != "yes" ]]; then
+        echo "   [$script_name] Existing installer does not match requested build, so replacing..."
+        overwrite_existing_installer
+    else
+        echo "   [$script_name] Existing installer matches requested build."
+    fi
+# elif [[ "$prechosen_version" != "" ]]; then 
+#     # TODO - how can we compare a preferred version with any existing installer. I think we would need to get the correct build number from installinstallmacos.py and then compare it, but that's a whole new function
+#     if [[ "$versions_match" != "yes" ]]; then
+#         echo "   [$script_name] Existing installer does not match requested version, so replacing..."
+#         overwrite_existing_installer
+#     fi
 elif [[ "$prechosen_os" != "" && "$os_matches" != "yes" ]]; then
     echo "   [$script_name] Existing installer does not match requested version, so replacing..."
     overwrite_existing_installer
@@ -2171,8 +2186,8 @@ if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
-# macOS 11 (Darwin 20) and above can use the --rebootdelay option
-if [[ $installer_darwin_version -ge 20 && "$rebootdelay" -gt 0 ]]; then
+# macOS 10.15 (Darwin 19) and above can use the --rebootdelay option
+if [[ $installer_darwin_version -ge 19 && "$rebootdelay" -gt 0 ]]; then
     install_args+=("--rebootdelay")
     install_args+=("$rebootdelay")
 else
@@ -2183,6 +2198,12 @@ fi
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
 if [[  $installer_darwin_version -ge 19 ]]; then
     install_args+=("--forcequitapps")
+fi
+
+# pass new volume name if specified
+if [[ $erase == "yes" && $newvolumename ]]; then
+    install_args+=("--newvolumename")
+    install_args+=("$newvolumename")
 fi
 
 # icons for Jamf Helper erase and re-install windows
