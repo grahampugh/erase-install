@@ -371,7 +371,7 @@ check_installer_is_valid() {
     fi
     if [[ ! $installer_build ]]; then
         echo "   [check_installer_is_valid] Build of existing installer could not be found!"
-        exit 1
+        #exit 1
     fi
 
     system_build=$( /usr/bin/sw_vers -buildVersion )
