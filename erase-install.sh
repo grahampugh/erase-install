@@ -289,7 +289,7 @@ check_free_space() {
 
     if [[ ! "$free_disk_space" ]]; then
         # fall back to df -h if the above fails
-        free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+        free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}' | xargs -I{} expr {} / 1000000)
     fi
 
     if [[ $free_disk_space -ge $min_drive_space ]]; then
