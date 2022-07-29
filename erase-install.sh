@@ -287,7 +287,7 @@ check_free_space() {
     # determine if the amount of free and purgable drive space is sufficient for the upgrade to take place.
     free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")  # with thanks to Pico
 
-    if [[ ! "$free_disk_space" ]]; then
+    if [[ ! "$free_disk_space" ]] || [[ "$free_disk_space" == 0 ]]; then
         # fall back to df -h if the above fails
         free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}' | xargs -I{} expr {} / 1000000)
     fi
