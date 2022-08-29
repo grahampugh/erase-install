@@ -1,3 +1,4 @@
 --no-binary :all:
+python-dev-tools
 xattr
 packaging
