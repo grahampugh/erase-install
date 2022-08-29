@@ -48,7 +48,7 @@ version="27.0"
 # of erase-install. This adds a bit of security to the curl download of
 # installinstallmacos.py if not using the recommended package installer
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="bb21421f277090a0fe163815796058313859633804fc992a07e8b4cc9779d0cf"
+installinstallmacos_checksum="e99791bbb5e5408a9e8fd42c7ff413cc840541edc292083e1b259752d399e080"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"

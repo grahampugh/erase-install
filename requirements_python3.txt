@@ -1,4 +1,4 @@
---no-binary :all:
-python-dev-tools
-xattr
+cffi 
+--no-binary cffi
+xattr==0.9.7
 packaging

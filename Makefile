@@ -60,7 +60,7 @@ depnotify:
 	cp "$(CURDIR)/../macadmin-scripts/installinstallmacos.py" "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)"
+	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --upgrade-pip --pip-requirements="$(PYTHON_REQUIREMENTS)"
 
 	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
