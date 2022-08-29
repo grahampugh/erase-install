@@ -77,7 +77,7 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 # -----------------------------------------------------------------------------
 # Set localized values for user dialogues 
 # -----------------------------------------------------------------------------
-set_localisations(){
+set_localisations() {
     # Grab the currently logged in user to set the language for all dialogue messages
     current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
     current_uid=$(/usr/bin/id -u "$current_user")
@@ -1196,7 +1196,7 @@ kill_process() {
 ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 LICENSE_BLOCK
 
-ljt () ( 
+ljt() ( 
     [ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
     try{var query=decodeURIComponent(escape(arguments[0])),file=decodeURIComponent(escape(arguments[1]));if("/"===query[0]||""===query){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(a){return"["+JSON.stringify(a.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if("$"===query[0]||"."===query[0]||"["===query[0]){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw Error("Invalid path: "+query);}else query=query.replace("\\.","\udead").split(".").map(function(a){return"["+JSON.stringify(a.replace("\udead","."))+"]"}).join("");"$"===query[0]&&(query=query.slice(1,query.length));var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(a){}}catch(a){printErr(a),quit()}void 0!==result?null!==result&&result.constructor===String?print(result):print(JSON.stringify(result,null,2)):printErr("Path not found.");
 EOT
@@ -1911,6 +1911,9 @@ min_drive_space=45
 
 # default max_password_attempts to 5
 max_password_attempts=5
+
+# set language and localisations
+set_localisations
 
 while test $# -gt 0 ; do
     case "$1" in
