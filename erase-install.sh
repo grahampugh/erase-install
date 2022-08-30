@@ -416,8 +416,8 @@ check_installer_is_valid() {
 
     # bail out if we did not obtain a build number
     if [[ ! $installer_build ]]; then
-        echo "   [check_installer_is_valid] Build of existing installer could not be found!"
-        exit 1
+        echo "   [check_installer_is_valid] Build of existing installer could not be found, so it is assumed to be invalid."
+        invalid_installer_found="yes"
     fi
 
     # compare the local system's build number with that of the installer app 
