@@ -6,7 +6,9 @@
 # this is due to the dynamic variable assignments used in the localization strings
 
 :<<DOC
+==============================================================================
 erase-install.sh
+==============================================================================
 by Graham Pugh
 
 WARNING. This is a self-destruct script. Do not try it out on your own device!
@@ -30,19 +32,23 @@ Requirements:
 Original version of installinstallmacos.py - Greg Neagle; GitHub munki/macadmins-scripts
 DOC
 
-###############
-## VARIABLES ##
-###############
+# =============================================================================
+# Variables 
+# =============================================================================
 
 # script name
 script_name="erase-install"
+pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="26.2"
+version="27.0"
 
 # URL for downloading installinstallmacos.py
+# The tag and checksum of the macadmin-scripts fork is updated to match the version 
+# of erase-install. This adds a bit of security to the curl download of
+# installinstallmacos.py if not using the recommended package installer
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="bb21421f277090a0fe163815796058313859633804fc992a07e8b4cc9779d0cf"
+installinstallmacos_checksum="e99791bbb5e5408a9e8fd42c7ff413cc840541edc292083e1b259752d399e080"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -50,225 +56,241 @@ installer_directory="/Applications"
 # Default working directory (may be overridden by the --workdir parameter)
 workdir="/Library/Management/erase-install"
 
-# URL for downloading macadmins python (with tag version) for standalone script running
+# URL for downloading macadmins python (with tag version)
+# This ensures a compatible python is available if not using the recommended
+# package installer
 macadmins_python_version="v3.10.2.80694"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
-# Dialog helper apps
+# Dialog helper apps (jamfHelper and DEPNotify)
 jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 depnotify_app="/Applications/Utilities/DEPNotify.app"
 depnotify_log="/var/tmp/depnotify.log"
 depnotify_confirmation_file="/var/tmp/com.depnotify.provisioning.done"
 depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 
+# =============================================================================
+# Functions 
+# =============================================================================
 
-###################
-## LOCALIZATIONS ##
-###################
+# -----------------------------------------------------------------------------
+# Set localized values for user dialogues 
+# -----------------------------------------------------------------------------
+set_localisations() {
+    # Grab the currently logged in user to set the language for all dialogue messages
+    current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+    current_uid=$(/usr/bin/id -u "$current_user")
 
-# Grab currently logged in user to set the language for Dialogue messages
-current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-current_uid=$(/usr/bin/id -u "$current_user")
-# Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
-current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
-language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
-if [[ $language = de* ]]; then
-    user_language="de"
-elif [[ $language = nl* ]]; then
-    user_language="nl"
-elif [[ $language = fr* ]]; then
-    user_language="fr"
-else
-    user_language="en"
-fi
+    # Get the proper home directory. We use this because the output of scutil might not 
+    # reflect the canonical RecordName or the HomeDirectory at all, which might prevent
+    # us from detecting the language
+    current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
+    # detect the user's language
+    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
+    if [[ $language = de* ]]; then
+        user_language="de"
+    elif [[ $language = nl* ]]; then
+        user_language="nl"
+    elif [[ $language = fr* ]]; then
+        user_language="fr"
+    else
+        user_language="en"
+    fi
 
-# Dialogue localizations - download window
-dialog_dl_title_en="Downloading macOS"
-dialog_dl_title_de="macOS wird heruntergeladen"
-dialog_dl_title_nl="macOS downloaden"
-dialog_dl_title_fr="Téléchargement de macOS"
+    # Dialogue localizations - download window - title
+    dialog_dl_title_en="Downloading macOS"
+    dialog_dl_title_de="macOS wird heruntergeladen"
+    dialog_dl_title_nl="macOS downloaden"
+    dialog_dl_title_fr="Téléchargement de macOS"
+    dialog_dl_title=dialog_dl_title_${user_language}
 
-dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
-dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen; dies kann einige Minuten dauern."
-dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
-dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur, cela prendra plusieurs minutes."
+    # Dialogue localizations - download window - description
+    dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
+    dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen; dies kann einige Minuten dauern."
+    dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
+    dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur, cela prendra plusieurs minutes."
+    dialog_dl_desc=dialog_dl_desc_${user_language}
 
-# Dialogue localizations - erase lockscreen
-dialog_erase_title_en="Erasing macOS"
-dialog_erase_title_de="macOS wiederherstellen"
-dialog_erase_title_nl="macOS herinstalleren"
-dialog_erase_title_fr="Effacement de macOS"
+    # Dialogue localizations - erase lock screen - title
+    dialog_erase_title_en="Erasing macOS"
+    dialog_erase_title_de="macOS wiederherstellen"
+    dialog_erase_title_nl="macOS herinstalleren"
+    dialog_erase_title_fr="Effacement de macOS"
+    dialog_erase_title=dialog_erase_title_${user_language}
 
-dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
-dialog_erase_desc_de="Das Vorbereiten der Installation kann bis zu 30 Minuten dauern. Danach wird der Computer neu gestartet und die Neuinstallation fortgesetzt."
-dialog_erase_desc_nl="Het voorbereiden van het installatieprogramma kan tot 30 minuten duren. Zodra het proces is voltooid, wordt uw computer opnieuw opgestart en wordt de herinstallatie voortgezet."
-dialog_erase_desc_fr="La préparation de l'installation peut prendre jusqu'à 30 minutes. Une fois terminée, votre ordinateur redémarrera et poursuivra la réinstallation."
+    # Dialogue localizations - erase lock screen - description
+    dialog_erase_desc_en="Preparing the installer may take up to 30 minutes. Once completed your computer will reboot and continue the reinstallation."
+    dialog_erase_desc_de="Das Vorbereiten der Installation kann bis zu 30 Minuten dauern. Danach wird der Computer neu gestartet und die Neuinstallation fortgesetzt."
+    dialog_erase_desc_nl="Het voorbereiden van het installatieprogramma kan tot 30 minuten duren. Zodra het proces is voltooid, wordt uw computer opnieuw opgestart en wordt de herinstallatie voortgezet."
+    dialog_erase_desc_fr="La préparation de l'installation peut prendre jusqu'à 30 minutes. Une fois terminée, votre ordinateur redémarrera et poursuivra la réinstallation."
+    dialog_erase_desc=dialog_erase_desc_${user_language}
 
-# Dialogue localizations - reinstall lockscreen
-dialog_reinstall_title_en="Upgrading macOS"
-dialog_reinstall_title_de="macOS aktualisieren"
-dialog_reinstall_title_nl="macOS upgraden"
-dialog_reinstall_title_fr="Mise à niveau de macOS"
+    # Dialogue localizations - reinstall lock screen - title
+    dialog_reinstall_title_en="Upgrading macOS"
+    dialog_reinstall_title_de="macOS aktualisieren"
+    dialog_reinstall_title_nl="macOS upgraden"
+    dialog_reinstall_title_fr="Mise à niveau de macOS"
+    dialog_reinstall_title=dialog_reinstall_title_${user_language}
 
-dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
-dialog_reinstall_heading_de="Die macOS-Aktualisierung wird vorbereitet."
-dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
-dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
+    # Dialogue localizations - reinstall lock screen - heading
+    dialog_reinstall_heading_en="Please wait as we prepare your computer for upgrading macOS."
+    dialog_reinstall_heading_de="Die macOS-Aktualisierung wird vorbereitet."
+    dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
+    dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
+    dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
-dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
-dialog_reinstall_desc_de="Dieser Prozess kann bis zu 30 Minuten benötigen. Der Computer startet anschliessend neu und beginnt mit der Aktualisierung."
-dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
-dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
+    # Dialogue localizations - reinstall lock screen - description
+    dialog_reinstall_desc_en="This process may take up to 30 minutes. Once completed your computer will reboot and begin the upgrade."
+    dialog_reinstall_desc_de="Dieser Prozess kann bis zu 30 Minuten benötigen. Der Computer startet anschliessend neu und beginnt mit der Aktualisierung."
+    dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten. Zodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
+    dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes. Une fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
+    dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
-dialog_reinstall_status_en="Preparing macOS for installation"
-dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
-dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
-dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
+    # Dialogue localizations - reinstall lock screen - status message
+    dialog_reinstall_status_en="Preparing macOS for installation"
+    dialog_reinstall_status_de="Vorbereiten von macOS für die Installation"
+    dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
+    dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
+    dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
-dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
-dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
-dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
-dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
+    # Dialogue localizations - reebooting screen - heading
+    dialog_rebooting_heading_en="The upgrade is now ready for installation. Please save your work!"
+    dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit. Bitte sichern Sie Ihre Arbeit!"
+    dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie. Sla uw werk op!"
+    dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée. Veuillez sauvegarder votre travail!"
+    dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
-dialog_rebooting_status_en="Preparation complete - restarting in"
-dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in"
-dialog_rebooting_status_nl="Voorbereiding compleet - herstart over"
-dialog_rebooting_status_fr="Préparation terminée - redémarrage dans"
+    # Dialogue localizations - reebooting screen - status message
+    dialog_rebooting_status_en="Preparation complete - restarting in"
+    dialog_rebooting_status_de="Vorbereitung abgeschlossen - Neustart in"
+    dialog_rebooting_status_nl="Voorbereiding compleet - herstart over"
+    dialog_rebooting_status_fr="Préparation terminée - redémarrage dans"
+    dialog_rebooting_status=dialog_rebooting_status_${user_language}
 
-# Dialogue localizations - confirmation window (erase)
-dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
-dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
-dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
-dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
+    # Dialogue localizations - erase confirmation window - description
+    dialog_erase_confirmation_desc_en="Please confirm that you want to ERASE ALL DATA FROM THIS DEVICE and reinstall macOS"
+    dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
+    dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
+    dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
+    dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 
-# Dialogue localizations - confirmation window (reinstall)
-dialog_reinstall_confirmation_desc_en="Please confirm that you want to upgrade macOS on this system now"
-dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
-dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
-dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
+    # Dialogue localizations - reinstall confirmation window - description
+    dialog_reinstall_confirmation_desc_en="Please confirm that you want to upgrade macOS on this system now"
+    dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
+    dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
+    dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
+    dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
 
-# Dialogue localizations - confirmation window status
-dialog_confirmation_status_en="Press Cmd + Ctrl + C to Cancel"
-dialog_confirmation_status_de="Drücken Sie Cmd + Ctrl + C zum Abbrechen"
-dialog_confirmation_status_nl="Druk op Cmd + Ctrl + C om te Annuleren"
-dialog_confirmation_status_fr="Appuyez sur Cmd + Ctrl + C pour annuler"
+    # Dialogue localizations - confirmation window (erase or reinstall) - status
+    dialog_confirmation_status_en="Press Cmd + Ctrl + C to Cancel"
+    dialog_confirmation_status_de="Drücken Sie Cmd + Ctrl + C zum Abbrechen"
+    dialog_confirmation_status_nl="Druk op Cmd + Ctrl + C om te Annuleren"
+    dialog_confirmation_status_fr="Appuyez sur Cmd + Ctrl + C pour annuler"
+    dialog_confirmation_status=dialog_confirmation_status_${user_language}
 
-# Dialogue buttons
-dialog_confirmation_button_en="Confirm"
-dialog_confirmation_button_de="Bestätigen"
-dialog_confirmation_button_nl="Bevestig"
-dialog_confirmation_button_fr="Confirmer"
+    # Dialogue localizations - free space check - description
+    dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
+    dialog_check_desc_de="macOS kann nicht aktualisiert werden, da nicht genügend Speicherplatz auf dem Laufwerk frei ist."
+    dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
+    dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
+    dialog_check_desc=dialog_check_desc_${user_language}
 
-dialog_cancel_button_en="Stop"
-dialog_cancel_button_de="Abbrechen"
-dialog_cancel_button_nl="Annuleren"
-dialog_cancel_button_fr="Annuler"
+    # Dialogue localizations - power check - title
+    dialog_power_title_en="Waiting for AC Power Connection"
+    dialog_power_title_de="Auf Netzteil warten"
+    dialog_power_title_nl="Wachten op stroomadapter"
+    dialog_power_title_fr="En attente de l'alimentation secteur"
+    dialog_power_title=dialog_power_title_${user_language}
 
-dialog_enter_button_en="Enter"
-dialog_enter_button_de="Eingeben"
-dialog_enter_button_nl="Enter"
-dialog_enter_button_fr="Entrer"
+    # Dialogue localizations - power check - description
+    dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
+    dialog_power_desc_de="Bitte verbinden Sie Ihren Computer mit einem Netzteil. Dieser Prozess wird fortgesetzt, wenn eine Stromversorgung innerhalb der folgenden Zeit erkannt wird:"
+    dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
+    dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
+    dialog_power_desc=dialog_power_desc_${user_language}
 
-# Dialogue localizations - free space check
-dialog_check_desc_en="The macOS upgrade cannot be installed as there is not enough space left on the drive."
-dialog_check_desc_de="macOS kann nicht aktualisiert werden, da nicht genügend Speicherplatz auf dem Laufwerk frei ist."
-dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
-dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
+    # Dialogue localizations - no power detected - description
+    dialog_nopower_desc_en="Exiting. AC power was not connected after waiting for:"
+    dialog_nopower_desc_de="Beenden. Die Stromversorgung wurde nach einer Wartezeit nicht hergestellt:"
+    dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het wachten op:"
+    dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
+    dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
-# Dialogue localizations - power check
-dialog_power_title_en="Waiting for AC Power Connection"
-dialog_power_title_de="Auf Netzteil warten"
-dialog_power_title_nl="Wachten op stroomadapter"
-dialog_power_title_fr="En attente de l'alimentation secteur"
+    # Dialogue localizations - ask for short name
+    dialog_short_name_en="Please enter an account name to start the reinstallation process"
+    dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
+    dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
+    dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
+    dialog_short_name=dialog_short_name_${user_language}
 
-dialog_power_desc_en="Please connect your computer to power using an AC power adapter. This process will continue if AC power is detected within the next:"
-dialog_power_desc_de="Bitte verbinden Sie Ihren Computer mit einem Netzteil. Dieser Prozess wird fortgesetzt, wenn eine Stromversorgung innerhalb der folgenden Zeit erkannt wird:"
-dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter. Zodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
-dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur. Ce processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
+    # Dialogue localizations - ask for password
+    dialog_get_password_en="Please enter the password for the account"
+    dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
+    dialog_get_password_nl="Voer het wachtwoord voor het account in"
+    dialog_get_password_fr="Veuillez saisir le mot de passe du compte"
+    dialog_get_password=dialog_get_password_${user_language}
 
-dialog_nopower_desc_en="Exiting. AC power was not connected after waiting for:"
-dialog_nopower_desc_de="Beenden. Die Stromversorgung wurde nach einer Wartezeit nicht hergestellt:"
-dialog_nopower_desc_nl="Afsluiten. De wisselstroom was niet aangesloten na het wachten op:"
-dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
+    # Dialogue localizations - not a volume owner
+    dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
+    dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
+    dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
+    dialog_not_volume_owner_fr="Le compte n'est pas propriétaire du volume! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
+    dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
-# Dialogue localizations - ask for short name
-dialog_short_name_en="Please enter an account name to start the reinstallation process"
-dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
-dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
-dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
+    # Dialogue localizations - invalid user
+    dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
+    dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
+    dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
+    dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
+    dialog_user_invalid=dialog_user_invalid_${user_language}
 
-# Dialogue localizations - ask for password
-dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
-dialog_not_volume_owner_de="Konto ist kein Volume-Besitzer! Bitte melden Sie sich mit einem der folgenden Konten an und versuchen Sie es erneut"
-dialog_not_volume_owner_nl="Account is geen volume-eigenaar! Log in met een van de volgende accounts en probeer het opnieuw"
-dialog_not_volume_owner_fr="Le compte n'est pas propriétaire du volume! Veuillez vous connecter en utilisant l'un des comptes suivants et réessayer"
+    # Dialogue localizations - invalid password
+    dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
+    dialog_invalid_password_de="ERROR: Das eingegebene Passwort ist NICHT das Anmeldepasswort für"
+    dialog_invalid_password_nl="FOUT: Het ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
+    dialog_invalid_password_fr="ERREUR : Le mot de passe entré n'est PAS le mot de passe de connexion pour"
+    dialog_invalid_password=dialog_invalid_password_${user_language}
 
-# Dialogue localizations - invalid user
-dialog_user_invalid_en="This account cannot be used to to perform the reinstall"
-dialog_user_invalid_de="Dieses Konto kann nicht zur Durchführung der Neuinstallation verwendet werden"
-dialog_user_invalid_nl="Dit account kan niet worden gebruikt om de herinstallatie uit te voeren"
-dialog_user_invalid_fr="Ce compte ne peut pas être utilisé pour effectuer la réinstallation"
+    # Dialogue localizations - buttons - confirm
+    dialog_confirmation_button_en="Confirm"
+    dialog_confirmation_button_de="Bestätigen"
+    dialog_confirmation_button_nl="Bevestig"
+    dialog_confirmation_button_fr="Confirmer"
+    dialog_confirmation_button=dialog_confirmation_button_${user_language}
 
-# Dialogue localizations - invalid password
-dialog_invalid_password_en="ERROR: The password entered is NOT the login password for"
-dialog_invalid_password_de="ERROR: Das eingegebene Passwort ist NICHT das Anmeldepasswort für"
-dialog_invalid_password_nl="FOUT: Het ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
-dialog_invalid_password_fr="ERREUR : Le mot de passe entré n'est PAS le mot de passe de connexion pour"
+    # Dialogue localizations - buttons - cancel
+    dialog_cancel_button_en="Stop"
+    dialog_cancel_button_de="Abbrechen"
+    dialog_cancel_button_nl="Annuleren"
+    dialog_cancel_button_fr="Annuler"
+    dialog_cancel_button=dialog_cancel_button_${user_language}
 
-# Dialogue localizations - not a volume owner
-dialog_get_password_en="Please enter the password for the account"
-dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
-dialog_get_password_nl="Voer het wachtwoord voor het account in"
-dialog_get_password_fr="Veuillez saisir le mot de passe du compte"
+    # Dialogue localizations - buttons - enter
+    dialog_enter_button_en="Enter"
+    dialog_enter_button_de="Eingeben"
+    dialog_enter_button_nl="Enter"
+    dialog_enter_button_fr="Entrer"
+    dialog_enter_button=dialog_enter_button_${user_language}
 
-# icon for download window
-dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
+    # Dialogues - icon for download window
+    dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
 
-# icon for confirmation dialog
-dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
+    # Dialogues - icon for confirmation
+    dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
+}
 
-# set localisation variables
-dialog_dl_title=dialog_dl_title_${user_language}
-dialog_dl_desc=dialog_dl_desc_${user_language}
-dialog_erase_title=dialog_erase_title_${user_language}
-dialog_erase_desc=dialog_erase_desc_${user_language}
-dialog_reinstall_title=dialog_reinstall_title_${user_language}
-dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
-dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
-dialog_reinstall_status=dialog_reinstall_status_${user_language}
-dialog_rebooting_title=dialog_rebooting_title_${user_language}
-dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
-dialog_rebooting_status=dialog_rebooting_status_${user_language}
-dialog_erase_confirmation_title=dialog_erase_confirmation_title_${user_language}
-dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
-dialog_confirmation_status=dialog_confirmation_status_${user_language}
-dialog_confirmation_button=dialog_confirmation_button_${user_language}
-dialog_reinstall_confirmation_title=dialog_reinstall_confirmation_title_${user_language}
-dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
-dialog_cancel_button=dialog_cancel_button_${user_language}
-dialog_enter_button=dialog_enter_button_${user_language}
-dialog_check_desc=dialog_check_desc_${user_language}
-dialog_power_desc=dialog_power_desc_${user_language}
-dialog_nopower_desc=dialog_nopower_desc_${user_language}
-dialog_power_title=dialog_power_title_${user_language}
-dialog_short_name=dialog_short_name_${user_language}
-dialog_user_invalid=dialog_user_invalid_${user_language}
-dialog_get_password=dialog_get_password_${user_language}
-dialog_invalid_password=dialog_invalid_password_${user_language}
-dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
-
-
-###############
-## FUNCTIONS ##
-###############
-
+# -----------------------------------------------------------------------------
+# Open a dialogue to ask for the user's password.
+# This is required on Apple Silicon Mac
+# -----------------------------------------------------------------------------
 ask_for_password() {
-    # required for Silicon Macs
+    # if max_password_attempts = "infinite" then we don't provide a cancel button
     if [[ $max_password_attempts == "infinite" ]]; then
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}"} default button 1 with icon 2)
 END
+    # if max_password_attempts != "infinite" then we provide a cancel button
     else
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
@@ -276,22 +298,63 @@ END
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Open a dialogue to ask for the user's account name (shortname).
+# This is required on Apple Silicon Mac.
+# Not used if --current-user is set.
+# -----------------------------------------------------------------------------
 ask_for_shortname() {
-    # required for Silicon Macs
     /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
         set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
 }
 
+# -----------------------------------------------------------------------------
+# Download DEPnotify if not present.
+# Called when --depnotify parameter is used.
+# -----------------------------------------------------------------------------
+check_depnotify() {
+    if [[ -d "$depnotify_app" ]]; then
+        echo "   [check_depnotify] DEPNotify is installed ($depnotify_app)"
+    else
+        if [[ ! $no_curl ]]; then
+            echo "   [check_depnotify] Downloading DEPNotify.app..."
+            if /usr/bin/curl -L "$depnotify_download_url" -o "$workdir/DEPNotify.pkg" ; then
+                if ! installer -pkg "$workdir/DEPNotify.pkg" -target / ; then
+                    echo "   [check_depnotify] DEPNotify installation failed"
+                fi
+            else
+                echo "   [check_depnotify] DEPNotify download failed"
+            fi
+        fi
+        # check it did actually get downloaded
+        if [[ -d "$depnotify_app" ]]; then
+            echo "   [check_depnotify] DEPNotify is installed"
+            use_depnotify="yes"
+            quit_depnotify
+        else
+            echo "   [check_depnotify] Could not download DEPNotify.app."
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Determine if the amount of free and purgable drive space is sufficient for 
+# the upgrade to take place.
+# The JavaScript osascript is used to give us the purgeable space as this is 
+# not available via any shell commands (Thanks to Pico). 
+# However, this does not work at the login window, so then we have to fall 
+# back to using df -h, which will not include purgeable space.
+# -----------------------------------------------------------------------------
 check_free_space() {
-    # determine if the amount of free and purgable drive space is sufficient for the upgrade to take place.
-    free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")  # with thanks to Pico
+    free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")
 
     if [[ ! "$free_disk_space" ]] || [[ "$free_disk_space" == 0 ]]; then
         # fall back to df -h if the above fails
         free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}' | xargs -I{} expr {} / 1000000)
     fi
 
+    # if there isn't enough space, then we show a failure message to the user
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         echo "   [check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
     else
@@ -306,44 +369,25 @@ check_free_space() {
     fi
 }
 
-check_installer_pkg_is_valid() {
-    # check InstallAssistant pkg validity
-    # packages generated by installinstallmacos.py have the format InstallAssistant-version-build.pkg
-    # Extracting an actual version from the package is slow as the entire package must be unpackaged
-    # to read the PackageInfo file.
-    # We are here YOLOing the filename instead. Of course it could be spoofed, but that would not be
-    # in anyone's interest to attempt as it will just make the script eventually fail.
-    echo "   [check_installer_pkg_is_valid] Checking validity of $existing_installer_pkg."
-    installer_pkg_build=$( basename "$existing_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
-    system_build=$( /usr/bin/sw_vers -buildVersion )
-
-    compare_build_versions "$system_build" "$installer_pkg_build"
-
-    if [[ $first_build_newer == "yes" ]]; then
-        echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
-        working_installer_pkg="$existing_installer_pkg"
-        invalid_installer_found="yes"
-    else
-        echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build >= System: $system_build : valid build."
-        working_installer_pkg="$existing_installer_pkg"
-        invalid_installer_found="no"
-    fi
-
-    working_macos_app="$existing_installer_app"
-}
-
+# -----------------------------------------------------------------------------
+# Check the installer validity.
+# The Build number in the app Info.plist is often older than the advertised 
+# build number, so it's not a great check for checking the validity of the installer
+# if we are running --erase, where we might want to be using the same build.
+# Since macOS 11, the actual build number is found in the SharedSupport.dmg in 
+# com_apple_MobileAsset_MacSoftwareUpdate.xml.
+# For older OSs we include a fallback to the older, less accurate 
+# Info.plist file.
+# -----------------------------------------------------------------------------
 check_installer_is_valid() {
-    # check installer validity:
-    # The Build version in the app Info.plist is often older than the advertised build,
-    # so it's not a great check for validity
-    # check if running --erase, where we might be using the same build.
-    # The actual build number is found in the SharedSupport.dmg in com_apple_MobileAsset_MacSoftwareUpdate.xml (Big Sur and greater).
-    # This is new from Big Sur, so we include a fallback to the Info.plist file just in case.
     echo "   [check_installer_is_valid] Checking validity of $existing_installer_app."
 
-    # first ensure that some earlier instance is not still mounted as it might interfere with the check
+    # first ensure that an installer is not still mounted from a previous run as it might 
+    # interfere with the check
     [[ -d "/Volumes/Shared Support" ]] && diskutil unmount force "/Volumes/Shared Support"
-    # now attempt to mount
+
+    # now attempt to mount the installer and grab the build number from
+    # com_apple_MobileAsset_MacSoftwareUpdate.xml
     if [[ -f "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
         if hdiutil attach -quiet -noverify -nobrowse "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
             echo "   [check_installer_is_valid] Mounting $existing_installer_app/Contents/SharedSupport/SharedSupport.dmg"
@@ -361,7 +405,7 @@ check_installer_is_valid() {
             echo "   [check_installer_is_valid] Mounting SharedSupport.dmg failed"
         fi
     else
-        # if that fails, fallback to the method for 10.15 or less, which is less accurate
+    # if that fails, fallback to the method for 10.15 or less, which is less accurate
         echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
         if [[ -f "$existing_installer_app/Contents/Info.plist" ]]; then
             installer_build=$( /usr/bin/defaults read "$existing_installer_app/Contents/Info.plist" DTSDKBuild )
@@ -369,13 +413,15 @@ check_installer_is_valid() {
             echo "   [check_installer_is_valid] Installer Info.plist could not be found!"
         fi
     fi
+
+    # bail out if we did not obtain a build number
     if [[ ! $installer_build ]]; then
         echo "   [check_installer_is_valid] Build of existing installer could not be found!"
         exit 1
     fi
 
+    # compare the local system's build number with that of the installer app 
     system_build=$( /usr/bin/sw_vers -buildVersion )
-
     compare_build_versions "$system_build" "$installer_build"
     if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
         echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
@@ -392,14 +438,87 @@ check_installer_is_valid() {
     working_macos_app="$existing_installer_app"
 }
 
-check_newer_available() {
-    # Download installinstallmacos.py and MacAdmins python
-    get_installinstallmacos
-    if [[ ! -f "$python_path" ]]; then
-        get_relocatable_python
+# -----------------------------------------------------------------------------
+# Check the validity of InstallAssistant.pkg.
+# packages generated by installinstallmacos.py have the format 
+# InstallAssistant-VERSION-BUILD.pkg
+# Extracting an actual version from the package is slow as the entire package 
+# must be unpackaged to read the PackageInfo file, so we just grab it from the 
+# filename instead, as installinstallmacos.py already did the check.
+# -----------------------------------------------------------------------------
+check_installer_pkg_is_valid() {
+    echo "   [check_installer_pkg_is_valid] Checking validity of $existing_installer_pkg."
+    installer_pkg_build=$( basename "$existing_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
+    system_build=$( /usr/bin/sw_vers -buildVersion )
+
+    # compare the local system's build number with that of InstallAssistant.pkg 
+    compare_build_versions "$system_build" "$installer_pkg_build"
+
+    if [[ $first_build_newer == "yes" ]]; then
+        echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
+        working_installer_pkg="$existing_installer_pkg"
+        invalid_installer_found="yes"
+    else
+        echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build >= System: $system_build : valid build."
+        working_installer_pkg="$existing_installer_pkg"
+        invalid_installer_found="no"
     fi
 
-    # build arguments for installinstallmacos
+    working_macos_app="$existing_installer_app"
+}
+
+# -----------------------------------------------------------------------------
+# Download the grahampugh fork of installinsatallmacos.py if not present.
+# This does a SHA256 checksum check and will delete the file and exit if this 
+# fails. 
+# Not called if --no-curl parameter is used.
+# -----------------------------------------------------------------------------
+check_installinstallmacos() {
+    if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
+        if [[ ! $no_curl ]]; then
+            echo "   [check_installinstallmacos] Downloading installinstallmacos.py..."
+            # delete existing version so curl can create new file
+            if [[ -f "$workdir/installinstallmacos.py" ]]; then
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
+
+            /usr/bin/curl -H 'Cache-Control: no-cache' -s "$installinstallmacos_url" -o "$workdir/installinstallmacos.py"
+            if echo "$installinstallmacos_checksum  $workdir/installinstallmacos.py" | shasum -c; then
+                echo "   [check_installinstallmacos] downloaded new installinstallmacos.py successfully."
+            else
+                echo "   [check_installinstallmacos] ERROR: downloaded installinstallmacos.py does not match checksum. Possible corrupted file. Deleting file."
+                /bin/rm "$workdir/installinstallmacos.py"
+            fi
+        fi
+    fi
+    # check it did actually get downloaded
+    if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
+        echo "Could not download installinstallmacos.py so cannot continue."
+        exit 1
+    else
+        echo "   [check_installinstallmacos] installinstallmacos.py is in $workdir"
+        iim_downloaded=1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Check that a newer installer is available.
+# Used with --update.
+# This requires installinstallmacos.py and python, so we first check if these
+# are on the system and download them if not.
+# We are using installinstallmacos.py to list all available installers, with
+# options for different catalogs and seeds, and whether to include betas or 
+# not.
+# -----------------------------------------------------------------------------
+
+check_newer_available() {
+    # Download installinstallmacos.py and MacAdmins python
+    check_installinstallmacos
+    if [[ ! -f "$python_path" ]]; then
+        check_python
+    fi
+
+    # set the parameters for installinstallmacos.py.
     installinstallmacos_args=()
     installinstallmacos_args+=("--workdir")
     installinstallmacos_args+=("$workdir")
@@ -427,13 +546,7 @@ check_newer_available() {
         installinstallmacos_args+=("--pkg")
     fi
 
-    # run installinstallmacos.py with list and then interrogate the plist
-    # TEST
-    echo
-    echo "   [check_newer_available] This command is now being run:"
-    echo
-    echo "   installinstallmacos.py ${installinstallmacos_args[*]}"
-
+    # run installinstallmacos.py with --list and then interrogate the plist
     if "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" > /dev/null; then
         i=0
         newer_build_found="no"
@@ -456,10 +569,11 @@ check_newer_available() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Check that the password entered matches the actual password.
+# The password is required on Apple Silicon Mac (Thanks to Dan Snelson).
+# -----------------------------------------------------------------------------
 check_password() {
-    # Check that the password entered matches actual password
-    # required for Silicon Macs
-    # thanks to Dan Snelson for the idea
     user="$1"
     password="$2"
     password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
@@ -474,11 +588,13 @@ check_password() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Check if device is on battery or AC power.
+# If not, and our power_wait_timer is above 1, allow user to connect to power 
+# for the specified time period.
+# Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
+# -----------------------------------------------------------------------------
 check_power_status() {
-    # Check if device is on battery or AC power
-    # If not, and our power_wait_timer is above 1, allow user to connect to power for specified time period
-    # Acknowledgements: https://github.com/kc9wwh/macOSUpgrade/blob/master/macOSUpgrade.sh
-
     # default power_wait_timer to 60 seconds
     [[ ! $power_wait_timer ]] && power_wait_timer=60
 
@@ -505,6 +621,57 @@ check_power_status() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Download the MacAdmins Python Framework and install it if not present.
+# Used when not using the recommended installer package.
+# Not called if --no-curl parameter is used.
+# -----------------------------------------------------------------------------
+check_python() {
+    if [[ -L "$relocatable_python_path" && -e "$relocatable_python_path" ]]; then
+        echo "   [check_python] Relocatable Python is installed in $workdir"
+        python_path="$relocatable_python_path"
+    elif [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+        echo "   [check_python] MacAdmins Python is installed"
+        python_path="$macadmins_python_path"
+    else
+        if [[ ! $no_curl ]]; then
+            echo "   [check_python] Downloading MacAdmins Python package..."
+            macadmins_python_json=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" )
+            macadmins_python_pkg=$( ljt /assets/1/browser_download_url <<< "$macadmins_python_json" )
+            /usr/bin/curl -L "$macadmins_python_pkg" -o "$workdir/macadmins_python-$macadmins_python_version.pkg"
+            installer -pkg "$workdir/macadmins_python-$macadmins_python_version.pkg" -target /
+        fi
+        # check it did actually get downloaded
+        if [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
+            echo "   [check_python] MacAdmins Python is installed"
+            python_path="$macadmins_python_path"
+        else
+            echo "   [check_python] Could not download MacAdmins Python."
+            # fall back to python2
+            python_path=$(which python)
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Compare build numbers.
+# This compares build numbers based on the convention of XXAY(YYY)b, where
+# - XX is the Darwin number
+# - A is the build letter, where A typically relates to XX.0, B to XX.1, etc.
+# - Y(YYY) is a minor build number which can be anything from 1 to a four-
+#   digit number. Typically any 4-digit number refers to a beta, or a forked
+#   build which sometimes occurs when new Mac models are relased.
+# - b is a lower-case letter reserved for beta builds.
+#
+# Darwin numbers are as follows:
+# - macOS 10.14 - Darwin no. 18
+# - macOS 10.15 - Darwin no. 19
+# - macOS 11    - Darwin no. 20
+# - macOS 12    - Darwin no. 21
+# - macOS 13    - Darwin no. 22
+# 
+# This function determines if the OS, minor version or patch versions match.
+# -----------------------------------------------------------------------------
 compare_build_versions() {
     first_build="$1"
     second_build="$2"
@@ -574,9 +741,13 @@ compare_build_versions() {
 
 }
 
+# -----------------------------------------------------------------------------
+# Confirmation dialogue. 
+# Called when --confirm option is used.
+# -----------------------------------------------------------------------------
 confirm() {
+    # DEPNotify dialog option
     if [[ $use_depnotify == "yes" ]]; then
-        # DEPNotify dialog option
         echo "   [$script_name] Opening DEPNotify confirmation message (language=$user_language)"
         if [[ $fs == "yes" && ! $rebootdelay -gt 10 ]]; then
             window_type="fs"
@@ -609,9 +780,10 @@ confirm() {
             confirmation=2
         fi
         # now clear the button, quit key and dialog
-        dep_notify_quit
+        quit_depnotify
+
+    # jamfHelper dialog option
     elif [[ -f "$jamfHelper" ]]; then
-        # jamfHelper dialog option
         echo "   [$script_name] Opening jamfHelper confirmation message (language=$user_language)"
         if [[ $erase == "yes" ]]; then
             jh_title="${!dialog_erase_title}"
@@ -622,8 +794,9 @@ confirm() {
         fi
         "$jamfHelper" -windowType utility -title "$jh_title" -alignHeading center -alignDescription natural -description "$jh_desc" -lockHUD -icon "$dialog_confirmation_icon" -button1 "${!dialog_confirmation_button}" -button2 "${!dialog_cancel_button}" -defaultButton 0 -cancelButton 2 2> /dev/null
         confirmation=$?
+
+    # osascript dialog option
     else
-        # osascript dialog option
         echo "   [$script_name] Opening osascript dialog for confirmation (language=$user_language)"
         if [[ $erase == "yes" ]]; then
             osa_desc="${!dialog_erase_confirmation_desc}"
@@ -652,6 +825,10 @@ END
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Create a LaunchDaemon that removes the working directory after a reboot.
+# This is used with the --cleanup-after-use option.
+# -----------------------------------------------------------------------------
 create_launchdaemon_to_remove_workdir () {
     # Name of LaunchDaemon
     plist_label="com.github.grahampugh.erase-install.remove"
@@ -670,10 +847,13 @@ create_launchdaemon_to_remove_workdir () {
     /bin/chmod 644 "$launch_daemon"
 }
 
+# -----------------------------------------------------------------------------
+# Setup DEPNotify.
+# Used with the --depnotify option.
+# -----------------------------------------------------------------------------
 dep_notify() {
     # configuration taken from https://github.com/jamf/DEPNotify-Starter
     DEP_NOTIFY_CONFIG_PLIST="/Users/$current_user/Library/Preferences/menu.nomad.DEPNotify.plist"
-    # /usr/bin/defaults write "$DEP_NOTIFY_CONFIG_PLIST" pathToPlistFile "$DEP_NOTIFY_USER_INPUT_PLIST"
     STATUS_TEXT_ALIGN="center"
     /usr/bin/defaults write "$DEP_NOTIFY_CONFIG_PLIST" statusTextAlignment "$STATUS_TEXT_ALIGN"
     chown "$current_user":staff "$DEP_NOTIFY_CONFIG_PLIST"
@@ -685,13 +865,15 @@ dep_notify() {
         echo "Command: MainText: $dn_desc"
     } >> "$depnotify_log"
 
+    # add a "continue" button if specified
     if [[ "$dn_button" ]]; then
-        echo "Adding DEPNotify button $dn_button" ## TEMP
         echo "Command: ContinueButton: $dn_button" >> "$depnotify_log"
     fi
 
+    # open DEPNotify if not already open
     if ! pgrep DEPNotify ; then
-        # Opening the app after initial configuration
+        # Open a full-screen window if window type fs specified and reboot delay is not set
+        # to longer than 10 seconds, otherwise open a standard window.
         if [[ "$window_type" == "fs" && ! "$rebootdelay" -gt 10 ]]; then
             sudo -u "$current_user" open -a "$depnotify_app" --args -path "$depnotify_log" -fullScreen
         else
@@ -699,17 +881,20 @@ dep_notify() {
         fi
     fi
 
-    # set message below progress bar
+    # set status message below progress bar
     echo "Status: $dn_status" >> "$depnotify_log"
 
-    # set alternaitve quit key (default is X)
+    # set alternaitve quit key if specified (default is Cmd + Ctrl + X)
     if [[ $dn_quit_key ]]; then
         echo "Command: QuitKey: $dn_quit_key" >> "$depnotify_log"
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Show progress information in DEPNotify while the installer is being 
+# downloaded or prepared, or during reboot-delay, thanks to @andredb90.
+# -----------------------------------------------------------------------------
 dep_notify_progress() {
-    # function for DEPNotify to show progress while the installer is being downloaded or prepared
     last_progress_value=0
     current_progress_value=0
 
@@ -792,25 +977,15 @@ dep_notify_progress() {
     fi
 }
 
-dep_notify_quit() {
-    # quit DEP Notify
-    echo "Command: Quit" >> "$depnotify_log"
-    # reset all the settings that might be used again
-    /bin/rm "$depnotify_log" "$depnotify_confirmation_file" 2>/dev/null
-    dn_button=""
-    dn_quit_key=""
-    dn_cancel=""
-    # kill dep_notify_progress background job if it's already running
-    if [ -f "/tmp/depnotify_progress_pid" ]; then
-        while read -r i; do
-            kill -9 "${i}"
-        done < /tmp/depnotify_progress_pid
-        /bin/rm /tmp/depnotify_progress_pid
-    fi
-}
-
+# -----------------------------------------------------------------------------
+# Search for an existing downloaded installer.
+# This checks first for a DMG or sparseimage in the working directory, then
+# for an Install macOS X.app in the /Applications folder, and then for an 
+# InstallAssistant.pkg in the working directory.
+# Note that multiple installers left around on the device can cause unexpected
+# results.  
+# -----------------------------------------------------------------------------
 find_existing_installer() {
-    # Search for an existing download
     # First let's see if this script has been run before and left an installer
     existing_macos_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
     existing_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
@@ -842,6 +1017,11 @@ find_existing_installer() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Look for packages to install during the startosinstall run.
+# The default location is: $workdir/extras
+# This location can be overridden with the --extras option.
+# -----------------------------------------------------------------------------
 find_extra_packages() {
     # set install_package_list to blank.
     install_package_list=()
@@ -854,6 +1034,9 @@ find_extra_packages() {
     done
 }
 
+# -----------------------------------------------------------------------------
+# Determine the Darwin number from the macOS version.
+# -----------------------------------------------------------------------------
 get_darwin_from_os_version() {
     # convert a macOS major version to a darwin version
     os_version="$1"
@@ -867,106 +1050,20 @@ get_darwin_from_os_version() {
     echo "$darwin_version"
 }
 
-get_depnotify() {
-    # grab installinstallmacos.py if not already there
-    # note this does a SHA256 checksum check and will delete the file and exit if this fails
-    if [[ -d "$depnotify_app" ]]; then
-        echo "   [get_depnotify] DEPNotify is installed ($depnotify_app)"
-    else
-        if [[ ! $no_curl ]]; then
-            echo "   [get_depnotify] Downloading DEPNotify.app..."
-            if /usr/bin/curl -L "$depnotify_download_url" -o "$workdir/DEPNotify.pkg" ; then
-                if ! installer -pkg "$workdir/DEPNotify.pkg" -target / ; then
-                    echo "   [get_depnotify] DEPNotify installation failed"
-                fi
-            else
-                echo "   [get_depnotify] DEPNotify download failed"
-            fi
-        fi
-        # check it did actually get downloaded
-        if [[ -d "$depnotify_app" ]]; then
-            echo "   [get_depnotify] DEPNotify is installed"
-            use_depnotify="yes"
-            dep_notify_quit
-        else
-            echo "   [get_depnotify] Could not download DEPNotify.app."
-        fi
-    fi
-}
-
-get_installinstallmacos() {
-    # grab installinstallmacos.py if not already there
-    # note this does a SHA256 checksum check and will delete the file and exit if this fails
-    if [[ ! -f "$workdir/installinstallmacos.py" || $force_installinstallmacos == "yes" ]]; then
-        if [[ ! $no_curl ]]; then
-            echo "   [get_installinstallmacos] Downloading installinstallmacos.py..."
-            # delete existing version so curl can create new file
-            if [[ -f "$workdir/installinstallmacos.py" ]]; then
-                /bin/rm "$workdir/installinstallmacos.py"
-            fi
-            # use curl -o instead of > redirect, which causes permission error when run with sudo
-            /usr/bin/curl -H 'Cache-Control: no-cache' -s "$installinstallmacos_url" -o "$workdir/installinstallmacos.py"
-            if echo "$installinstallmacos_checksum  $workdir/installinstallmacos.py" | shasum -c; then
-                echo "   [get_installinstallmacos] downloaded new installinstallmacos.py successfully."
-            else
-                echo "   [get_installinstallmacos] ERROR: downloaded installinstallmacos.py does not match checksum. Possible corrupted file. Deleting file."
-                /bin/rm "$workdir/installinstallmacos.py"
-            fi
-        fi
-    fi
-    # check it did actually get downloaded
-    if [[ ! -f "$workdir/installinstallmacos.py" ]]; then
-        echo "Could not download installinstallmacos.py so cannot continue."
-        exit 1
-    else
-        echo "   [get_installinstallmacos] installinstallmacos.py is in $workdir"
-        iim_downloaded=1
-    fi
-
-}
-
-: <<-LICENSE_BLOCK
-ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-LICENSE_BLOCK
-
-#v1.0.3 - use the minified function below to embed ljt into your shell script
-ljt() ( 
-	[ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
-	try {var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if (query[0]==='/'){ query = query.split('/').slice(1).map(function (f){return "["+JSON.stringify(f)+"]"}).join('')}if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split('').reverse().join('').replace(/(["'])(.*?)\1(?!\\)/g, ""))){throw new Error("Invalid path: "+ query)};if(query[0]==="$"){query=query.slice(1,query.length)};var data=JSON.parse(readFile(file));var result=eval("(data)"+query)}catch(e){printErr(e);quit()};if(result !==undefined){result!==null&&result.constructor===String?print(result): print(JSON.stringify(result,null,2))}else{printErr("Node not found.")}
-	EOT
-	queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);{ [ -f "${queryArg}" ] && [ -z "${fileArg}" ]; } && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
-)
-
-get_relocatable_python() {
-    # grab macadmins python and install it if not already there - used when running this script as a standalone
-    if [[ -L "$relocatable_python_path" && -e "$relocatable_python_path" ]]; then
-        echo "   [get_relocatable_python] Relocatable Python is installed in $workdir"
-        python_path="$relocatable_python_path"
-    elif [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
-        echo "   [get_relocatable_python] MacAdmins Python is installed"
-        python_path="$macadmins_python_path"
-    else
-        if [[ ! $no_curl ]]; then
-            echo "   [get_relocatable_python] Downloading MacAdmins Python package..."
-            macadmins_python_json=$( /usr/bin/curl -sl -H "Accept: application/vnd.github.v3+json" "$macadmins_python_url" )
-            macadmins_python_pkg=$( ljt /assets/1/browser_download_url <<< "$macadmins_python_json" )
-            /usr/bin/curl -L "$macadmins_python_pkg" -o "$workdir/macadmins_python-$macadmins_python_version.pkg"
-            installer -pkg "$workdir/macadmins_python-$macadmins_python_version.pkg" -target /
-        fi
-        # check it did actually get downloaded
-        if [[ -L "$macadmins_python_path" && -e "$macadmins_python_path" ]]; then
-            echo "   [get_relocatable_python] MacAdmins Python is installed"
-            python_path="$macadmins_python_path"
-        else
-            echo "   [get_relocatable_python] Could not download MacAdmins Python."
-            # fall back to python2
-            python_path=$(which python)
-        fi
-    fi
-}
-
+# -----------------------------------------------------------------------------
+# Get the user account name and password.
+# Apple Silicon devices require a username and password to run startosinstall.
+# The current user is determined if --current-user option is used.
+# The "real name" is also allowed if the user inputs that instead of their
+# account name.
+# The user is checked to see if it is a VolumeOwner, as this is required.
+# The entered password is checked to see if it is correct.
+# The user is given a number of attempts to enter their password (default=5).
+# If --max-password-attempts is set to "infinite" then there is no limit and 
+# no cancel button.
+# Finally, with the --erase option, the user is promoted to admin if required.
+# -----------------------------------------------------------------------------
 get_user_details() {
-    # Apple Silicon devices require a username and password to run startosinstall
     # get account name (short name)
     if [[ $use_current_user == "yes" ]]; then
         account_shortname="$current_user"
@@ -1075,6 +1172,9 @@ get_user_details() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Kill a specified process
+# -----------------------------------------------------------------------------
 kill_process() {
     process="$1"
     echo
@@ -1088,6 +1188,25 @@ kill_process() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# ljt v1.0.7
+# This is used only to help obtain the correct version of MacAdmins Python.
+# -----------------------------------------------------------------------------
+: <<-LICENSE_BLOCK
+ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+LICENSE_BLOCK
+
+ljt() ( 
+    [ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
+    try{var query=decodeURIComponent(escape(arguments[0])),file=decodeURIComponent(escape(arguments[1]));if("/"===query[0]||""===query){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(a){return"["+JSON.stringify(a.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if("$"===query[0]||"."===query[0]||"["===query[0]){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw Error("Invalid path: "+query);}else query=query.replace("\\.","\udead").split(".").map(function(a){return"["+JSON.stringify(a.replace("\udead","."))+"]"}).join("");"$"===query[0]&&(query=query.slice(1,query.length));var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(a){}}catch(a){printErr(a),quit()}void 0!==result?null!==result&&result.constructor===String?print(result):print(JSON.stringify(result,null,2)):printErr("Path not found.");
+EOT
+    queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else [ -t '0' ] && echo -e "ljt (v1.0.7) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+)
+
+# -----------------------------------------------------------------------------
+# Move the installer to the /Applications folder if not already there.
+# This is called with the --move option.
+# -----------------------------------------------------------------------------
 move_to_applications_folder() {
     if [[ $app_is_in_applications_folder == "yes" ]]; then
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
@@ -1106,6 +1225,9 @@ move_to_applications_folder() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Open an AppleScript message window
+# -----------------------------------------------------------------------------
 open_osascript_dialog() {
     title="$1"
     message="$2"
@@ -1130,6 +1252,12 @@ END
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Overwrite an existing installer.
+# This is called with the --overwrite option.
+# Note that multiple installers left around on the device can cause unexpected
+# results.  
+# -----------------------------------------------------------------------------
 overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
     existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
@@ -1147,11 +1275,35 @@ overwrite_existing_installer() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Quit DEPNotify.
+# -----------------------------------------------------------------------------
+quit_depnotify() {
+    echo "Command: Quit" >> "$depnotify_log"
+    # reset all the settings that might be used again
+    /bin/rm "$depnotify_log" "$depnotify_confirmation_file" 2>/dev/null
+    dn_button=""
+    dn_quit_key=""
+    dn_cancel=""
+    # kill dep_notify_progress background job if it's already running
+    if [ -f "/tmp/depnotify_progress_pid" ]; then
+        while read -r i; do
+            kill -9 "${i}"
+        done < /tmp/depnotify_progress_pid
+        /bin/rm /tmp/depnotify_progress_pid
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run installinstallmacos.py with chosen options.
+# This requires installinstallmacos.py and python, so we first check if these
+# are on the system and download them if not.
+# -----------------------------------------------------------------------------
 run_installinstallmacos() {
     # Download installinstallmacos.py and MacAdmins Python
-    get_installinstallmacos
+    check_installinstallmacos
     if [[ ! -f "$python_path" ]]; then
-        get_relocatable_python
+        check_python
     fi
 
     # Use installinstallmacos.py to download the desired version of macOS
@@ -1235,7 +1387,6 @@ run_installinstallmacos() {
         installinstallmacos_args+=("--auto")
     fi
 
-    # TEST
     echo
     echo "   [run_installinstallmacos] This command is now being run:"
     echo
@@ -1282,6 +1433,10 @@ run_installinstallmacos() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Set the Seed Program using seedutil - this is required when using 
+# softwareupdate --fetch-full-installer
+# -----------------------------------------------------------------------------
 set_seedprogram() {
     if [[ $seedprogram ]]; then
         echo "   [set_seedprogram] $seedprogram seed program selected"
@@ -1295,8 +1450,12 @@ set_seedprogram() {
     echo "   [set_seedprogram] Currently enrolled in $current_seed seed program."
 }
 
+# -----------------------------------------------------------------------------
+# Run softwareupdate --list-full-installers and output to a file
+# Includes some fallbacks, because this function might not be available in some 
+# versions of Catalina
+# -----------------------------------------------------------------------------
 swu_list_full_installers() {
-    # for 10.15.7 and above we can use softwareupdate --list-full-installers
     set_seedprogram
     echo
     # try up to 3 times to workaround bug when changing seed programs
@@ -1310,25 +1469,35 @@ swu_list_full_installers() {
         try=$(( try-1 ))
     done
     if [[ $try -eq 0 ]]; then
-        echo "   [swu_list_full_installers] Could not obtain installer information using softwareupdate. Cannot continue."
+        echo "   [swu_list_full_installers] Could not obtain installer information using softwareupdate."
         exit 1
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Run softwareupdate --fetch-full-installer
+# Includes some fallbacks, because --list-full-installers might not be 
+# available in some versions of Catalina. 
+# -----------------------------------------------------------------------------
 swu_fetch_full_installer() {
     # for 10.15+ we can use softwareupdate --fetch-full-installer
     softwareupdate_args=''
     if [[ $prechosen_version ]]; then
         # check that this version is available in the list
         swu_list_full_installers
-        ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
-        if [[ $ffi_available -ge 1 ]]; then
-            # get the chosen version. If there are more than one of the same version we have to
-            # guess which one will get downloaded
-            echo "   [swu_fetch_full_installer] Trying to download version $prechosen_version"
+        if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
+            ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # get the chosen version. If there are more than one of the same version we have to
+                # guess which one will get downloaded
+                echo "   [swu_fetch_full_installer] Trying to download version $prechosen_version"
+                softwareupdate_args+=" --full-installer-version $prechosen_version"
+            fi
+        else
+            echo "   [swu_fetch_full_installer] Could not obtain installer information using softwareupdate. Attempting download anyway, but please note that the chosen version might not be available."
             softwareupdate_args+=" --full-installer-version $prechosen_version"
         fi
-    else
+    elif [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
         # if no version is selected, we want to obtain the latest. The list obtained from
         # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
         swu_list_full_installers
@@ -1340,9 +1509,11 @@ swu_fetch_full_installer() {
         if [[ $latest_ffi ]]; then
             softwareupdate_args+=" --full-installer-version $latest_ffi"
         else
-            echo "   [swu_fetch_full_installer] Could not obtain installer information using softwareupdate. Cannot continue."
-            exit 1
+            echo "   [swu_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
         fi
+    else
+        # if no version is selected and --list-full-installers did not work, then we cannot continue
+        echo "   [swu_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
     fi
 
     # now download the installer
@@ -1373,6 +1544,9 @@ swu_fetch_full_installer() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Unpack an installer package to the Applications folder
+# -----------------------------------------------------------------------------
 unpack_pkg_to_applications_folder() {
     # if dealing with a package we now have to extract it and check it's valid
     if [[ -f "$working_installer_pkg" ]]; then
@@ -1391,21 +1565,33 @@ unpack_pkg_to_applications_folder() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Open dialog to show that the user is not valid for authenticating 
+# startosinstall
+# This is required on Apple Silicon Mac
+# -----------------------------------------------------------------------------
 user_invalid() {
     # required for Silicon Macs
     # open_osascript_dialog syntax: title, message, button1, icon
     open_osascript_dialog "$account_shortname: ${!dialog_user_invalid}" "" "OK" 2
 }
 
+# -----------------------------------------------------------------------------
+# Open dialog to show that the user is not a Volume Owner.
+# This is required on Apple Silicon Mac
+# -----------------------------------------------------------------------------
 user_not_volume_owner() {
     # required for Silicon Macs
     # open_osascript_dialog syntax: title, message, button1, icon
     open_osascript_dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" "" "OK" 2
 }
 
+# -----------------------------------------------------------------------------
+# Loop for "power_wait_timer" seconds until either AC Power is detected or the 
+# timer is up
+# -----------------------------------------------------------------------------
 wait_for_power() {
     process="$1"
-    ## Loop for "power_wait_timer" seconds until either AC Power is detected or the timer is up
     echo "   [wait_for_power] Waiting for AC power..."
     while [[ "$power_wait_timer" -gt 0 ]]; do
         if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
@@ -1428,6 +1614,9 @@ wait_for_power() {
     exit 1
 }
 
+# -----------------------------------------------------------------------------
+# Usage message
+# -----------------------------------------------------------------------------
 show_help() {
     echo "
     [$script_name] by @GrahamRPugh
@@ -1556,6 +1745,9 @@ show_help() {
     exit
 }
 
+# -----------------------------------------------------------------------------
+# Things to carry out when the script exits
+# -----------------------------------------------------------------------------
 finish() {
     local exit_code=$?
     # if we promoted the user then we should demote it again
@@ -1564,20 +1756,32 @@ finish() {
         echo "     [finish] User $promoted_user was demoted back to standard user"
     fi
 
+    # remove pipe files
+    [[ -e "${pipe_input}" ]] && /bin/rm -f "${pipe_input}"
+    [[ -e "${pipe_output}" ]] && /bin/rm -f "${pipe_output}"
+
     # kill caffeinate
     kill_process "caffeinate"
 
-    # kill any dialogs if startosinstall ends before a reboot
-    kill_process "jamfHelper"
-    dep_notify_quit
-    exit $exit_code
+    # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
+    if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
+        kill_process "jamfHelper"
+        quit_depnotify
+    fi
+
+    # set final exit code and quit, but do not call finish() again
+    echo "   [finish] Script exit code: $exit_code"
+    (exit $exit_code)
 }
 
+# -----------------------------------------------------------------------------
+# Things to do after startosinstall has finished perparing
+# -----------------------------------------------------------------------------
 post_prep_work() {
     # set DEPNotify status for rebootdelay if set
     if [[ "$rebootdelay" -gt 10 ]]; then
         if [[ "$use_depnotify" == "yes" ]]; then
-            dep_notify_quit
+            quit_depnotify
             echo "   [post_prep_work] Opening DEPNotify full screen message (language=$user_language)"
             dn_title="${!dialog_reinstall_title}"
             dn_desc="${!dialog_rebooting_heading}"
@@ -1600,23 +1804,95 @@ post_prep_work() {
     fi
     # run the postinstall commands
     for command in "${postinstall_command[@]}"; do
-        echo "   [$script_name] Now running arbitrary command: $command"
-        /bin/bash -c "$command"
+        if [[ $test_run != "yes" ]]; then
+            echo "   [post_prep_work] Now running postinstall command: $command"
+            /bin/bash -c "$command"
+        else
+            echo "   [post_prep_work] Simulating postinstall command: $command"
+        fi
     done
 
-    # finish the delay
-    sleep "$rebootdelay"
+    if [[ $test_run != "yes" ]]; then
+        # we need to quit so our management system can report back home before being killed by startosinstall
+        echo "   [post_prep_work] Skipping rebootdelay of ${rebootdelay}s"
+    else
+        echo "   [post_prep_work] Waiting ${rebootdelay}s"
+        sleep "$rebootdelay"
+    fi
 
     # then shut everything down
     kill_process "Self Service"
-    finish
-    exit
+    # set exit code to 0 and call finish()
+    exit 0
+}
+
+# -----------------------------------------------------------------------------
+# We launch startosinstall via a LaunchDaemon to allow this script to exit
+# before the computer restarts
+# -----------------------------------------------------------------------------
+launch_startosinstall() {
+    local path_stdin="${1}"
+    local path_stdout="${2}"
+    local path_stderr="${3}"
+    local install_arg
+    local combined_args=()
+    local launch_daemon_args=()
+    # get unique label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall.$$"
+    launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    # prepare command parameters
+    OLDIFS=$IFS
+    IFS=$'\x00'
+    if [[ $test_run != "yes" ]]; then
+        programPath="$working_macos_app/Contents/Resources/startosinstall"
+        combined_args=("${install_args[@]}" "--pidtosignal" "$$" "--agreetolicense" "--nointeraction" "${install_package_list[@]}")
+    else
+        programPath="/bin/zsh"
+        combined_args=("-c" "echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+        echo "   [launch_startosinstall] Run without '--test-run' to run this command:"
+        echo "   [launch_startosinstall] $working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}"
+    fi
+    launch_daemon_args=()
+    for install_arg in $programPath "${combined_args[@]}"; do
+        launch_daemon_args+=("-string")
+        launch_daemon_args+=("$install_arg")
+    done
+    # Create the plist
+    /usr/bin/defaults delete "$launch_daemon" 2>/dev/null
+    /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
+    /usr/bin/defaults write "$launch_daemon" RunAtLoad -boolean yes
+    /usr/bin/defaults write "$launch_daemon" LaunchOnlyOnce -boolean yes
+    /usr/bin/defaults write "$launch_daemon" StandardInPath -string "${path_stdin}"
+    /usr/bin/defaults write "$launch_daemon" StandardOutPath -string "${path_stdout}"
+    /usr/bin/defaults write "$launch_daemon" StandardErrorPath -string "${path_stderr}"
+    /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
+        "${launch_daemon_args[@]}"
+    IFS=$OLDIFS
+    # Start LaunchDaemon
+    /usr/sbin/chown root:wheel "$launch_daemon"
+    /bin/chmod 644 "$launch_daemon"
+    echo "   [launch_startosinstall] Launching startosinstall"
+    /bin/launchctl bootstrap system "${launch_daemon}"
+    /bin/rm -f "${launch_daemon}"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# Create a pipe
+# -----------------------------------------------------------------------------
+create_pipe() {
+    local pipe_name=${1}
+    local pipe_file
+    pipe_file=$( /usr/bin/mktemp -u -t "$pipe_name" || exit 12 )
+    /usr/bin/mkfifo -m go-rw "$pipe_file" || exit 13
+    echo "$pipe_file"
+    return 0
 }
 
 
-###############
-## MAIN BODY ##
-###############
+# =============================================================================
+# Main Body 
+# =============================================================================
 
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
@@ -1635,6 +1911,9 @@ min_drive_space=45
 
 # default max_password_attempts to 5
 max_password_attempts=5
+
+# set language and localisations
+set_localisations
 
 while test $# -gt 0 ; do
     case "$1" in
@@ -1709,9 +1988,9 @@ while test $# -gt 0 ; do
         --depnotify)
             if [[ -d "$depnotify_app" ]]; then
                 use_depnotify="yes"
-                dep_notify_quit
+                quit_depnotify
             else
-                get_depnotify_app="yes"
+                check_depnotify_app="yes"
             fi
             ;;
         --no-jamfhelper) jamfHelper=""
@@ -1885,6 +2164,9 @@ iim_downloaded=0
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list_installers ]]; then
+    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then 
+        rm "$workdir/ffi-list-full-installers.txt"
+    fi
     swu_list_full_installers
     /bin/cat "$workdir/ffi-list-full-installers.txt"
     echo
@@ -1910,8 +2192,8 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     fi
 
     # get DEPNotify if specified
-    if [[ $get_depnotify_app == "yes" ]]; then
-        get_depnotify
+    if [[ $check_depnotify_app == "yes" ]]; then
+        check_depnotify
     fi
 
     # check there is enough space
@@ -2036,7 +2318,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             dn_icon="$dialog_dl_icon"
             dep_notify
             if [[ -f "$depnotify_confirmation_file" ]]; then
-                dep_notify_quit
+                quit_depnotify
             fi
         elif [[ -f "$jamfHelper" ]]; then
             echo "   [$script_name] Opening jamfHelper download message (language=$user_language)"
@@ -2098,7 +2380,7 @@ fi
 # Once finished downloading (and optionally moving), kill the jamfHelper or DEPNotify
 if [[ $use_depnotify == "yes" ]]; then
     echo "   [$script_name] Closing DEPNotify download message (language=$user_language)"
-    dep_notify_quit
+    quit_depnotify
 elif [[ -f "$jamfHelper" ]]; then
     echo "   [$script_name] Closing jamfHelper download message (language=$user_language)"
     kill_process "jamfHelper"
@@ -2230,7 +2512,7 @@ if [[ $erase == "yes" ]]; then
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            dep_notify_quit
+            quit_depnotify
         fi
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
@@ -2258,7 +2540,7 @@ elif [[ $reinstall == "yes" ]]; then
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            dep_notify_quit
+            quit_depnotify
         fi
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
@@ -2271,46 +2553,55 @@ elif [[ $reinstall == "yes" ]]; then
 fi
 
 # set launchdaemon to remove $workdir if $cleanup_after_use is set
-if [[ $cleanup_after_use != "" ]]; then
+if [[ $cleanup_after_use != "" && $test_run != "yes" ]]; then
     echo "   [$script_name] Writing LaunchDaemon which will remove $workdir at next boot"
+    create_launchdaemon_to_remove_workdir
 fi
 
 # run preinstall commands
 for command in "${preinstall_command[@]}"; do
-    echo "   [$script_name] Now running arbitrary command: $command"
-    /bin/bash -c "$command"
+    if [[ $test_run != "yes" ]]; then
+        echo "   [$script_name] Now running preinstall command: $command"
+        /bin/bash -c "$command"
+    else
+        echo "   [$script_name] Simulating preinstall command: $command"
+    fi
 done
 
-# now actually run startosinstall
-if [[ $test_run != "yes" ]]; then
-    if [[ $cleanup_after_use != "" ]]; then
-        # set launchdaemon to remove $workdir if $cleanup_after_use is set
-        create_launchdaemon_to_remove_workdir
-    fi
-    if [ "$arch" == "arm64" ]; then
+# preparation for arm64
+if [ "$arch" == "arm64" ]; then
+    install_args+=("--stdinpass")
+    install_args+=("--user")
+    install_args+=("$account_shortname")
+    if [[ $test_run != "yes" && "$erase" == "yes" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
-        if [[ "$erase" == "yes" ]]; then
-            echo "   [$script_name] updating preboot files (takes a few seconds)..."
-            if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
-                echo "   [$script_name] preboot files updated"
-            else
-                echo "   [$script_name] WARNING! preboot files could not be updated."
-            fi
-        fi        
-        # shellcheck disable=SC2086
-        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" --user "$account_shortname" --stdinpass <<< "$account_password" & wait $!
-    else
-        "$working_macos_app"/Contents/Resources/startosinstall "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}" & wait $!
+        echo "   [$script_name] updating preboot files (takes a few seconds)..."
+        if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
+            echo "   [$script_name] preboot files updated"
+        else
+            echo "   [$script_name] WARNING! preboot files could not be updated."
+        fi
     fi
-
-else
-    echo "   [$script_name] Run without '--test-run' to run this command:"
-    if [ "$arch" == "arm64" ]; then
-        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall" "${install_args[@]}" "--pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " --user \"$account_shortname\" --stdinpass <<< \"$account_password\" & wait "'$!'
-    else
-        echo "sudo \"$working_macos_app\"/Contents/Resources/startosinstall " "${install_args[@]}" " --pidtosignal $$ --agreetolicense --nointeraction " "${install_package_list[@]}" " & wait "'$!'
-    fi
-    sleep 30
-    post_prep_work
 fi
+
+# Prepare Pipes for communication with startosinstall
+pipe_input=$( create_pipe "$script_name.in" )
+exec 3<> "$pipe_input"
+pipe_output=$( create_pipe "$script_name.out" )
+exec 4<> "$pipe_output"
+/bin/cat <&4 &
+pipePID=$!
+# now actually run startosinstall
+launch_startosinstall "$pipe_input" "$pipe_output" "$pipe_output"
+if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
+    echo "   [$script_name] Sending password to startosinstall"
+    /bin/cat >&3 <<< "$account_password"
+fi
+exec 3>&-
+# wait for cat command to quit, but no longer than 1 hour
+(sleep 3600; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
+wait $pipePID
+# we are not supposed to end up here due to USR1 signalling, so something went wrong.
+echo "   [$script_name] Reached end of script. Exit with error 42."
+exit 42
