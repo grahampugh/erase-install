@@ -12,6 +12,7 @@ No date
 - Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field).
 - Adds some fallbacks for the `--fetch-full-installer` option.
 - Improved function descriptions in the script.
+- Changed the Makefile to use pip to install xattr and packaging modules after creating the Python framework, to workaround an issue where the `make_relocatable_python_framework.py` script is unable to build with `xattr`.
 
 ## [26.2]
 
