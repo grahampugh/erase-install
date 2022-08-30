@@ -8,8 +8,8 @@ No date
 
 ## [27.0]
 
-- Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine.
-- Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field).
+- Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine (thanks to @cvgs).
+- Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field) (thanks to @cvgs).
 - Adds some fallbacks for the `--fetch-full-installer` option.
 - If no build ID is found in the existing installer, we set it as invalid instead of exiting the script (addresses #271, thanks to @sphen13).
 - Fix the fallback free disk space calculation (`df` was returning disk size in kb and not gb) (#274 - thanks to @sphen13).
