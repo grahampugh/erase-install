@@ -349,9 +349,9 @@ check_depnotify() {
 check_free_space() {
     free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")
 
-    # fall back to df -h if the above returns zero
-    if [[ ! "$free_disk_space" ]]; then
-        free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}')
+    if [[ ! "$free_disk_space" ]] || [[ "$free_disk_space" == 0 ]]; then
+        # fall back to df -h if the above fails
+        free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}' | xargs -I{} expr {} / 1000000)
     fi
 
     # if there isn't enough space, then we show a failure message to the user
