@@ -288,12 +288,12 @@ ask_for_password() {
     # if max_password_attempts = "infinite" then we don't provide a cancel button
     if [[ $max_password_attempts == "infinite" ]]; then
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_enter_button}"} default button 1 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer with title "${!dialog_window_title}" buttons {"${!dialog_enter_button}"} default button 1 with icon 2)
 END
     # if max_password_attempts != "infinite" then we provide a cancel button
     else
         /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer with title "${!dialog_window_title}" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
     fi
 }
@@ -305,7 +305,7 @@ END
 # -----------------------------------------------------------------------------
 ask_for_shortname() {
     /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
+        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" with title "${!dialog_window_title}" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
 END
 }
 
@@ -1573,7 +1573,7 @@ unpack_pkg_to_applications_folder() {
 user_invalid() {
     # required for Silicon Macs
     # open_osascript_dialog syntax: title, message, button1, icon
-    open_osascript_dialog "$account_shortname: ${!dialog_user_invalid}" "" "OK" 2
+    open_osascript_dialog "${!dialog_window_title}" "$account_shortname: ${!dialog_user_invalid}" "OK" 2
 }
 
 # -----------------------------------------------------------------------------
@@ -1583,7 +1583,7 @@ user_invalid() {
 user_not_volume_owner() {
     # required for Silicon Macs
     # open_osascript_dialog syntax: title, message, button1, icon
-    open_osascript_dialog "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" "" "OK" 2
+    open_osascript_dialog "${!dialog_window_title}" "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}" "OK" 2
 }
 
 # -----------------------------------------------------------------------------
@@ -2177,6 +2177,13 @@ fi
 system_version=$( /usr/bin/sw_vers -productVersion )
 system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
 system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
+
+# set dynamic dialog titles
+if [[ $erase == "yes" ]]; then
+    dialog_window_title=$dialog_erase_title
+else
+    dialog_window_title=$dialog_reinstall_title
+fi
 
 # check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
