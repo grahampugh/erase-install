@@ -1,7 +1,5 @@
 # CHANGELOG
 
-**Known issue**: We don't have a useful way of comparing a preferred version supplied with the `--version` parameter, and an existing installer. This is because our version comparisons are done using build numbers. I don't have a solution for this yet.
-
 ## [Untagged]
 
 No date
@@ -13,8 +11,11 @@ No date
 - Adds some fallbacks for the `--fetch-full-installer` option.
 - If no build ID is found in the existing installer, we set it as invalid instead of exiting the script (addresses #271, thanks to @sphen13).
 - Fix the fallback free disk space calculation (`df` was returning disk size in kb and not gb) (#274 - thanks to @sphen13).
+- `--update` option now uses new logic in `installinstallmacos.py` to restrict searches to a certain OS or version (addresses #287).
 - Improved function descriptions in the script.
-- Changed the Makefile to use pip to install xattr and packaging modules after creating the Python framework, to workaround an issue where the `make_relocatable_python_framework.py` script is unable to build with `xattr`.
+- Changed the `Makefile` to use pip to install xattr and packaging modules after creating the Python framework, to workaround an issue where the `make_relocatable_python_framework.py` script is unable to build with `xattr`.
+- Changed the `Makefile` to download the correct version of `installinstallmacos.py` during the make process.
+- Improved checksum checks for `installinstallmacos.py` - if an incorrect checksum is found, the correct version is downloaded rather than the script failing (unless `--no-curl` option has been added).
 
 ## [26.2]
 
