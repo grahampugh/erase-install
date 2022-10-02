@@ -16,6 +16,7 @@ No date
 - Changed the `Makefile` to use pip to install xattr and packaging modules after creating the Python framework, to workaround an issue where the `make_relocatable_python_framework.py` script is unable to build with `xattr`.
 - Changed the `Makefile` to download the correct version of `installinstallmacos.py` during the make process.
 - Improved checksum checks for `installinstallmacos.py` - if an incorrect checksum is found, the correct version is downloaded rather than the script failing (unless `--no-curl` option has been added).
+- Add titles to username and password dialog boxes (#289, thanks to @cvgs)
 
 ## [26.2]
 
