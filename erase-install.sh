@@ -2213,9 +2213,9 @@ system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 
 # set dynamic dialog titles
 if [[ $erase == "yes" ]]; then
-    dialog_window_title=$dialog_erase_title
+    dialog_window_title="$dialog_erase_title"
 else
-    dialog_window_title=$dialog_reinstall_title
+    dialog_window_title="$dialog_reinstall_title"
 fi
 
 # check for power and drive space if invoking erase or reinstall options
