@@ -29,8 +29,7 @@ build:
 	curl -H 'Cache-Control: no-cache' -s "$(IIM_URL)" -o "$(PKG_ROOT)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --upgrade-pip
-	"$(PKG_ROOT)/Library/Management/erase-install/Python.framework/Versions/Current/bin/python3" -s -m pip install xattr packaging
+	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)" --upgrade-pip
 
 	@echo "Making package in $(PKG_BUILD) directory"
 	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
@@ -61,8 +60,7 @@ depnotify:
 	curl -H 'Cache-Control: no-cache' -s "$(IIM_URL)" -o "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --upgrade-pip
-	"$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/Python.framework/Versions/Current/bin/python3" -s -m pip install xattr packaging
+	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)" --upgrade-pip
 
 	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
