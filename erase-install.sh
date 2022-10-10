@@ -155,10 +155,10 @@ check_free_space() {
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
+            "$jamfHelper" -windowType "utility" -title "${!dialog_window_title}" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
         else
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_check_desc}" "OK" stop &
         fi
         exit 1
     fi
@@ -425,7 +425,7 @@ check_power_status() {
                 wait_for_power "jamfHelper"
             else
                 # open_osascript_dialog syntax: title, message, button1, icon
-                open_osascript_dialog "${!dialog_power_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+                open_osascript_dialog "${!dialog_power_title}" "${!dialog_power_desc}  ${power_wait_timer_friendly}" "OK" stop &
                 wait_for_power "osascript"
             fi
         else
@@ -1019,7 +1019,7 @@ get_user_details() {
 
         if [[ ( "$password_check" != "pass" ) && ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_invalid_password}: $user" "" "OK" 2
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_invalid_password}: $user" "OK" 2
             exit 1
         fi
         password_attempts=$((password_attempts+1))
@@ -1219,7 +1219,7 @@ post_prep_work() {
         else
             echo "   [post_prep_work] Opening osascript dialog (language=$user_language)"
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_rebooting_heading}" "" "OK" stop &
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_rebooting_heading}" "OK" stop &
         fi
     fi
     # run the postinstall commands
@@ -1916,7 +1916,7 @@ wait_for_power() {
         "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_nopower_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton 1 &
     else
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_power_title}" "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "OK" stop &
     fi
     echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer_friendly}, cannot continue."
     exit 1
@@ -2576,7 +2576,7 @@ if [[ $erase == "yes" ]]; then
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_erase_desc}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_window_title}" "${!dialog_erase_desc}" "OK" stop &
     fi
 
 # dialogs for reinstallation
@@ -2604,7 +2604,7 @@ elif [[ $reinstall == "yes" ]]; then
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_reinstall_desc}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_window_title}" "${!dialog_reinstall_desc}" "OK" stop &
     fi
 fi
 
