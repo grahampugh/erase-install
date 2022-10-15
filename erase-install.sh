@@ -166,10 +166,10 @@ check_free_space() {
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         if [[ -f "$jamfHelper" ]]; then
-            "$jamfHelper" -windowType "utility" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
+            "$jamfHelper" -windowType "utility" -title "${!dialog_window_title}" -description "${!dialog_check_desc}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "${!dialog_cancel_button}" -defaultButton "1" -cancelButton "0"
         else
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_check_desc}" "" "OK" stop &
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_check_desc}" "OK" stop &
         fi
         exit 1
     fi
@@ -186,7 +186,7 @@ check_free_space() {
 # Info.plist file.
 # -----------------------------------------------------------------------------
 check_installer_is_valid() {
-    echo "   [check_installer_is_valid] Checking validity of $existing_installer_app."
+    echo "   [check_installer_is_valid] Checking validity of $cached_installer_app."
 
     # first ensure that an installer is not still mounted from a previous run as it might 
     # interfere with the check
@@ -194,9 +194,9 @@ check_installer_is_valid() {
 
     # now attempt to mount the installer and grab the build number from
     # com_apple_MobileAsset_MacSoftwareUpdate.xml
-    if [[ -f "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
-        if hdiutil attach -quiet -noverify -nobrowse "$existing_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
-            echo "   [check_installer_is_valid] Mounting $existing_installer_app/Contents/SharedSupport/SharedSupport.dmg"
+    if [[ -f "$cached_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
+        if hdiutil attach -quiet -noverify -nobrowse "$cached_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+            echo "   [check_installer_is_valid] Mounting $cached_installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
             build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
             if [[ -f "$build_xml" ]]; then
@@ -213,35 +213,35 @@ check_installer_is_valid() {
     else
     # if that fails, fallback to the method for 10.15 or less, which is less accurate
         echo "   [check_installer_is_valid] Using DTSDKBuild value from Info.plist"
-        if [[ -f "$existing_installer_app/Contents/Info.plist" ]]; then
-            installer_build=$( /usr/bin/defaults read "$existing_installer_app/Contents/Info.plist" DTSDKBuild )
+        if [[ -f "$cached_installer_app/Contents/Info.plist" ]]; then
+            installer_build=$( /usr/bin/defaults read "$cached_installer_app/Contents/Info.plist" DTSDKBuild )
         else
             echo "   [check_installer_is_valid] Installer Info.plist could not be found!"
         fi
     fi
 
     # bail out if we did not obtain a build number
-    if [[ ! $installer_build ]]; then
+    if [[ $installer_build ]]; then
+        # compare the local system's build number with that of the installer app 
+        system_build=$( /usr/bin/sw_vers -buildVersion )
+        compare_build_versions "$system_build" "$installer_build"
+        if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
+            echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
+            invalid_installer_found="yes"
+        elif [[ $first_build_patch_newer == "yes" ]]; then
+            echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
+            warning_issued="yes"
+            invalid_installer_found="no"
+        else
+            echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
+            invalid_installer_found="no"
+        fi
+    else
         echo "   [check_installer_is_valid] Build of existing installer could not be found, so it is assumed to be invalid."
         invalid_installer_found="yes"
     fi
 
-    # compare the local system's build number with that of the installer app 
-    system_build=$( /usr/bin/sw_vers -buildVersion )
-    compare_build_versions "$system_build" "$installer_build"
-    if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
-        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
-        invalid_installer_found="yes"
-    elif [[ $first_build_patch_newer == "yes" ]]; then
-        echo "   [check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
-        warning_issued="yes"
-        invalid_installer_found="no"
-    else
-        echo "   [check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
-        invalid_installer_found="no"
-    fi
-
-    working_macos_app="$existing_installer_app"
+    working_macos_app="$cached_installer_app"
 }
 
 # -----------------------------------------------------------------------------
@@ -253,8 +253,8 @@ check_installer_is_valid() {
 # filename instead, as installinstallmacos.py already did the check.
 # -----------------------------------------------------------------------------
 check_installer_pkg_is_valid() {
-    echo "   [check_installer_pkg_is_valid] Checking validity of $existing_installer_pkg."
-    installer_pkg_build=$( basename "$existing_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
+    echo "   [check_installer_pkg_is_valid] Checking validity of $cached_installer_pkg."
+    installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
     system_build=$( /usr/bin/sw_vers -buildVersion )
 
     # compare the local system's build number with that of InstallAssistant.pkg 
@@ -262,15 +262,15 @@ check_installer_pkg_is_valid() {
 
     if [[ $first_build_newer == "yes" ]]; then
         echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
-        working_installer_pkg="$existing_installer_pkg"
+        working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="yes"
     else
         echo "   [check_installer_pkg_is_valid] Installer: $installer_pkg_build >= System: $system_build : valid build."
-        working_installer_pkg="$existing_installer_pkg"
+        working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="no"
     fi
 
-    working_macos_app="$existing_installer_app"
+    working_macos_app="$cached_installer_app"
 }
 
 # -----------------------------------------------------------------------------
@@ -428,7 +428,7 @@ check_power_status() {
                 wait_for_power "jamfHelper"
             else
                 # open_osascript_dialog syntax: title, message, button1, icon
-                open_osascript_dialog "${!dialog_power_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+                open_osascript_dialog "${!dialog_power_title}" "${!dialog_power_desc}  ${power_wait_timer_friendly}" "OK" stop &
                 wait_for_power "osascript"
             fi
         else
@@ -829,41 +829,28 @@ download_installinstallmacos() {
 # -----------------------------------------------------------------------------
 find_existing_installer() {
     # First let's see if this script has been run before and left an installer
-    if find "$workdir" -name "*.dmg" -maxdepth 1 -type f | grep . - >/dev/null; then
-        existing_macos_dmg=$( find "$workdir" -name "*.dmg" -maxdepth 1 -type f -print -quit )
-        echo "   [find_existing_installer] Installer image found at $existing_macos_dmg."
-        hdiutil attach -quiet -noverify -nobrowse "$existing_macos_dmg"
-        if find "/Volumes" -name "*macOS*" -maxdepth 1 -type d | grep . - >/dev/null; then
-            existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit )
-            check_installer_is_valid
-        else
-            echo "   [find_existing_installer] No valid installer found."
-            if [[ $clear_cache == "yes" ]]; then
-                exit
-            fi
-        fi
-    elif find "$workdir" -name "*.sparseimage" -maxdepth 1 -type f | grep . - >/dev/null; then
-        existing_sparseimage=$( find "$workdir" -name "*.sparseimage" -maxdepth 1 -type f -print -quit )
-        echo "   [find_existing_installer] Installer sparse image found at $existing_sparseimage."
-        hdiutil attach -quiet -noverify -nobrowse "$existing_sparseimage"
-        if find "/Volumes" -name "*macOS*" -maxdepth 1 -type d | grep . - >/dev/null; then
-            existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit )
-            check_installer_is_valid
-        else
-            echo "   [find_existing_installer] No valid installer found."
-            if [[ $clear_cache == "yes" ]]; then
-                exit
-            fi
-        fi
-    elif find "$workdir" -name "Install*.pkg" -maxdepth 1 -type f | grep . - >/dev/null; then
-        existing_installer_pkg=$( find "$workdir" -name "Install*.pkg" -maxdepth 1 -type f -print -quit )
-        echo "   [find_existing_installer] InstallAssistant package found at $existing_installer_pkg."
-        check_installer_pkg_is_valid
-    elif find "$installer_directory" -name "Install macOS*.app" -maxdepth 1 -type d | grep . - >/dev/null; then
-        existing_installer_app=$( find "$installer_directory" -name "Install macOS*.app" -maxdepth 1 -type d -print -quit )
-        echo "   [find_existing_installer] Installer found at $existing_installer_app."
+    cached_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    cached_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
+    cached_installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+    cached_installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+
+    if [[ -f "$cached_dmg" ]]; then
+        echo "   [find_existing_installer] Installer image found at $cached_dmg."
+        hdiutil attach -quiet -noverify -nobrowse "$cached_dmg"
+        cached_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        check_installer_is_valid
+    elif [[ -f "$cached_sparseimage" ]]; then
+        echo "   [find_existing_installer] Installer sparse image found at $cached_sparseimage."
+        hdiutil attach -quiet -noverify -nobrowse "$cached_sparseimage"
+        cached_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        check_installer_is_valid
+    elif [[ -d "$cached_installer_app" ]]; then
+        echo "   [find_existing_installer] Installer found at $cached_installer_app."
         app_is_in_applications_folder="yes"
         check_installer_is_valid
+    elif [[ -f "$cached_installer_pkg" ]]; then
+        echo "   [find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
+        check_installer_pkg_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
         if [[ $clear_cache == "yes" ]]; then
@@ -1043,7 +1030,7 @@ get_user_details() {
 
         if [[ ( "$password_check" != "pass" ) && ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_invalid_password}: $user" "" "OK" 2
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_invalid_password}: $user" "OK" 2
             exit 1
         fi
         password_attempts=$((password_attempts+1))
@@ -1147,7 +1134,8 @@ EOT
 )
 
 # -----------------------------------------------------------------------------
-# Move the installer to the /Applications folder if not already there.
+# Copy the installer to the /Applications folder if not already there, and 
+# delete the dmg or sparseimage that encloses it.
 # This is called with the --move option.
 # -----------------------------------------------------------------------------
 move_to_applications_folder() {
@@ -1155,14 +1143,17 @@ move_to_applications_folder() {
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
         echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
+        # we are actually copying it, not moving it, because we arae in a mounted image
         cp -R "$working_macos_app" "$installer_directory/"
-        existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-        if [[ -d "$existing_installer" ]]; then
-            echo "   [move_to_applications_folder] Mounted installer will be unmounted: $existing_installer"
-            existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
+        cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+        # unmount the image
+        if [[ -d "$cached_installer" ]]; then
+            echo "   [move_to_applications_folder] Mounted installer will be unmounted: $cached_installer"
+            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
             diskutil unmount force "$existing_installer_mount_point"
         fi
-        rm -f "$existing_macos_dmg" "$existing_sparseimage"
+        # remove the dmg or sparseimage
+        rm -f "$cached_dmg" "$cached_sparseimage"
         working_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         echo "   [move_to_applications_folder] Installer moved to $installer_directory folder"
     fi
@@ -1203,14 +1194,14 @@ END
 # -----------------------------------------------------------------------------
 overwrite_existing_installer() {
     echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    existing_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-    if [[ -d "$existing_installer" ]]; then
-        echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
-        existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
+    cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+    if [[ -d "$cached_installer" ]]; then
+        echo "   [$script_name] Mounted installer will be unmounted: $cached_installer"
+        existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
         diskutil unmount force "$existing_installer_mount_point"
     fi
-    rm -f "$existing_macos_dmg" "$existing_sparseimage"
-    rm -rf "$existing_installer_app"
+    rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg"
+    rm -rf "$cached_installer_app"
     app_is_in_applications_folder=""
     if [[ $clear_cache == "yes" ]]; then
         echo "   [overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
@@ -1243,7 +1234,7 @@ post_prep_work() {
         else
             echo "   [post_prep_work] Opening osascript dialog (language=$user_language)"
             # open_osascript_dialog syntax: title, message, button1, icon
-            open_osascript_dialog "${!dialog_rebooting_heading}" "" "OK" stop &
+            open_osascript_dialog "${!dialog_window_title}" "${!dialog_rebooting_heading}" "OK" stop &
         fi
     fi
     # run the postinstall commands
@@ -1488,11 +1479,30 @@ run_mist() {
     downloaded_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit )
     downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name 'Install *.pkg' -type f -print -quit 2>/dev/null )
 
-    if [[ -d "$downloaded_app" ]]; then
-        working_macos_app="$downloaded_app"
-    elif [[ -f "$downloaded_installer_pkg" ]]; then
-        echo "   [run_mist] Installer package downloaded to $downloaded_installer_pkg."
-        working_installer_pkg="$downloaded_installer_pkg"
+    # Identify the installer dmg
+    cached_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
+    cached_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
+    cached_installer_pkg=$( find "$workdir"/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+
+    if [[ -f "$cached_dmg" ]]; then
+        echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
+        if hdiutil attach -quiet -noverify -nobrowse "$cached_dmg" ; then
+            working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        else
+            echo "   [run_installinstallmacos] ERROR: could not mount $cached_dmg"
+            exit 1
+        fi
+    elif [[ -f "$cached_sparseimage" ]]; then
+        echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
+        if hdiutil attach -quiet -noverify -nobrowse "$cached_sparseimage" ; then
+            working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        else
+            echo "   [run_installinstallmacos] ERROR: could not mount $cached_sparseimage"
+            exit 1
+        fi
+    elif [[ -f "$cached_installer_pkg" ]]; then
+        echo "   [run_installinstallmacos] InstallAssistant package downloaded to $cached_installer_pkg."
+        working_installer_pkg="$cached_installer_pkg"
     else
         echo "   [run_mist] No installer found. I guess nothing got downloaded."
         exit 1
@@ -1930,7 +1940,7 @@ swu_fetch_full_installer() {
     if [[ $? == 0 ]]; then
         # Identify the installer
         if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
-            existing_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            cached_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
             # if we actually want to use this installer we should check that it's valid
             if [[ $erase == "yes" || $reinstall == "yes" ]]; then
                 check_installer_is_valid
@@ -2013,7 +2023,7 @@ wait_for_power() {
         "$jamfHelper" -windowType "utility" -title "${!dialog_power_title}" -description "${!dialog_nopower_desc} ${power_wait_timer_friendly}" -alignDescription "left" -icon "$dialog_confirmation_icon" -button1 "OK" -defaultButton 1 &
     else
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_power_title}" "${!dialog_nopower_desc}  ${power_wait_timer_friendly}" "OK" stop &
     fi
     echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer_friendly}, cannot continue."
     exit 1
@@ -2364,15 +2374,17 @@ elif [[ $invalid_installer_found == "yes" ]]; then
     # --replace-invalid option: replace an existing installer if it is invalid
     if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
         overwrite_existing_installer
-    elif [[ $invalid_installer_found == "yes" && ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
+    elif [[ ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
         echo "   [$script_name] Deleting invalid installer package"
-        rm -f "$working_macos_app"
-        if [[ $clear_cache == "yes" ]]; then
-            echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit
-        fi
+        rm -f "$working_installer_pkg"
+        overwrite_existing_installer
+    elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
+        echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+        # kill caffeinate
+        kill_process "caffeinate"
+        exit 1
+    else
+        echo "   [$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
     fi
 
 elif [[ "$prechosen_build" != "" ]]; then
@@ -2424,12 +2436,6 @@ elif [[ $update_installer == "yes" ]]; then
             exit
         fi
     fi
-
-elif [[ $invalid_installer_found == "yes" && ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
-    echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
-    # kill caffeinate
-    kill_process "caffeinate"
-    exit 1
 fi
 
 # Silicon Macs require a username and password to run startosinstall
@@ -2517,7 +2523,7 @@ if [[ -d "$working_macos_app" ]]; then
 fi
 
 # Move to $installer_directory if move_to_applications_folder flag is included
-# Not allowed for fetch_full_installer option
+# Not relevant for fetch_full_installer option
 if [[ $move == "yes" && ! $ffi ]]; then
     echo "   [$script_name] Invoking --move option"
     if [[ $use_depnotify == "yes" ]]; then
@@ -2542,10 +2548,10 @@ fi
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Unmount the dmg
     if [[ ! $ffi ]]; then
-        existing_installer=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-        if [[ -d "$existing_installer" ]]; then
-            echo "   [$script_name] Mounted installer will be unmounted: $existing_installer"
-            existing_installer_mount_point=$(echo "$existing_installer" | cut -d/ -f 1-3)
+        cached_installer=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+        if [[ -d "$cached_installer" ]]; then
+            echo "   [$script_name] Mounted installer will be unmounted: $cached_installer"
+            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
             diskutil unmount force "$existing_installer_mount_point"
         fi
     fi
@@ -2679,7 +2685,7 @@ if [[ $erase == "yes" ]]; then
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_erase_desc}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_window_title}" "${!dialog_erase_desc}" "OK" stop &
     fi
 
 # dialogs for reinstallation
@@ -2708,7 +2714,7 @@ elif [[ $reinstall == "yes" ]]; then
     else
         echo "   [$script_name] Opening osascript dialog (language=$user_language)"
         # open_osascript_dialog syntax: title, message, button1, icon
-        open_osascript_dialog "${!dialog_reinstall_desc}" "" "OK" stop &
+        open_osascript_dialog "${!dialog_window_title}" "${!dialog_reinstall_desc}" "OK" stop &
     fi
 fi
 

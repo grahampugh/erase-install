@@ -24,6 +24,8 @@ No date
 - Changed the `Makefile` to download the correct version of `installinstallmacos.py` during the make process.
 - Improved checksum checks for `installinstallmacos.py` - if an incorrect checksum is found, the correct version is downloaded rather than the script failing (unless `--no-curl` option has been added).
 - Add titles to username and password dialog boxes (#289, thanks to @cvgs)
+- Now correctly deletes a sparseimage from the cache when `--move` is used and the sparseimage is downloaded (#297, thanks to @andyincali)
+- Now correctly fails if an invalid installer is found and `--replace-invalid`, `--update`, `--overwrite` or `--skip-validation` are not set (addresses #298).
 
 ## [26.2]
 
