@@ -418,7 +418,6 @@ check_newer_available() {
 check_password() {
     user="$1"
     password="$2"
-    echo "$password" # TEST
     password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
 
     if [[ -z "$password_matches" ]]; then
@@ -1541,7 +1540,7 @@ set_localisations() {
     dialog_dl_title=dialog_dl_title_${user_language}
 
     # Dialogue localizations - download window - description
-    dialog_dl_desc_en="We need to download the macOS installer to your computer; this will take several minutes."
+    dialog_dl_desc_en="We need to download the macOS installer to your computer.  \n\nThis may take several minutes, depending on your internet connection."
     dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen; dies kann einige Minuten dauern."
     dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden, dit duurt enkele minuten."
     dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur, cela prendra plusieurs minutes."
