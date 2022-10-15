@@ -19,8 +19,8 @@ It is recommended to use the package installer of this script. It contains the b
 installinstallmacos.py fork, plus a relocatable python with which to run it.
 
 This script can, however, also be run standalone.
-It will download and install the MacAdmins Python Framework if not found.
-It will also download the installinstallmacos.py fork if it is not found.
+It will download and install Swift Dialog if not found.
+It will also download mist if it is not found.
 Suppress the downloads with the --no-curl option.
 
 Requirements:
@@ -28,8 +28,6 @@ Requirements:
 - macOS 10.13.4+ (for --erase option)
 - macOS 10.15+ (for --fetch-full-installer option)
 - Device file system is APFS
-
-Original version of installinstallmacos.py - Greg Neagle; GitHub munki/macadmins-scripts
 DOC
 
 # =============================================================================
@@ -41,14 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="27.0"
-
-# URL for downloading installinstallmacos.py
-# The tag and checksum of the macadmin-scripts fork is updated to match the version 
-# of erase-install. This adds a bit of security to the curl download of
-# installinstallmacos.py if not using the recommended package installer
-installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="eeb0ed151a6769ff96d67de268735e16a172abe6355004560630c562299f7c21"
+version="28.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -56,19 +47,19 @@ installer_directory="/Applications"
 # Default working directory (may be overridden by the --workdir parameter)
 workdir="/Library/Management/erase-install"
 
-# URL for downloading macadmins python (with tag version)
-# This ensures a compatible python is available if not using the recommended
-# package installer
-macadmins_python_version="v3.10.2.80694"
-macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
-macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
+# mist tool
+mist_bin="/usr/local/bin/mist"
+mist_export_file="$workdir/mist-list.json"
 
 # Dialog helper apps (jamfHelper and DEPNotify)
-jamfHelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
-depnotify_app="/Applications/Utilities/DEPNotify.app"
-depnotify_log="/var/tmp/depnotify.log"
-depnotify_confirmation_file="/var/tmp/com.depnotify.provisioning.done"
-depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
+dialog_app="/Library/Application Support/Dialog/Dialog.app"
+dialog_bin="/usr/local/bin/dialog"
+dialog_log="/var/tmp/dialog.log"
+
+# URL for downloading dialog (with tag version)
+# This ensures a compatible dialog is used if not using the package installer
+dialog_tag="v2.0Preview1"
+dialog_download_url="https://api.github.com/repos/bartreardon/swiftDialog/releases/tags/$dialog_tag"
 
 # =============================================================================
 # Functions 
@@ -76,59 +67,79 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Open a dialogue to ask for the user's password.
+# Open a dialog window to ask for the user's username and password.
 # This is required on Apple Silicon Mac
 # -----------------------------------------------------------------------------
-ask_for_password() {
-    # if max_password_attempts = "infinite" then we don't provide a cancel button
-    if [[ $max_password_attempts == "infinite" ]]; then
-        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer with title "${!dialog_window_title}" buttons {"${!dialog_enter_button}"} default button 1 with icon 2)
-END
-    # if max_password_attempts != "infinite" then we provide a cancel button
+ask_for_credentials() {
+    # set the dialog command arguments
+    dialog_args=(
+        "--movable"
+        "--ontop"
+        "--json"
+        "--ignorednd"
+        "--position" 
+        "center"
+        "--title"
+        "${dialog_window_title}"
+        "--messagealignment"
+        "left"
+        "--icon"
+        "warning"
+        "--iconsize"
+        "100"
+        "--width"
+        "600"
+        "--height"
+        "300"
+        "--textfield"
+        "Username,prompt=$current_user"
+        "--textfield"
+        "Password,secure,required"
+        "--button1text"
+        "Continue"
+    )
+    if [[ "$erase" == "yes" ]]; then
+        dialog_args+=(
+            "--message"
+            "${!dialog_erase_credentials}"
+        )
     else
-        /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_get_password} ($account_shortname)" default answer "" with hidden answer with title "${!dialog_window_title}" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
-END
+        dialog_args+=(
+            "--message"
+            "${!dialog_reinstall_credentials}"
+        )
     fi
+    if [[ $max_password_attempts != "infinite" ]]; then
+        dialog_args+=("-2")
+    fi
+
+    # run the dialog command
+    $dialog_bin "${dialog_args[@]}"
 }
 
 # -----------------------------------------------------------------------------
-# Open a dialogue to ask for the user's account name (shortname).
-# This is required on Apple Silicon Mac.
-# Not used if --current-user is set.
+# Download dialog if not present.
 # -----------------------------------------------------------------------------
-ask_for_shortname() {
-    /bin/launchctl asuser "$current_uid" /usr/bin/osascript <<END
-        set nameentry to text returned of (display dialog "${!dialog_short_name}" default answer "" with title "${!dialog_window_title}" buttons {"${!dialog_cancel_button}", "${!dialog_enter_button}"} default button 2 with icon 2)
-END
-}
-
-# -----------------------------------------------------------------------------
-# Download DEPnotify if not present.
-# Called when --depnotify parameter is used.
-# -----------------------------------------------------------------------------
-check_depnotify() {
-    if [[ -d "$depnotify_app" ]]; then
-        echo "   [check_depnotify] DEPNotify is installed ($depnotify_app)"
+check_for_dialog_app() {
+    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        echo "   [check_for_dialog_app] dialog is installed ($dialog_app)"
     else
         if [[ ! $no_curl ]]; then
-            echo "   [check_depnotify] Downloading DEPNotify.app..."
-            if /usr/bin/curl -L "$depnotify_download_url" -o "$workdir/DEPNotify.pkg" ; then
-                if ! installer -pkg "$workdir/DEPNotify.pkg" -target / ; then
-                    echo "   [check_depnotify] DEPNotify installation failed"
+            echo "   [check_for_dialog_app] Downloading DEPNotify.app..."
+            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
+                if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
+                    echo "   [check_for_dialog_app] dialog installation failed"
                 fi
             else
-                echo "   [check_depnotify] DEPNotify download failed"
+                echo "   [check_for_dialog_app] dialog download failed"
             fi
         fi
         # check it did actually get downloaded
-        if [[ -d "$depnotify_app" ]]; then
-            echo "   [check_depnotify] DEPNotify is installed"
-            use_depnotify="yes"
-            quit_depnotify
+        if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+            echo "   [check_for_dialog_app] dialog is installed"
+            quit_dialog
         else
-            echo "   [check_depnotify] Could not download DEPNotify.app."
+            echo "   [check_for_dialog_app] Could not download dialog."
         fi
     fi
 }
@@ -307,78 +318,70 @@ check_installinstallmacos() {
 # -----------------------------------------------------------------------------
 # Check that a newer installer is available.
 # Used with --update.
-# This requires installinstallmacos.py and python, so we first check if these
-# are on the system and download them if not.
-# We are using installinstallmacos.py to list all available installers, with
+# This requires mist, so we first check if this is on the system and download 
+# if not.
+# We are using mist to list all available installers, with
 # options for different catalogs and seeds, and whether to include betas or 
 # not.
 # -----------------------------------------------------------------------------
 
 check_newer_available() {
-    # Download installinstallmacos.py and MacAdmins python
-    check_installinstallmacos
-    if [[ ! -f "$python_path" ]]; then
-        check_python
+    # now clear the variables and build the download command
+    mist_args=()
+    mist_args+=("list")
+    mist_args+=("installer")
+
+    if [[ $prechosen_version ]]; then
+        echo "   [run_mist] Checking that selected version $prechosen_version is available"
+        mist_args+=("$prechosen_version")
+    elif [[ $prechosen_os ]]; then
+        echo "   [run_mist] Restricting to selected OS $prechosen_os"
+        mist_args+=("$prechosen_os")
     fi
 
-    # set the parameters for installinstallmacos.py.
-    installinstallmacos_args=()
-    installinstallmacos_args+=("--workdir")
-    installinstallmacos_args+=("$workdir")
-    installinstallmacos_args+=("--list")
+    mist_args+=("--compatible")
+    mist_args+=("--latest")
+
+    # set alternative catalog if selected
     if [[ $catalogurl ]]; then
-        echo "   [check_newer_available] Non-standard catalog URL selected"
-        installinstallmacos_args+=("--catalogurl")
-        installinstallmacos_args+=("$catalogurl")
-    elif [[ $seedprogram ]]; then
-        echo "   [check_newer_available] Non-standard seedprogram selected"
-        installinstallmacos_args+=("--seed")
-        installinstallmacos_args+=("$seedprogram")
+        echo "   [run_mist] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
     elif [[ $catalog ]]; then
         darwin_version=$(get_darwin_from_os_version "$catalog")
-        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
-        installinstallmacos_args+=("--catalog")
-        installinstallmacos_args+=("$darwin_version")
+        get_catalog
+        echo "   [run_mist] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
     fi
+
+    # include betas if selected
     if [[ $beta == "yes" ]]; then
-        echo "   [check_newer_available] Beta versions included"
-        installinstallmacos_args+=("--beta")
-    fi
-    if [[ $pkg_installer ]]; then
-        echo "   [check_newer_available] checking against package installers"
-        installinstallmacos_args+=("--pkg")
-    fi
-    if [[ $prechosen_version ]]; then
-        echo "   [check_newer_available] Checking against version $prechosen_version only"
-        installinstallmacos_args+=("--version")
-        installinstallmacos_args+=("$prechosen_version")
-    elif [[ $prechosen_os ]]; then
-        echo "   [check_newer_available] Checking against OS $prechosen_os only"
-        installinstallmacos_args+=("--os")
-        installinstallmacos_args+=("$prechosen_os")
+        echo "   [run_mist] Beta versions included"
+        mist_args+=("--include-betas")
     fi
 
     # run installinstallmacos.py with --list and then interrogate the plist
-    if "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" > /dev/null; then
+    if ! "$mist_bin" "${mist_args[@]}" ; then
         newer_build_found="no"
-        if [[ -f "$workdir/softwareupdate.plist" ]]; then
-            available_build=$( /usr/libexec/PlistBuddy -c "Print :latest_valid_build" "$workdir/softwareupdate.plist" 2>/dev/null)
-            echo "$available_build" # TEMP
+        if [[ -f "$mist_export_file" ]]; then
+            available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
+                echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
                 compare_build_versions "$available_build" "$installer_build"
                 if [[ "$first_build_newer" == "yes" ]]; then
                     newer_build_found="yes"
                 fi
             fi
         else
-            echo "   [check_newer_available] ERROR reading output from installinstallmacos.py, cannot continue"
+            echo "   [check_newer_available] ERROR reading output from mist, cannot continue"
             exit 1
         fi
         if [[ "$newer_build_found" == "no" ]]; then 
             echo "   [check_newer_available] No newer builds found"
         fi
     else
-        echo "   [check_newer_available] ERROR running installinstallmacos.py, cannot continue"
+        echo "   [check_newer_available] ERROR running mist, cannot continue"
         exit 1
     fi
 }
@@ -594,7 +597,7 @@ confirm() {
             confirmation=2
         fi
         # now clear the button, quit key and dialog
-        quit_depnotify
+        quit_dialog
 
     # jamfHelper dialog option
     elif [[ -f "$jamfHelper" ]]; then
@@ -826,28 +829,41 @@ download_installinstallmacos() {
 # -----------------------------------------------------------------------------
 find_existing_installer() {
     # First let's see if this script has been run before and left an installer
-    existing_macos_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
-    existing_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
-    existing_installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    existing_installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
-
-    if [[ -f "$existing_macos_dmg" ]]; then
+    if find "$workdir" -name "*.dmg" -maxdepth 1 -type f | grep . - >/dev/null; then
+        existing_macos_dmg=$( find "$workdir" -name "*.dmg" -maxdepth 1 -type f -print -quit )
         echo "   [find_existing_installer] Installer image found at $existing_macos_dmg."
         hdiutil attach -quiet -noverify -nobrowse "$existing_macos_dmg"
-        existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
-    elif [[ -f "$existing_sparseimage" ]]; then
+        if find "/Volumes" -name "*macOS*" -maxdepth 1 -type d | grep . - >/dev/null; then
+            existing_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit )
+            check_installer_is_valid
+        else
+            echo "   [find_existing_installer] No valid installer found."
+            if [[ $clear_cache == "yes" ]]; then
+                exit
+            fi
+        fi
+    elif find "$workdir" -name "*.sparseimage" -maxdepth 1 -type f | grep . - >/dev/null; then
+        existing_sparseimage=$( find "$workdir" -name "*.sparseimage" -maxdepth 1 -type f -print -quit )
         echo "   [find_existing_installer] Installer sparse image found at $existing_sparseimage."
         hdiutil attach -quiet -noverify -nobrowse "$existing_sparseimage"
-        existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
-    elif [[ -d "$existing_installer_app" ]]; then
+        if find "/Volumes" -name "*macOS*" -maxdepth 1 -type d | grep . - >/dev/null; then
+            existing_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit )
+            check_installer_is_valid
+        else
+            echo "   [find_existing_installer] No valid installer found."
+            if [[ $clear_cache == "yes" ]]; then
+                exit
+            fi
+        fi
+    elif find "$workdir" -name "Install*.pkg" -maxdepth 1 -type f | grep . - >/dev/null; then
+        existing_installer_pkg=$( find "$workdir" -name "Install*.pkg" -maxdepth 1 -type f -print -quit )
+        echo "   [find_existing_installer] InstallAssistant package found at $existing_installer_pkg."
+        check_installer_pkg_is_valid
+    elif find "$installer_directory" -name "Install macOS*.app" -maxdepth 1 -type d | grep . - >/dev/null; then
+        existing_installer_app=$( find "$installer_directory" -name "Install macOS*.app" -maxdepth 1 -type d -print -quit )
         echo "   [find_existing_installer] Installer found at $existing_installer_app."
         app_is_in_applications_folder="yes"
         check_installer_is_valid
-    elif [[ -f "$existing_installer_pkg" ]]; then
-        echo "   [find_existing_installer] InstallAssistant package found at $existing_installer_pkg."
-        check_installer_pkg_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
         if [[ $clear_cache == "yes" ]]; then
@@ -894,7 +910,7 @@ finish() {
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
         kill_process "jamfHelper"
-        quit_depnotify
+        quit_dialog
     fi
 
     # set final exit code and quit, but do not call finish() again
@@ -921,7 +937,7 @@ get_darwin_from_os_version() {
 # -----------------------------------------------------------------------------
 # Get the user account name and password.
 # Apple Silicon devices require a username and password to run startosinstall.
-# The current user is determined if --current-user option is used.
+# The current user is determined.
 # The "real name" is also allowed if the user inputs that instead of their
 # account name.
 # The user is checked to see if it is a VolumeOwner, as this is required.
@@ -932,89 +948,97 @@ get_darwin_from_os_version() {
 # Finally, with the --erase option, the user is promoted to admin if required.
 # -----------------------------------------------------------------------------
 get_user_details() {
-    # get account name (short name)
-    if [[ $use_current_user == "yes" ]]; then
-        account_shortname="$current_user"
-    fi
-
-    if [[ $account_shortname == "" ]]; then
-        account_shortname=$(ask_for_shortname)
-        if [[ -z $account_shortname ]]; then
-            echo "   [get_user_details] User cancelled."
-            exit 1
-        fi
-    fi
-
-    # check that this user exists
-    if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
-        echo "   [get_user_details] $account_shortname account cannot be found!"
-        user_invalid
-        exit 1
-    fi
-
-    # check that the user is a Volume Owner
-    user_is_volume_owner=0
-    users=$(/usr/sbin/diskutil apfs listUsers /)
-    enabled_users=""
-    while read -r line ; do
-        user=$(/usr/bin/cut -d, -f1 <<< "$line")
-        guid=$(/usr/bin/cut -d, -f2 <<< "$line")
-        # passwords are case sensitive, account names are not
-        shopt -s nocasematch
-        if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
-            enabled_users+="$user "
-            # The entered username might not match the output of fdesetup, so we compare
-            # all RecordNames for the canonical name given by fdesetup against the entered
-            # username, and then use the canonical version. The entered username might
-            # even be the RealName, and we still would end up here.
-            # Example:
-            # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
-            # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-            user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
-            # loop through recordName array until error (we do not know the size of the array)
-            record_name_index=0
-            while true; do
-                if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
-                    break
-                fi
-                if [[ "$account_shortname" == "$user_record_name" ]]; then
-                    account_shortname=$user
-                    echo "   [get_user_details] $account_shortname is a Volume Owner"
-                    user_is_volume_owner=1
-                    break
-                fi
-                record_name_index=$((record_name_index+1))
-            done
-            # if needed, compare the RealName (which might contain spaces)
-            if [[ $user_is_volume_owner = 0 ]]; then
-                user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
-                if [[ "$account_shortname" == "$user_real_name" ]]; then
-                    account_shortname=$user
-                    echo "   [get_user_details] $account_shortname is a Volume Owner"
-                    user_is_volume_owner=1
-                fi
-            fi
-        fi
-        shopt -u nocasematch
-    done <<< "$(/usr/bin/fdesetup list)"
-    if [[ $enabled_users != "" && $user_is_volume_owner = 0 ]]; then
-        echo "   [get_user_details] $account_shortname is not a Volume Owner"
-        user_not_volume_owner
-        exit 1
-    fi
-
     # get password and check that the password is correct
     password_attempts=1
     password_check="fail"
     while [[ "$password_check" != "pass" ]] ; do
-        echo "   [get_user_details] ask for password (attempt $password_attempts/$max_password_attempts)"
-        account_password=$(ask_for_password)
-        ask_for_password_rc=$?
-        # prevent accidental cancelling by simply pressing return (entering an empty password)
-        if [[ "$ask_for_password_rc" -ne 0 ]]; then
-            echo "   [get_user_details] User cancelled."
-            exit 1
+        echo "   [get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
+        # ask for username and password
+        account_details=$(ask_for_credentials)
+
+        # get account name (short name) and password
+        account_shortname=$(ljt '/Username' <<< "$account_details")
+        account_password=$(ljt '/Password' <<< "$account_details")
+
+        if [[ ! "$account_shortname" ]]; then
+            if [[ "$current_user" ]]; then
+                account_shortname="$current_user"
+            else
+                echo "   [get_user_details] Current user was not determined."
+                user_invalid=1
+                password_attempts=$((password_attempts+1))
+                continue
+            fi
         fi
+
+        # check that this user exists
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
+            echo "   [get_user_details] $account_shortname account cannot be found!"
+            user_invalid=1
+            password_attempts=$((password_attempts+1))
+            continue
+        fi
+
+        # check that the user is a Volume Owner
+        user_is_volume_owner=0
+        users=$(/usr/sbin/diskutil apfs listUsers /)
+        enabled_users=""
+        while read -r line ; do
+            user=$(/usr/bin/cut -d, -f1 <<< "$line")
+            guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+            # passwords are case sensitive, account names are not
+            shopt -s nocasematch
+            if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
+                enabled_users+="$user "
+                # The entered username might not match the output of fdesetup, so we compare
+                # all RecordNames for the canonical name given by fdesetup against the entered
+                # username, and then use the canonical version. The entered username might
+                # even be the RealName, and we still would end up here.
+                # Example:
+                # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
+                # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
+                user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
+                # loop through recordName array until error (we do not know the size of the array)
+                record_name_index=0
+                while true; do
+                    if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
+                        break
+                    fi
+                    if [[ "$account_shortname" == "$user_record_name" ]]; then
+                        account_shortname="$user"
+                        echo "   [get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                        break
+                    fi
+                    record_name_index=$((record_name_index+1))
+                done
+                # if needed, compare the RealName (which might contain spaces)
+                if [[ $user_is_volume_owner -eq 0 ]]; then
+                    user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
+                    if [[ "$account_shortname" == "$user_real_name" ]]; then
+                        account_shortname="$user"
+                        echo "   [get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                    fi
+                fi
+            fi
+            shopt -u nocasematch
+        done <<< "$(/usr/bin/fdesetup list)"
+
+        if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
+            echo "   [get_user_details] $account_shortname is not a Volume Owner"
+            user_not_volume_owner=1
+            password_attempts=$((password_attempts+1))
+            continue
+        fi
+
+        # check that the password is correct
+        # ask_for_password_rc=$?
+        # # prevent accidental cancelling by simply pressing return (entering an empty password)
+        # if [[ "$ask_for_password_rc" -ne 0 ]]; then
+        #     echo "   [get_user_details] User cancelled."
+        #     exit 1
+        # fi
         check_password "$account_shortname" "$account_password"
 
         if [[ ( "$password_check" != "pass" ) && ( $max_password_attempts != "infinite" ) && ( $password_attempts -ge $max_password_attempts ) ]]; then
@@ -1201,7 +1225,7 @@ post_prep_work() {
     # set DEPNotify status for rebootdelay if set
     if [[ "$rebootdelay" -gt 10 ]]; then
         if [[ "$use_depnotify" == "yes" ]]; then
-            quit_depnotify
+            quit_dialog
             echo "   [post_prep_work] Opening DEPNotify full screen message (language=$user_language)"
             dn_title="${!dialog_reinstall_title}"
             dn_desc="${!dialog_rebooting_heading}"
@@ -1247,16 +1271,17 @@ post_prep_work() {
 }
 
 # -----------------------------------------------------------------------------
-# Quit DEPNotify
+# Quit dialog
 # -----------------------------------------------------------------------------
-quit_depnotify() {
-    echo "Command: Quit" >> "$depnotify_log"
+quit_dialog() {
+    # echo "quit:" >> "$dialog_log"
+    pkill "$dialog_app"
     # reset all the settings that might be used again
-    /bin/rm "$depnotify_log" "$depnotify_confirmation_file" 2>/dev/null
-    dn_button=""
-    dn_quit_key=""
-    dn_cancel=""
-    # kill dep_notify_progress background job if it's already running
+    /bin/rm "$dialog_log" "$dialog_confirmation_file" 2>/dev/null
+    dialog_button=""
+    dialog_quit_key=""
+    dialog_cancel=""
+    # kill dialog_progress background job if it's already running
     if [ -f "/tmp/depnotify_progress_pid" ]; then
         while read -r i; do
             kill -9 "${i}"
@@ -1266,143 +1291,215 @@ quit_depnotify() {
 }
 
 # -----------------------------------------------------------------------------
-# Run installinstallmacos.py with chosen options.
-# This requires installinstallmacos.py and python, so we first check if these
-# are on the system and download them if not.
+# Set catalog URLs.
+# This provides a shortcut way of obtaining different catalog URLs for different
+# systems.
 # -----------------------------------------------------------------------------
-run_installinstallmacos() {
-    # Download installinstallmacos.py and MacAdmins Python
-    check_installinstallmacos
-    if [[ ! -f "$python_path" ]]; then
-        check_python
-    fi
+get_catalog() {
+    catalogs[17]="https://swscan.apple.com/content/catalogs/others/index-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[18]="https://swscan.apple.com/content/catalogs/others/index-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+}
 
-    # Use installinstallmacos.py to download the desired version of macOS
-    installinstallmacos_args=()
-    installinstallmacos_args+=("--workdir")
-    installinstallmacos_args+=("$workdir")
+# -----------------------------------------------------------------------------
+# Run mist list to get some required output for automation
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+get_mist_list() {
+    # Download mist
+    # TODO
+    # check_mist
+    # TODO
 
-    if [[ $list == "yes" ]]; then
-        echo "   [run_installinstallmacos] List only mode chosen"
-        installinstallmacos_args+=("--list")
-        installinstallmacos_args+=("--warnings")
-    else
-        installinstallmacos_args+=("--ignore-cache")
-    fi
+    mist_args=()
+    mist_args+=("list")
+    mist_args+=("installer")
+    mist_args+=("--compatible")
+    mist_args+=("--export")
+    mist_args+=("$mist_export_file")
 
-    if [[ $pkg_installer ]]; then
-        installinstallmacos_args+=("--pkg")
-    else
-        installinstallmacos_args+=("--raw")
-    fi
-
+    # set alternative catalog if selected
     if [[ $catalogurl ]]; then
-        echo "   [run_installinstallmacos] Non-standard catalog URL selected"
-        installinstallmacos_args+=("--catalogurl")
-        installinstallmacos_args+=("$catalogurl")
-    elif [[ $seedprogram ]]; then
-        echo "   [run_installinstallmacos] Non-standard seedprogram selected"
-        installinstallmacos_args+=("--seed")
-        installinstallmacos_args+=("$seedprogram")
+        echo "   [run_mist] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
     elif [[ $catalog ]]; then
         darwin_version=$(get_darwin_from_os_version "$catalog")
-        echo "   [run_installinstallmacos] Non-default catalog selected (darwin version $darwin_version)"
-        installinstallmacos_args+=("--catalog")
-        installinstallmacos_args+=("$darwin_version")
+        get_catalog
+        echo "   [run_mist] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
     fi
 
+    # include betas if selected
     if [[ $beta == "yes" ]]; then
-        echo "   [run_installinstallmacos] Beta versions included"
-        installinstallmacos_args+=("--beta")
+        echo "   [run_mist] Beta versions included"
+        mist_args+=("--include-betas")
     fi
 
+    # run the command
+    if ! "$mist_bin" "${mist_args[@]}" ; then
+        echo "   [run_mist] An error occurred running mist. Cannot continue."
+        echo
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run mist with chosen options.
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+run_mist() {
+    # first, if we didn't already check for updates, run mist list to get some needed information about builds
+    get_mist_list
+
+    # now clear the variables and build the download command
+    mist_args=()
+    mist_args+=("download")
+    mist_args+=("installer")
+
+    # restrict to a particular OS, version or build if selected
     if [[ $prechosen_os ]]; then
-        echo "   [run_installinstallmacos] Checking that selected OS $prechosen_os is available"
-        installinstallmacos_args+=("--os")
-        installinstallmacos_args+=("$prechosen_os")
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
+        if [[ $prechosen_os -lt $system_os_major ]]; then
+            echo "   [run_mist] ERROR: cannot select an older OS than the system"
+            echo
+            exit 1
+        elif [[ (${prechosen_os:0:2} -eq "10" && $prechosen_os == "10."*"."*) || (${prechosen_os:0:2} -gt "10" && $prechosen_os == *"."*) ]]; then
+            echo "   [run_mist] ERROR: select a major version with --os, e.g. 10.15, 11, 12"
+            echo
+            exit 1
+        fi
+        echo "   [run_mist] Restricting to selected OS $prechosen_os"
+        mist_args+=("$prechosen_os")
 
     elif [[ $prechosen_version ]]; then
-        echo "   [run_installinstallmacos] Checking that selected version $prechosen_version is available"
-        installinstallmacos_args+=("--version")
-        installinstallmacos_args+=("$prechosen_version")
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
+        if [[ ${prechosen_version:0:2} -lt $system_os_major ]]; then
+            echo "   [run_mist] ERROR: cannot select an older OS than the system"
+            echo
+            exit 1
+        elif [[ ${prechosen_version:0:2} -eq $system_os_major && ${prechosen_version:3} -lt $system_os_version ]]; then
+            echo "   [run_mist] ERROR: cannot select an older version than the system"
+            echo
+            exit 1
+        fi
+        echo "   [run_mist] Checking that selected version $prechosen_version is available"
+        mist_args+=("$prechosen_version")
 
     elif [[ $prechosen_build ]]; then
-        echo "   [run_installinstallmacos] Checking that selected build $prechosen_build is available"
-        installinstallmacos_args+=("--build")
-        installinstallmacos_args+=("$prechosen_build")
-        [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]] && installinstallmacos_args+=("--validate")
-    fi
+        builds_available=$(grep -c build "$mist_export_file")
+        build_found=0
+        i=0
+        while [[ $i -lt $builds_available ]]; do
+            build_check=$(ljt $i.build < "$mist_export_file")
+            if [[ "$build_check" == "$prechosen_build" ]]; then
+                build_found=1
+                break
+            fi
+            (( i+1 ))
+        done
+        if [[ $build_found = 0 ]]; then
+            echo "   [run_mist] ERROR: build is not available"
+            echo
+            exit 1
+        fi
+        echo "   [run_mist] Checking that selected build $prechosen_build is available"
+        mist_args+=("$prechosen_build")
 
-    if [[ $samebuild == "yes" ]]; then
-        echo "   [run_installinstallmacos] Checking that current build $system_build is available"
-        installinstallmacos_args+=("--current")
+    elif [[ $samebuild == "yes" ]]; then
+        # temporarily we will just check for the same version
+        echo "   [run_mist] Checking that current version $system_version is available"
+        mist_args+=("$system_version")
 
     elif [[ $sameos == "yes" ]]; then
-        echo "   [run_installinstallmacos] Checking that current OS $system_os_major.$system_os_version is available"
         if [[ $system_os_major == "10" ]]; then
-            installinstallmacos_args+=("--os")
-            installinstallmacos_args+=("$system_os_major.$system_os_version")
+            echo "   [run_mist] Checking that current OS $system_os_major.$system_os_version is available"
+            mist_args+=("$system_os_major.$system_os_version")
         else
-            installinstallmacos_args+=("--os")
-            installinstallmacos_args+=("$system_os_major")
+            echo "   [run_mist] Checking that current OS $system_os_major is available"
+            mist_args+=("$system_os_major")
         fi
-        if [[ $skip_validation != "yes" ]]; then
-            [[ $erase == "yes" || $reinstall == "yes" ]] && installinstallmacos_args+=("--validate")
+
+    else
+        # if no version was selected, we want the latest available, which is the first in the mist-list
+        latest_version=$(ljt '0.version' < "$mist_export_file")
+        if [[ (${latest_version:0:2} -lt $system_os_major) || (${latest_version:0:2} -eq $system_os_major && ${latest_version:3} -lt $system_os_version) ]]; then
+            echo "   [run_mist] ERROR: latest version in catalog $latest_version is older OS than the system version $system_version"
+            echo
+            exit 1
         fi
+        echo "   [run_mist] Selected $latest_version as the latest version available"
+        mist_args+=("$latest_version")
     fi
 
-    if [[ $list != "yes" && ! $prechosen_os && ! $prechosen_version && ! $prechosen_build && ! $samebuild ]]; then
-        echo "   [run_installinstallmacos] Getting current production version"
-        installinstallmacos_args+=("--auto")
+    # set to package type if selected, otherwise we will grab the app
+    if [[ $pkg_installer ]]; then
+        mist_args+=("package")
+        mist_args+=("--package-name")
+        mist_args+=("Install %NAME%.pkg")
+        mist_args+=("--package-identifier")
+        mist_args+=("com.apple.%NAME%.%VERSION%.%BUILD%.pkg")
+        mist_args+=("--output-directory")
+        mist_args+=("$workdir")
+    else
+        mist_args+=("application")
+        mist_args+=("--application-name")
+        mist_args+=("Install %NAME%.app")
+        mist_args+=("--output-directory")
+        mist_args+=("$installer_directory")
+    fi
+
+    # force overwrite of existing app or pkg of the same name
+    mist_args+=("--force")
+
+    # set alternative catalog if selected
+    if [[ $catalogurl ]]; then
+        echo "   [run_mist] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        get_catalog
+        echo "   [run_mist] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    fi
+
+    # include betas if selected
+    if [[ $beta == "yes" ]]; then
+        echo "   [run_mist] Beta versions included"
+        mist_args+=("--include-betas")
     fi
 
     echo
-    echo "   [run_installinstallmacos] This command is now being run:"
+    echo "   [run_mist] This command is now being run:"
     echo
-    echo "   installinstallmacos.py ${installinstallmacos_args[*]}"
+    echo "       mist ${mist_args[*]}"
 
-    # shellcheck disable=SC2086
-    if ! "$python_path" "$workdir/installinstallmacos.py" "${installinstallmacos_args[@]}" ; then
-        echo "   [run_installinstallmacos] Error obtaining valid installer. Cannot continue."
+    if ! "$mist_bin" "${mist_args[@]}" ; then
+        echo "   [run_mist] An error occurred running mist. Cannot continue."
         echo
         exit 1
     fi
 
-    if [[ $list == "yes" ]]; then
-        exit 0
-    fi
+    # Identify the downloaded installer
+    downloaded_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit )
+    downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name 'Install *.pkg' -type f -print -quit 2>/dev/null )
 
-    # Identify the installer dmg
-    downloaded_macos_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
-    downloaded_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
-    downloaded_installer_pkg=$( find "$workdir"/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
-
-    if [[ -f "$downloaded_macos_dmg" ]]; then
-        echo "   [run_installinstallmacos] Mounting disk image to identify installer app."
-        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_macos_dmg" ; then
-            working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        else
-            echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_macos_dmg"
-            exit 1
-        fi
-    elif [[ -f "$downloaded_sparseimage" ]]; then
-        echo "   [run_installinstallmacos] Mounting sparse disk image to identify installer app."
-        if hdiutil attach -quiet -noverify -nobrowse "$downloaded_sparseimage" ; then
-            working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        else
-            echo "   [run_installinstallmacos] ERROR: could not mount $downloaded_sparseimage"
-            exit 1
-        fi
+    if [[ -d "$downloaded_app" ]]; then
+        working_macos_app="$downloaded_app"
     elif [[ -f "$downloaded_installer_pkg" ]]; then
-        echo "   [run_installinstallmacos] InstallAssistant package downloaded to $downloaded_installer_pkg."
+        echo "   [run_mist] Installer package downloaded to $downloaded_installer_pkg."
         working_installer_pkg="$downloaded_installer_pkg"
     else
-        echo "   [run_installinstallmacos] No disk image found. I guess nothing got downloaded."
+        echo "   [run_mist] No installer found. I guess nothing got downloaded."
         exit 1
     fi
+
 }
+
 
 # -----------------------------------------------------------------------------
 # Set localized values for user dialogues 
@@ -1547,19 +1644,19 @@ set_localisations() {
     dialog_nopower_desc_fr="Sortie. Le courant alternatif n'a pas été connecté après avoir attendu:"
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
-    # Dialogue localizations - ask for short name
-    dialog_short_name_en="Please enter an account name to start the reinstallation process"
-    dialog_short_name_de="Bitte geben Sie einen Kontonamen ein, um die Neuinstallation zu starten"
-    dialog_short_name_nl="Voer een accountnaam in om het installatieproces te starten"
-    dialog_short_name_fr="Veuillez entrer un nom de compte pour démarrer le processus de réinstallation"
-    dialog_short_name=dialog_short_name_${user_language}
+    # Dialogue localizations - ask for credentials - erase
+    dialog_erase_credentials_en="Erasing macOS requires authentication using local account credentials. Please enter your account name and password to start the erase process."
+    dialog_erase_credentials_de="Bitte geben Sie einen Kontonamen und Passwort ein, um die Neuinstallation zu starten"
+    dialog_erase_credentials_nl="Voer een accountnaam en wachtwoord in om het installatieproces te starten"
+    dialog_erase_credentials_fr="Veuillez entrer un nom et le mot de passe de compte pour démarrer le processus de réinstallation"
+    dialog_erase_credentials=dialog_erase_credentials_${user_language}
 
-    # Dialogue localizations - ask for password
-    dialog_get_password_en="Please enter the password for the account"
-    dialog_get_password_de="Bitte geben Sie das Passwort für das Konto ein"
-    dialog_get_password_nl="Voer het wachtwoord voor het account in"
-    dialog_get_password_fr="Veuillez saisir le mot de passe du compte"
-    dialog_get_password=dialog_get_password_${user_language}
+    # Dialogue localizations - ask for credentials - reinstall
+    dialog_reinstall_credentials_en="Upgrading macOS requires authentication using local account credentials. Please enter your account name and password to start the upgrade process."
+    dialog_reinstall_credentials_de="Bitte geben Sie einen Kontonamen und Passwort ein, um die Neuinstallation zu starten"
+    dialog_reinstall_credentials_nl="Voer een accountnaam en wachtwoord in om het installatieproces te starten"
+    dialog_reinstall_credentials_fr="Veuillez entrer un nom et le mot de passe de compte pour démarrer le processus de réinstallation"
+    dialog_reinstall_credentials=dialog_reinstall_credentials_${user_language}
 
     # Dialogue localizations - not a volume owner
     dialog_not_volume_owner_en="Account is not a Volume Owner! Please login using one of the following accounts and try again"
@@ -2021,7 +2118,7 @@ while test $# -gt 0 ; do
         --depnotify)
             if [[ -d "$depnotify_app" ]]; then
                 use_depnotify="yes"
-                quit_depnotify
+                quit_dialog
             else
                 check_depnotify_app="yes"
             fi
@@ -2181,22 +2278,12 @@ fi
 LOG_FILE="$workdir/erase-install.log"
 exec > >(tee "${LOG_FILE}") 2>&1
 
-# ensure computer does not go to sleep while running this script
-echo "   [$script_name] Caffeinating this script (pid=$$)"
-/usr/bin/caffeinate -dimsu -w $$ &
-
-# bundled python directory
-relocatable_python_path="$workdir/Python.framework/Versions/Current/bin/python3"
-
-# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
-# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
-extras_directory="$workdir/extras"
-
-# variable to prevent installinstallmacos getting downloaded twice
-iim_downloaded=0
-
 # if getting a list from softwareupdate then we don't need to make any OS checks
-if [[ $list_installers ]]; then
+if [[ $list == "yes" && ! $ffi ]]; then
+    get_mist_list
+    echo
+    exit
+elif [[ $list_installers ]]; then
     if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then 
         rm "$workdir/ffi-list-full-installers.txt"
     fi
@@ -2206,16 +2293,26 @@ if [[ $list_installers ]]; then
     exit
 fi
 
+# ensure computer does not go to sleep while running this script
+echo "   [$script_name] Caffeinating this script (pid=$$)"
+/usr/bin/caffeinate -dimsu -w $$ &
+
+# place any extra packages that should be installed as part of the erase-install into this folder. The script will find them and install.
+# https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
+extras_directory="$workdir/extras"
+
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
 system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
 system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 
+echo "   [$script_name] System version: $system_version"
+
 # set dynamic dialog titles
 if [[ $erase == "yes" ]]; then
-    dialog_window_title="$dialog_erase_title"
+    dialog_window_title="${!dialog_erase_title}"
 else
-    dialog_window_title="$dialog_reinstall_title"
+    dialog_window_title="${!dialog_reinstall_title}"
 fi
 
 # check for power and drive space if invoking erase or reinstall options
@@ -2374,7 +2471,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             dn_icon="$dialog_dl_icon"
             dep_notify
             if [[ -f "$depnotify_confirmation_file" ]]; then
-                quit_depnotify
+                quit_dialog
             fi
         elif [[ -f "$jamfHelper" ]]; then
             echo "   [$script_name] Opening jamfHelper download message (language=$user_language)"
@@ -2386,7 +2483,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
         fi
     fi
 
-    # now run installinstallmacos or softwareupdate
+    # now run mist or softwareupdate
     if [[ $ffi ]]; then
         if [[ ($system_os_major -eq 10 && $system_os_version -ge 15) || $system_os_major -ge 11 ]]; then
             echo "   [$script_name] OS version is $system_os_major.$system_os_version so can run with --fetch-full-installer option"
@@ -2397,13 +2494,13 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             fi
             swu_fetch_full_installer
         else
-            echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to installinstallmacos.py"
+            echo "   [$script_name] OS version is $system_os_major.$system_os_version so cannot run with --fetch-full-installer option. Falling back to using mist"
             if [[ $use_depnotify == "yes" ]]; then
                 # display progress if DEPNotify used
                 dep_notify_progress installinstallmacos >/dev/null 2>&1 &
                 echo $! >> /tmp/depnotify_progress_pid
             fi
-            run_installinstallmacos
+            run_mist
         fi
     else
         if [[ $use_depnotify == "yes" ]]; then
@@ -2411,7 +2508,7 @@ if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; 
             dep_notify_progress installinstallmacos >/dev/null 2>&1 &
             echo $! >> /tmp/depnotify_progress_pid
         fi
-        run_installinstallmacos
+        run_mist
     fi
 fi
 
@@ -2436,12 +2533,11 @@ fi
 # Once finished downloading (and optionally moving), kill the jamfHelper or DEPNotify
 if [[ $use_depnotify == "yes" ]]; then
     echo "   [$script_name] Closing DEPNotify download message (language=$user_language)"
-    quit_depnotify
+    quit_dialog
 elif [[ -f "$jamfHelper" ]]; then
     echo "   [$script_name] Closing jamfHelper download message (language=$user_language)"
     kill_process "jamfHelper"
 fi
-
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Unmount the dmg
@@ -2466,40 +2562,50 @@ fi
 # re-check if there is enough space after a possible installer download
 check_free_space
 
-## Steps beyond here are to run startosinstall
+# -----------------------------------------------------------------------------
+# Steps beyond here are to run startosinstall
+# -----------------------------------------------------------------------------
 
 echo
+# if we still have a packege we need to move it before we can install it
 if [[ -f "$working_installer_pkg" ]]; then
-    # if we still have a packege we need to move it before we can install it
     unpack_pkg_to_applications_folder
 fi
 
+# now look for an installer app
 if [[ ! -d "$working_macos_app" ]]; then
     echo "   [$script_name] ERROR: Can't find the installer! "
     # kill caffeinate
     kill_process "caffeinate"
     exit 1
 fi
-[[ $erase == "yes" ]] && echo "   [$script_name] WARNING! Running $working_macos_app with eraseinstall option"
-[[ $reinstall == "yes" ]] && echo "   [$script_name] WARNING! Running $working_macos_app with reinstall option"
+
+# warnings
+if [[ $erase == "yes" ]]; then 
+    echo "   [$script_name] WARNING! Running $working_macos_app with eraseinstall option"
+elif [[ $reinstall == "yes" ]]; then 
+    echo "   [$script_name] WARNING! Running $working_macos_app with reinstall option"
+fi
 echo
 
-# If configured to do so, display a confirmation window to the user. Note: default button is cancel
+# if configured to do so, display a confirmation window to the user
 if [[ $confirm == "yes" ]]; then
     confirm
 fi
 
-# determine SIP status, as the volume is required if SIP is disabled
-/usr/bin/csrutil status | sed -n 1p | grep -q 'disabled' && sip="disabled" || sip="enabled"
-
-# set install argument for erase option
+# set eraseinstall argument for erase option
 install_args=()
 if [[ $erase == "yes" ]]; then
     install_args+=("--eraseinstall")
-elif [[ $reinstall == "yes" && $sip == "disabled" ]]; then
-    volname=$(diskutil info -plist / | grep -A1 "VolumeName" | tail -n 1 | awk -F '<string>|</string>' '{ print $2; exit; }')
-    install_args+=("--volume")
-    install_args+=("/Volumes/$volname")
+fi
+
+# reinstall option: determine SIP status, as the volume name is required in the startosinstall command if SIP is disabled
+if [[ $reinstall == "yes" ]]; then
+    if /usr/bin/csrutil status | sed -n 1p | grep -q 'disabled'; then
+        volname=$(diskutil info -plist / | grep -A1 "VolumeName" | tail -n 1 | awk -F '<string>|</string>' '{ print $2; exit; }')
+        install_args+=("--volume")
+        install_args+=("/Volumes/$volname")
+    fi
 fi
 
 # check for packages then add install_package_list to end of command line (empty if no packages found)
@@ -2544,10 +2650,6 @@ if [[ $erase == "yes" && $newvolumename ]]; then
     install_args+=("$newvolumename")
 fi
 
-# icons for Jamf Helper erase and re-install windows
-dialog_erase_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-dialog_reinstall_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-
 # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
 if [[ $no_fs == "yes" || $rebootdelay -gt 10 ]]; then
     window_type="utility"
@@ -2557,6 +2659,7 @@ fi
 
 # dialogs for erase
 if [[ $erase == "yes" ]]; then
+    dialog_erase_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
     if [[ $use_depnotify == "yes" ]]; then
         echo "   [$script_name] Opening DEPNotify message (language=$user_language)"
         dn_title="${!dialog_erase_title}"
@@ -2568,7 +2671,7 @@ if [[ $erase == "yes" ]]; then
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            quit_depnotify
+            quit_dialog
         fi
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
@@ -2581,6 +2684,7 @@ if [[ $erase == "yes" ]]; then
 
 # dialogs for reinstallation
 elif [[ $reinstall == "yes" ]]; then
+    dialog_reinstall_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
     if [[ $use_depnotify == "yes" ]]; then
         echo "   [$script_name] Opening DEPNotify message (language=$user_language)"
         dn_title="${!dialog_reinstall_title}"
@@ -2596,7 +2700,7 @@ elif [[ $reinstall == "yes" ]]; then
         dep_notify_progress startosinstall >/dev/null 2>&1 &
         echo $! >> /tmp/depnotify_progress_pid
         if [[ -f "$depnotify_confirmation_file" ]]; then
-            quit_depnotify
+            quit_dialog
         fi
     elif [[ -f "$jamfHelper" ]]; then
         echo "   [$script_name] Opening jamfHelper message (language=$user_language)"
@@ -2648,6 +2752,7 @@ pipe_output=$( create_pipe "$script_name.out" )
 exec 4<> "$pipe_output"
 /bin/cat <&4 &
 pipePID=$!
+
 # now actually run startosinstall
 launch_startosinstall "$pipe_input" "$pipe_output" "$pipe_output"
 if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
@@ -2655,9 +2760,11 @@ if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
     /bin/cat >&3 <<< "$account_password"
 fi
 exec 3>&-
+
 # wait for cat command to quit, but no longer than 1 hour
 (sleep 3600; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
 wait $pipePID
+
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
 echo "   [$script_name] Reached end of script. Exit with error 42."
 exit 42
