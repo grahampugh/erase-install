@@ -9,6 +9,19 @@ No date
 No date
 
 - Calls to `installinstallmacos.py` have been replaced with calls to `mist`.
+- Downloads are now only available as a `pkg` or an `app`. Downlaoding of a `sparseimage` has been discontinued, though the script will continue to search for them to allow for upgrade from earlier versions of erase-install without having to re-download the installer.
+- Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog).
+- The minimum compatible OS for swiftDialog is macOS Catalina 10.15. If you need to upgrade a Mac on an older version of macOS, use Version 27.0 of erase-install.
+- For testing purposes, a username and password may be placed in a custom keychain. Username is optional as the current user can be used. To create the keychain and add the keys, run the following commands:
+  - `security create-keychain -P NAME_OF_KEYCHAIN` - this will prompt you to create a password for the keychain. The keychain will be stored in `~/Library/Keychains`. `NAME_OF_KEYCHAIN` must match the value you give to the `--kc` key. The password you create must match the value you give to the `--kc-pass` key.
+  - `security add-generic-password -s NAME_OF_SERVICE -a NAME_OF_USER -w PASSWORD erase-install` - `NAME_OF_SERVICE` must match the value you provide to the `--kc-service` key. `NAME_OF_USER` and `PASSWORD` must be the valid credentials of an account on the computer with Volume Ownership.
+  
+### Known issues
+
+- Many of the dialog messages have changed considerably since the previous version, to take advantage of the extra capabilities of swiftDialog. The English messages probably still need working on, and the messages in other languages have not been updated at all. Help wanted!
+- Some processes appear to still run after the script has finished when using `--test-run`. These do not appear to affect future usage, but you may hear a timeout alert after one hour.
+- Some of the options previously provided by `--fs` and `--no-fs` are currently ignored.
+- It is not currently possible to download an installer app to a location of your choice, such as the working directory. The app is always downloaded to `/Applications`.
 
 ## [27.0]
 

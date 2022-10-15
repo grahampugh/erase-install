@@ -1,8 +1,0 @@
-# .DS_Store files!
-.DS_Store
-
-# our build directory
-build/
-
-# package products
-payload/Library/Management/erase-install/*
