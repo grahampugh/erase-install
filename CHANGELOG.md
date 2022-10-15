@@ -4,7 +4,15 @@
 
 No date
 
+## [28.0]
+
+No date
+
+- Calls to `installinstallmacos.py` have been replaced with calls to `mist`.
+
 ## [27.0]
+
+No date
 
 - Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine (thanks to @cvgs).
 - Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field) (thanks to @cvgs).
@@ -438,7 +446,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v27.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v28.0...HEAD
+[28.0]: https://github.com/grahampugh/erase-install/compare/v27.0...v28.0
 [27.0]: https://github.com/grahampugh/erase-install/compare/v26.2...v27.0
 [26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
 [26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
