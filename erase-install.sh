@@ -16,18 +16,18 @@ WARNING. This is a self-destruct script. Do not try it out on your own device!
 See README.md and the GitHub repo's Wiki for details on use.
 
 It is recommended to use the package installer of this script. It contains 
-
 swiftDialog and mist, which are required for most of the use-cases of this script.
 
 This script can, however, also be run standalone.
-It will download and install swiftDialog if not found.
+It will download and install swiftDialog if needed and not found.
 It will also download mist if it is not found.
 Suppress the downloads with the --no-curl option.
 
 Requirements:
 - macOS 12.4+
 - macOS 10.13.4+ (for --erase option)
-- macOS 10.15+ (for --fetch-full-installer option)
+- macOS 10.15+ (for --fetch-full-installer option, and for mist)
+- macOS 11+ (for dialogs)
 - Device file system is APFS
 DOC
 
@@ -177,7 +177,7 @@ ask_for_credentials() {
 }
 
 # -----------------------------------------------------------------------------
-# Download dialog if not present.
+# Download dialog if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_dialog_app() {
     if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
@@ -222,6 +222,10 @@ check_free_space() {
     # if there isn't enough space, then we show a failure message to the user
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         echo "   [check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
+    elif [[ ! $silent ]]; then
+        echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
+        echo
+        exit 1
     else
         echo "   [check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         # set the dialog command arguments
@@ -239,7 +243,6 @@ check_free_space() {
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
-
         exit 1
     fi
 }
@@ -318,7 +321,7 @@ check_installer_is_valid() {
 # InstallAssistant-VERSION-BUILD.pkg
 # Extracting an actual version from the package is slow as the entire package 
 # must be unpackaged to read the PackageInfo file, so we just grab it from the 
-# filename instead, as installinstallmacos.py already did the check.
+# filename instead, as mist already did the check.
 # -----------------------------------------------------------------------------
 check_installer_pkg_is_valid() {
     echo "   [check_installer_pkg_is_valid] Checking validity of $cached_installer_pkg."
@@ -439,11 +442,15 @@ check_password() {
 check_power_status() {
     # default power_wait_timer to 60 seconds
     if [[ ! $power_wait_timer ]]; then 
-        power_wait_timer=5
+        power_wait_timer=60
     fi
 
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         echo "   [check_power_status] OK - AC power detected"
+    elif [[ ! $silent ]]; then
+        echo "   [wait_for_power] ERROR - No AC power detected, cannot continue."
+        echo
+        exit 1
     else
         echo "   [check_power_status] WARNING - No AC power detected"
         # set the dialog command arguments
@@ -491,7 +498,8 @@ check_power_status() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
 
-        echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer_friendly}, cannot continue."
+        echo "   [wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}, cannot continue."
+        echo
         exit 1
     fi
 }
@@ -587,6 +595,7 @@ compare_build_versions() {
 # -----------------------------------------------------------------------------
 # Confirmation dialogue. 
 # Called when --confirm option is used.
+# Not used in --silent mode.
 # -----------------------------------------------------------------------------
 confirm() {
     # set the dialog command arguments
@@ -768,12 +777,24 @@ dialog_progress() {
 # -----------------------------------------------------------------------------
 find_existing_installer() {
     # First let's see if this script has been run before and left an installer
-    cached_dmg=$( find "$workdir/"*.dmg -maxdepth 1 -type f -print -quit 2>/dev/null )
-    cached_sparseimage=$( find "$workdir/"*.sparseimage -maxdepth 1 -type f -print -quit 2>/dev/null )
-    cached_installer_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-    cached_installer_pkg=$( find "$workdir/InstallAssistant"*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
+    cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+    cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+    cached_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
+    cached_dmg=$( find "$workdir" -maxdepth 1 -name "*.dmg" -type f -print -quit 2>/dev/null )
+    cached_sparseimage=$( find "$workdir" -maxdepth 1 -name "*.sparseimage" -type f -print -quit 2>/dev/null )
 
-    if [[ -f "$cached_dmg" ]]; then
+    if [[ -d "$cached_installer_app" ]]; then
+        echo "   [find_existing_installer] Installer found at $cached_installer_app."
+        app_is_in_applications_folder="yes"
+        check_installer_is_valid
+    elif [[ -d "$cached_installer_app_in_workdir" ]]; then
+        cached_installer_app="$cached_installer_app_in_workdir"
+        echo "   [find_existing_installer] Installer found at $cached_installer_app."
+        check_installer_is_valid
+    elif [[ -f "$cached_installer_pkg" ]]; then
+        echo "   [find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
+        check_installer_pkg_is_valid
+    elif [[ -f "$cached_dmg" ]]; then
         echo "   [find_existing_installer] Installer image found at $cached_dmg."
         hdiutil attach -quiet -noverify -nobrowse "$cached_dmg"
         cached_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
@@ -783,13 +804,6 @@ find_existing_installer() {
         hdiutil attach -quiet -noverify -nobrowse "$cached_sparseimage"
         cached_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         check_installer_is_valid
-    elif [[ -d "$cached_installer_app" ]]; then
-        echo "   [find_existing_installer] Installer found at $cached_installer_app."
-        app_is_in_applications_folder="yes"
-        check_installer_is_valid
-    elif [[ -f "$cached_installer_pkg" ]]; then
-        echo "   [find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
-        check_installer_pkg_is_valid
     else
         echo "   [find_existing_installer] No valid installer found."
         if [[ $clear_cache == "yes" ]]; then
@@ -823,7 +837,7 @@ finish() {
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-        echo "     [finish] User $promoted_user was demoted back to standard user"
+        echo "   [finish] User $promoted_user was demoted back to standard user"
     fi
 
     # remove pipe files
@@ -835,7 +849,7 @@ finish() {
 
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
-        echo "     [finish] quitting dialog"
+        echo "   [finish] quitting dialog"
         /bin/echo "quit:" >> "$dialog_log"
     fi
 
@@ -903,7 +917,7 @@ get_user_details() {
         # otherwise, ask via dialog
         if [[ $password_attempts = 1 && $kc && $kc_pass ]]; then
             read_from_keychain
-        else
+        elif [[ ! $silent ]]; then
             ask_for_credentials
             # get account name (short name) and password
             account_shortname=$(ljt '/Username' < "$dialog_output")
@@ -911,26 +925,22 @@ get_user_details() {
         fi
 
         if [[ ! "$account_shortname" ]]; then
-            if [[ "$current_user" ]]; then
-                account_shortname="$current_user"
-            else
-                echo "   [get_user_details] Current user was not determined."
-                invalid_user=1
-                if [[ "$password_check" != "pass" && $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
-                    no_more_password_attempts
-                    exit 1
+            echo "   [get_user_details] Current user was not determined."
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+                user_is_invalid
+                echo
+                exit 1
             fi
-                password_attempts=$((password_attempts+1))
-                continue
-            fi
+            password_attempts=$((password_attempts+1))
+            continue
         fi
 
         # check that this user exists
         if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
             echo "   [get_user_details] $account_shortname account cannot be found!"
-            invalid_user=1
-            if [[ "$password_check" != "pass" && $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
-                no_more_password_attempts
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+                password_is_invalid
+                echo
                 exit 1
             fi
             password_attempts=$((password_attempts+1))
@@ -986,8 +996,8 @@ get_user_details() {
         if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
             echo "   [get_user_details] $account_shortname is not a Volume Owner"
             user_not_volume_owner=1
-            if [[ "$password_check" != "pass" && $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
-                no_more_password_attempts
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+                password_is_invalid
                 exit 1
             fi
             password_attempts=$((password_attempts+1))
@@ -997,8 +1007,8 @@ get_user_details() {
         # check that the password is correct
         check_password "$account_shortname" "$account_password"
 
-        if [[ "$password_check" != "pass" && $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
-            invalid_password
+        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent)  ]]; then
+            password_is_invalid
             exit 1
         fi
         password_attempts=$((password_attempts+1))
@@ -1012,7 +1022,7 @@ get_user_details() {
                 promoted_user="$account_shortname"
             else
                 echo "   [get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                invalid_user
+                user_is_invalid
                 exit 1
             fi
         fi
@@ -1110,8 +1120,8 @@ move_to_applications_folder() {
     if [[ $app_is_in_applications_folder == "yes" ]]; then
         echo "   [move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
-        echo "   [move_to_applications_folder] Moving installer to $installer_directory folder"
-        # we are actually copying it, not moving it, because we arae in a mounted image
+        echo "   [move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
+        # we are actually copying it, not moving it, because we are in a mounted image
         cp -R "$working_macos_app" "$installer_directory/"
         cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
         # unmount the image
@@ -1141,7 +1151,7 @@ overwrite_existing_installer() {
         existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
         diskutil unmount force "$existing_installer_mount_point"
     fi
-    rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg"
+    rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg" 
     rm -rf "$cached_installer_app"
     app_is_in_applications_folder=""
     if [[ $clear_cache == "yes" ]]; then
@@ -1155,7 +1165,7 @@ overwrite_existing_installer() {
 # -----------------------------------------------------------------------------
 post_prep_work() {
     # set dialog progress for rebootdelay if set
-    if [[ "$rebootdelay" -gt 10 ]]; then
+    if [[ "$rebootdelay" -gt 10 && ! $silent ]]; then
         # quit an existing window
         echo "quit:" >> "$dialog_log"
         echo "   [post_prep_work] Opening full screen dialog (language=$user_language)"
@@ -1291,7 +1301,7 @@ run_fetch_full_installer() {
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
                 if [[ (${latest_ffi:0:2} -lt $system_os_major) || (${latest_ffi:0:2} -eq $latest_ffi && ${latest_ffi:3} -lt $system_os_version) ]]; then
-                    echo "   [run_mist] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
+                    echo "   [run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
                     echo
                     exit 1
                 fi
@@ -1421,8 +1431,8 @@ run_mist() {
         mist_args+=("$latest_version")
     fi
 
-    # set to package type if selected, otherwise we will grab the app
-    if [[ $pkg_installer ]]; then
+    # grab package if --pkg selected and --move is not selected, otherwise we will grab the app
+    if [[ $pkg_installer && ! $move_to_applications_folder ]]; then
         mist_args+=("package")
         mist_args+=("--package-name")
         mist_args+=("$default_downloaded_pkg_name")
@@ -1474,15 +1484,20 @@ run_mist() {
     fi
 
     # Identify the downloaded installer
-    downloaded_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit )
-    downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name 'Install *.pkg' -type f -print -quit 2>/dev/null )
+    downloaded_app=$( find "$installer_directory" -maxdepth 1 -name "$default_downloaded_app_name" -type d -print -quit )
+    downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name "$default_downloaded_pkg_name" -type f -print -quit 2>/dev/null )
 
     # Identify the installer dmg
     cached_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
     cached_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
-    cached_installer_pkg=$( find "$workdir"/InstallAssistant*.pkg -maxdepth 1 -type f -print -quit 2>/dev/null )
 
-    if [[ -f "$cached_dmg" ]]; then
+    if [[ -d "$downloaded_app" ]]; then
+        echo "   [run_mist] $default_downloaded_app_name downloaded to $cached_installer_pkg."
+        working_macos_app="$downloaded_app"
+    elif [[ -f "$downloaded_installer_pkg" ]]; then
+        echo "   [run_mist] $default_downloaded_pkg_name downloaded to $cached_installer_pkg."
+        working_installer_pkg="$downloaded_installer_pkg"
+    elif [[ -f "$cached_dmg" ]]; then
         echo "   [run_mist] Mounting disk image to identify installer app."
         if hdiutil attach -quiet -noverify -nobrowse "$cached_dmg" ; then
             working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
@@ -1498,9 +1513,6 @@ run_mist() {
             echo "   [run_mist] ERROR: could not mount $cached_sparseimage"
             exit 1
         fi
-    elif [[ -f "$cached_installer_pkg" ]]; then
-        echo "   [run_installinstallmacos] InstallAssistant package downloaded to $cached_installer_pkg."
-        working_installer_pkg="$cached_installer_pkg"
     else
         echo "   [run_mist] No installer found. I guess nothing got downloaded."
         exit 1
@@ -1734,65 +1746,62 @@ set_seedprogram() {
 # Usage message
 # -----------------------------------------------------------------------------
 show_help() {
-    echo "
+    echo
+    /bin/cat << HELP
     [$script_name] by @GrahamRPugh
 
     Common usage:
-    [sudo] ./erase-install.sh [--list]  [--overwrite] [--move] [--path /path/to]
-                [--build XYZ] [--os X.Y] [--version X.Y.Z] [--samebuild] [--sameos]
-                [--update] [--beta] [--seedprogram ...] [--erase] [--reinstall]
-                [--test-run] [--current-user]
+    [sudo] ./erase-install.sh [--list] [--erase] [--reinstall] [--move]
+                [--os MAJOR_VERSION] [--version MAJOR_VERSION.MINOR_VERSION] [--samebuild] [--sameos]
+                [--update] [--beta] [--replace-invalid] [--overwrite]
+                [--test-run]
 
+    Standard options for list, download, reinstall and erase: 
+
+    --list              List available updates only (don't download anything)
     [no flags]          Finds latest current production, non-forked version
                         of macOS, downloads it.
-    --no-curl           Prevents the download of swiftDialog or mist in case your
-                        security team don't like it.
-    --list              List available updates only (don't download anything)
-    --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
-                        options
-    --catalog ...       Override the default catalog with one from a different OS (overrides seedprogram)
-    --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
-    --samebuild         Finds the build of macOS that matches the
-                        existing system version, downloads it.
-    --sameos            Finds the version of macOS that matches the
-                        existing system version, downloads it.
+    --move              Moves the downloaded macOS installer to $installer_directory
+    --reinstall         After download, reinstalls macOS without erasing the
+                        current system
+    --erase             After download, erases the current system
+                        and reinstalls macOS.
+    --confirm           Displays a confirmation dialog prior to erasing or reinstalling macOS.
+    --check-power       Checks for AC power if set.
+    --power-wait-limit NN
+                        Maximum seconds to wait for detection of AC power, if
+                        --check-power is set. Default is 60.
+
+    Options for filtering which installer to download/use:
+
     --os X.Y            Finds a specific inputted OS version of macOS if available
                         and downloads it if so. Will choose the latest matching build.
     --version X.Y.Z     Finds a specific inputted minor version of macOS if available
                         and downloads it if so. Will choose the latest matching build.
     --build XYZ         Finds a specific inputted build of macOS if available
                         and downloads it if so.
-    --update            Checks that an existing installer on the system is still current,
-                        if not, it will delete it and download the current installer.
+    --sameos            Finds the version of macOS that matches the
+                        existing system version, downloads it. Most useful with --erase.
+    --samebuild         Finds the build of macOS that matches the
+                        existing system version, downloads it. Most useful with --erase.
+    --update            Checks that an existing installer on the system is still the most current
+                        valid build, and if not, it will delete it and download the current installer.
     --replace-invalid   Checks that an existing installer on the system is still valid
                         i.e. would successfully build on this system. If not, deletes it
-                        and downloads the current installer.
+                        and downloads the current installer within the limits set by --os or --version.
+    --overwrite         Delete any existing macOS installer found in $installer_directory and download
+                        the current installer within the limits set by --os or --version.
     --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
                         the existing installer is removed but not replaced. This is useful
                         for running the script after an upgrade to clear the working files.
     --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
                         in conjunction with the --reinstall option.
-    --move              Moves the downloaded macOS installer to $installer_directory
-    --path /path/to     Overrides the destination of --move to a specified directory
-    --erase             After download, erases the current system
-                        and reinstalls macOS.
+
+
+    Advanced options:
+
     --newvolumename     If using the --erase option, lets you customize the name of the
                         clean volume. Default is 'Macintosh HD'.
-    --confirm           Displays a confirmation dialog prior to erasing the current
-                        system and reinstalling macOS.
-    --fs                Uses full-screen windows for all stages, not just the
-                        preparation phase.
-    --reinstall         After download, reinstalls macOS without erasing the
-                        current system
-    --overwrite         Download macOS installer even if an installer
-                        already exists in $installer_directory
-    --extras /path/to   Overrides the path to search for extra packages
-    --beta              Include beta versions in the search. Works with the no-flag
-                        (i.e. automatic), --os and --version arguments.
-    --check-power       Checks for AC power if set.
-    --power-wait-limit NN
-                        Maximum seconds to wait for detection of AC power, if
-                        --check-power is set. Default is 60.
     --preinstall-command 'some arbitrary command'
                         Supply a shell command to run immediately prior to startosinstall
                         running. An example might be 'jamf recon -department Spare'.
@@ -1802,54 +1811,66 @@ show_help() {
                         completes preparation, but before reboot.
                         An example might be 'jamf recon -department Spare'.
                         Ensure that the command is in quotes.
+    --catalog ...       Override the default catalog with one from a different OS (overrides seedprogram)
+    --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
+    --pkg               Creates a package from the installer. Ignored if --move, --erase or --reinstall is selected.
+                        Note that mist takes a long time to build the package from the complete installer, so
+                        this method is not recommended for normal workflows.
+    --keep-pkg          Retains a cached package if --move is used to extract an installer from it.
+    --fs                Uses full-screen windows for all stages, not just the
+                        preparation phase.
+    --no-fs             Replaces the full-screen dialog window with a smaller dialog,
+                        so you can still access the desktop while the script runs.
+    --beta              Include beta versions in the search. Works with the no-flag
+                        (i.e. automatic), --os and --version arguments.
+    --path /path/to     Overrides the destination of --move to a specified directory
+    --min-drive-space   Override the default minimum space required for startosinstall
+                        to run (45 GB).
+    --no-curl           Prevents the download of swiftDialog or mist in case your
+                        security team don't like it.
 
+    Extra packages:
+        startosinstall --eraseinstall can install packages after the new installation. 
+        By default, erase-install.sh will look for packages in $workdir/extras. 
+
+    --extras /path/to   Overrides the path to search for extra packages
 
     Parameters for use with Apple Silicon Mac:
-      Note that startosinstall requires user authentication on AS Mac. The user
-      must have a Secure Token. This script checks for the Secure Token of the
-      supplied user. A dialog is used to supply the password, so
-      this script cannot be run at the login window or from remote terminal.
-    --current-user      Authenticate startosinstall using the current user
-    --user XYZ          Supply a user with which to authenticate startosinstall
+        Note that startosinstall requires user authentication on AS Mac. The user
+        must have a Secure Token. This script checks for the Secure Token of the
+        supplied user. A dialog is used to supply the password, so
+        this script cannot be run at the login window or from remote terminal.
+
     --max-password-attempts NN | infinite
                         Overrides the default of 5 attempts to ask for the user's password. Using
                         'infinite' will disable the Cancel button and asking until the password is
                         successfully verified.
 
-    Experimental features for macOS 10.15+:
-    --fetch-full-installer
-                        For compatible computers (10.15+) obtain the installer using
-                        'softwareupdate --fetch-full-installer' method instead of
-                        using installinstallmacos.py
+    Experimental features:
+
+    --fetch-full-installer | --ffi | -f
+                        Obtain the installer using 'softwareupdate --fetch-full-installer' method instead of
+                        using mist
     --list              List installers using 'softwareupdate --list-full-installers' when
                         called with --fetch-full-installer
-
-    Experimental features for macOS 11+:
-    --pkg               Downloads a package installer rather than the installer app.
-                        Can be used with the --reinstall and --erase options.
+    --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
+                        options.
     --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
-
-    Note: If existing installer is found, this script will not check
-          to see if it matches the installed system version. It will
-          only check whether it is a valid installer. If you need to
-          ensure that the currently installed version of macOS is used
-          to wipe the device, use one of the --overwrite, --update or
-          --replace-invalid parameters.
+    --kc                Keychain containing a user password (do not use the login keychain!!)
+    --kc-pass           Password to open the keychain
+    --kc-service        The name of the key containing the account and password
+    --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
+                        to provide a password.
+    --preservecontainer Preserves other volumes in your APFS container when using --erase.
 
     Parameters useful in testing this script:
+
     --test-run          Run through the script right to the end, but do not actually
                         run the 'startosinstall' command. The command that would be
                         run is shown in stdout.
-    --no-fs             Replaces the full-screen dialog window with a smaller dialog,
-                        so you can still access the desktop while the script runs.
-    --min-drive-space   override the default minimum space required for startosinstall
-                        to run (45 GB).
     --workdir /path/to  Supply an alternative working directory. The default is the same
                         directory in which erase-install.sh is saved.
-    --kc                Keychain containing a user password (do not use the login keychain!!)
-    --kc-pass           Password to open the keychain
-    --kc-service   The name of the key containing the account and password
-    "
+HELP
     exit
 }
 
@@ -1911,42 +1932,48 @@ unpack_pkg_to_applications_folder() {
 # startosinstall
 # This is required on Apple Silicon Mac
 # -----------------------------------------------------------------------------
-invalid_user() {
+user_is_invalid() {
     # required for Silicon Macs
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "--title"
-        "${!dialog_window_title}"
-        "--icon"
-        "${dialog_warning_icon}"
-        "--message"
-        "${!dialog_invalid_user}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}"
+    echo "   [user_is_invalid] ERROR - user was not validated."
+    if [[ ! $silent ]]; then
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_window_title}"
+            "--icon"
+            "${dialog_warning_icon}"
+            "--message"
+            "${!dialog_invalid_user}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+    fi
 }
 
 # -----------------------------------------------------------------------------
 # Open dialog to show that the password is not valid
 # This is required on Apple Silicon Mac
 # -----------------------------------------------------------------------------
-invalid_password() {
+password_is_invalid() {
     # required for Silicon Macs
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "--title"
-        "${!dialog_window_title}"
-        "--icon"
-        "${dialog_warning_icon}"
-        "--message"
-        "${!dialog_invalid_password} $user"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}"
+    echo "   [password_is_invalid] ERROR - password is invalid."
+    if [[ ! $silent ]]; then
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_window_title}"
+            "--icon"
+            "${dialog_warning_icon}"
+            "--message"
+            "${!dialog_password_is_invalid} $user"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -1955,21 +1982,23 @@ invalid_password() {
 # -----------------------------------------------------------------------------
 user_not_volume_owner() {
     # required for Silicon Macs
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "--title"
-        "${!dialog_window_title}"
-        "--icon"
-        "${dialog_warning_icon}"
-        "--message"
-        "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}"
+    echo "   [user_is_invalid] ERROR - user is not a Volume Owner."
+    if [[ ! $silent ]]; then
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_window_title}"
+            "--icon"
+            "${dialog_warning_icon}"
+            "--message"
+            "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+    fi
 }
-
 
 # =============================================================================
 # Main Body 
@@ -2024,19 +2053,21 @@ while test $# -gt 0 ; do
             ;;
         -l|--list) list="yes"
             ;;
+        -s|--silent) silent="yes"
+            ;;
         --pkg) pkg_installer="yes"
             ;;
         --keep-pkg) keep_pkg="yes"
             ;;
         --no-curl) no_curl="yes"
             ;;
+        --dialog-on-download) dl_dialog="yes"
+            ;;
         --no-fs) no_fs="yes"
             ;;
         --fs) fs="yes"
             ;;
         --skip-validation) skip_validation="yes"
-            ;;
-        --current-user) use_current_user="yes"
             ;;
         --user)
             shift
@@ -2132,6 +2163,15 @@ while test $# -gt 0 ; do
             shift
             kc_service="$1"
             ;;
+        --kc=*)
+            kc=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --kc-pass*)
+            kc_pass=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --kc-service*)
+            kc_service=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -2197,6 +2237,32 @@ done
 echo
 echo "   [$script_name] v$version script execution started: $(date)"
 
+# some options vary based on installer versions
+system_version=$( /usr/bin/sw_vers -productVersion )
+system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
+system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
+system_build=$( /usr/bin/sw_vers -buildVersion )
+
+echo "   [$script_name] System version: $system_version (Build: $system_build)"
+
+# bail if system is older than macOS 10.15
+if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
+    echo "   [$script_name] This script requires macOS 10.15 or newer. Plesse use version 27.x of erase-install.sh on older systems."
+    echo
+    exit 1
+fi
+
+if [[ ! $silent ]]; then
+    # bail if system is older than macOS 11 and --silent mode is not selected
+    if [[ $system_os_major -lt 11 ]]; then
+        echo "   [$script_name] This script requires macOS 11 or newer in interactive mode. Please use version 27.x of erase-install.sh on older systems."
+        echo
+        exit 1
+    fi
+    # get dialog app if not silent mode
+    check_for_dialog_app
+fi
+
 # /Applications is the only path for fetch-full-installer
 if [[ $ffi ]]; then
     installer_directory="/Applications"
@@ -2243,14 +2309,6 @@ echo "   [$script_name] Caffeinating this script (pid=$$)"
 # https://derflounder.wordpress.com/2017/09/26/using-the-macos-high-sierra-os-installers-startosinstall-tool-to-install-additional-packages-as-post-upgrade-tasks/
 extras_directory="$workdir/extras"
 
-# some options vary based on installer versions
-system_version=$( /usr/bin/sw_vers -productVersion )
-system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
-system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
-system_build=$( /usr/bin/sw_vers -buildVersion )
-
-echo "   [$script_name] System version: $system_version (Build: $system_build)"
-
 # set dynamic dialog titles
 if [[ $erase == "yes" ]]; then
     dialog_window_title="${!dialog_erase_title}"
@@ -2258,7 +2316,6 @@ else
     dialog_window_title="${!dialog_reinstall_title}"
 fi
 
-# check for power and drive space if invoking erase or reinstall options
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     # announce that the Test Run mode is implemented
     if [[ $test_run == "yes" ]]; then
@@ -2271,10 +2328,7 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         echo
     fi
 
-    # get dialog app
-    check_dialog
-
-    # check there is enough space
+    # check for drive space if invoking erase or reinstall options
     check_free_space
 fi
 
@@ -2384,34 +2438,39 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
 fi
 
 # check for power
-[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") ]] && check_power_status
+[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") && ! $silent ]] && check_power_status
 
-if [[ (! -d "$working_macos_app" && ! -f "$working_installer_pkg") || $list ]]; then
-    # if erasing or reinstalling, open a dialog to state that the download is taking place.
-    if [[ $erase == "yes" || $reinstall == "yes" ]]; then
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "--title"
-            "${!dialog_dl_title}"
-            "--icon"
-            "${dialog_dl_icon}"
-            "--message"
-            "${!dialog_dl_desc}"
-            "--progress"
-            "100"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
+    if [[ ! $silent ]]; then
+        # if erasing or reinstalling, open a dialog to state that the download is taking place.
+        if [[ $erase == "yes" || $reinstall == "yes" || $dl_dialog == "yes" ]]; then
+            # set the dialog command arguments
+            get_default_dialog_args "utility"
+            dialog_args=("${default_dialog_args[@]}")
+            dialog_args+=(
+                "--title"
+                "${!dialog_dl_title}"
+                "--icon"
+                "${dialog_dl_icon}"
+                "--message"
+                "${!dialog_dl_desc}"
+                "--progress"
+                "100"
+            )
+            # run the dialog command
+            "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+        fi
+
+        if [[ $ffi ]]; then
+            dialog_progress fetch-full-installer >/dev/null 2>&1 &
+        else
+            dialog_progress mist >/dev/null 2>&1 &
+        fi
     fi
-
     # now run mist or softwareupdate to download the installer, showing progress
     if [[ $ffi ]]; then
-        dialog_progress fetch-full-installer >/dev/null 2>&1 &
         run_fetch_full_installer
     else
-        dialog_progress mist >/dev/null 2>&1 &
         run_mist
     fi
 fi
@@ -2422,7 +2481,7 @@ fi
 
 # Move to $installer_directory if move_to_applications_folder flag is included
 # Not relevant for fetch_full_installer option
-if [[ $move == "yes" && ("$cached_installer_pkg" || "$cached_sparseimage" || "$cached_dmg" ) ]]; then
+if [[ $move == "yes" && ("$cached_installer_pkg" || "$cached_installer_app" || "$cached_sparseimage" || "$cached_dmg" ) ]]; then
     echo "   [$script_name] Invoking --move option"
     echo "progresstext: Moving installer to Applications folder" >> "$dialog_log"
     if [[ -f "$working_installer_pkg" ]]; then
@@ -2431,9 +2490,12 @@ if [[ $move == "yes" && ("$cached_installer_pkg" || "$cached_sparseimage" || "$c
         move_to_applications_folder
     fi
 fi
-# quit dialog when the download is complete
-echo "quit:" >> "$dialog_log" & sleep 0.1
-echo "" > "$dialog_log"
+
+if [[ ! $silent ]]; then
+    # quit dialog when the download is complete
+    echo "quit:" >> "$dialog_log" & sleep 0.1
+    echo "" > "$dialog_log"
+fi
 
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     # Unmount the dmg
@@ -2485,7 +2547,7 @@ fi
 echo
 
 # if configured to do so, display a confirmation window to the user
-if [[ $confirm == "yes" ]]; then
+if [[ $confirm == "yes" && ! $silent ]]; then
     confirm
 fi
 
@@ -2511,14 +2573,8 @@ find_extra_packages
 installer_build=$( /usr/bin/defaults read "$working_macos_app/Contents/Info.plist" DTSDKBuild )
 installer_darwin_version=${installer_build:0:2}
 # add --preservecontainer to the install arguments if specified (for macOS 10.14 (Darwin 18) and above)
-if [[ $installer_darwin_version -ge 18 && $preservecontainer == "yes" ]]; then
+if [[ $preservecontainer == "yes" ]]; then
     install_args+=("--preservecontainer")
-fi
-
-# OS X 10.12 (Darwin 16) requires the --applicationpath option
-if [[ $installer_darwin_version -le 16 ]]; then
-    install_args+=("--applicationpath")
-    install_args+=("$working_macos_app")
 fi
 
 # macOS 11 (Darwin 20) and above requires the --allowremoval option
@@ -2527,7 +2583,7 @@ if [[ $installer_darwin_version -ge 20 ]]; then
 fi
 
 # macOS 10.15 (Darwin 19) and above can use the --rebootdelay option
-if [[ $installer_darwin_version -ge 19 && "$rebootdelay" -gt 0 ]]; then
+if [[ "$rebootdelay" -gt 0 ]]; then
     install_args+=("--rebootdelay")
     install_args+=("$rebootdelay")
 else
@@ -2536,9 +2592,7 @@ else
 fi
 
 # macOS 10.15 (Darwin 19) and above requires the --forcequitapps options
-if [[  $installer_darwin_version -ge 19 ]]; then
-    install_args+=("--forcequitapps")
-fi
+install_args+=("--forcequitapps")
 
 # pass new volume name if specified
 if [[ $erase == "yes" && $newvolumename ]]; then
@@ -2562,7 +2616,7 @@ else
 fi
 
 # dialogs for erase
-if [[ $erase == "yes" ]]; then
+if [[ $erase == "yes" && ! $silent ]]; then
     # set the dialog command arguments
     get_default_dialog_args "$window_type"
     dialog_args=("${default_dialog_args[@]}")
@@ -2580,7 +2634,7 @@ if [[ $erase == "yes" ]]; then
     dialog_progress startosinstall >/dev/null 2>&1 &
 
 # dialogs for reinstallation
-elif [[ $reinstall == "yes" ]]; then
+elif [[ $reinstall == "yes" && ! $silent ]]; then
     # set the dialog command arguments
     get_default_dialog_args "$window_type"
     dialog_args=("${default_dialog_args[@]}")
@@ -2597,7 +2651,6 @@ elif [[ $reinstall == "yes" ]]; then
 
     dialog_progress startosinstall >/dev/null 2>&1 &
 fi
-
 
 # set launchdaemon to remove $workdir if $cleanup_after_use is set
 if [[ $cleanup_after_use != "" && $test_run != "yes" ]]; then
@@ -2616,7 +2669,7 @@ for command in "${preinstall_command[@]}"; do
 done
 
 # preparation for arm64
-if [ "$arch" == "arm64" ]; then
+if [[ "$arch" == "arm64" ]]; then
     install_args+=("--stdinpass")
     install_args+=("--user")
     install_args+=("$account_shortname")
@@ -2632,7 +2685,7 @@ if [ "$arch" == "arm64" ]; then
     fi
 fi
 
-# Prepare Pipes for communication with startosinstall
+# Prepare pipes for communication with startosinstall
 pipe_input=$( create_pipe "$script_name.in" )
 exec 3<> "$pipe_input"
 pipe_output=$( create_pipe "$script_name.out" )

@@ -8,13 +8,14 @@ No date
 
 No date
 
-- Calls to `installinstallmacos.py` have been replaced with calls to `mist`.
+- Calls to `installinstallmacos.py` have been replaced with calls to `mist`. Minimum OS requirement for this is macOS 10.15.
 - Downloads are now only available as a `pkg` or an `app`. Downlaoding of a `sparseimage` has been discontinued, though the script will continue to search for them to allow for upgrade from earlier versions of erase-install without having to re-download the installer.
-- Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog).
+- Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog). **Minimum OS requirement for this is macOS 11.**
 - The minimum compatible OS for swiftDialog is macOS Catalina 10.15. If you need to upgrade a Mac on an older version of macOS, use Version 27.0 of erase-install.
 - For testing purposes, a username and password may be placed in a custom keychain. Username is optional as the current user can be used. To create the keychain and add the keys, run the following commands:
   - `security create-keychain -P NAME_OF_KEYCHAIN` - this will prompt you to create a password for the keychain. The keychain will be stored in `~/Library/Keychains`. `NAME_OF_KEYCHAIN` must match the value you give to the `--kc` key. The password you create must match the value you give to the `--kc-pass` key.
   - `security add-generic-password -s NAME_OF_SERVICE -a NAME_OF_USER -w PASSWORD erase-install` - `NAME_OF_SERVICE` must match the value you provide to the `--kc-service` key. `NAME_OF_USER` and `PASSWORD` must be the valid credentials of an account on the computer with Volume Ownership.
+- New `--silent` mode. The script can now be run without any dialogues. On Apple Silicon, this requires the use of the keychain method to provide credentials. Minimum OS requirement for this is macOS 10.15.
   
 ### Known issues
 
