@@ -1,14 +1,35 @@
 # CHANGELOG
 
-**Known issue**: We don't have a useful way of comparing a preferred version supplied with the `--version` parameter, and an existing installer. This is because our version comparisons are done using build numbers. I don't have a solution for this yet.
-
 ## [Untagged]
 
 No date
 
-## [26.2]
+## [28.0]
 
 No date
+
+- Calls to `installinstallmacos.py` have been replaced with calls to `mist`.
+
+## [27.0]
+
+No date
+
+- Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine (thanks to @cvgs).
+- Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field) (thanks to @cvgs).
+- Adds some fallbacks for the `--fetch-full-installer` option.
+- If no build ID is found in the existing installer, we set it as invalid instead of exiting the script (addresses #271, thanks to @sphen13).
+- Fix the fallback free disk space calculation (`df` was returning disk size in kb and not gb) (#274 - thanks to @sphen13).
+- `--update` option now uses new logic in `installinstallmacos.py` to restrict searches to a certain OS or version (addresses #287).
+- Improved function descriptions in the script.
+- Changed the `Makefile` to download the correct version of `installinstallmacos.py` during the make process.
+- Improved checksum checks for `installinstallmacos.py` - if an incorrect checksum is found, the correct version is downloaded rather than the script failing (unless `--no-curl` option has been added).
+- Add titles to username and password dialog boxes (#289, thanks to @cvgs)
+- Now correctly deletes a sparseimage from the cache when `--move` is used and the sparseimage is downloaded (#297, thanks to @andyincali)
+- Now correctly fails if an invalid installer is found and `--replace-invalid`, `--update`, `--overwrite` or `--skip-validation` are not set (addresses #298).
+
+## [26.2]
+
+23.07.2022
 
 - Allows `rebootdelay` for 10.15 (thanks to @cvgs).
 - New `--newvolumename` key which will set the volume name after an `eraseinstall` workflow (thanks to @bmacphail).
@@ -425,7 +446,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v26.2...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v28.0...HEAD
+[28.0]: https://github.com/grahampugh/erase-install/compare/v27.0...v28.0
+[27.0]: https://github.com/grahampugh/erase-install/compare/v26.2...v27.0
 [26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
 [26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
 [26.0]: https://github.com/grahampugh/erase-install/compare/v25.0...v26.0
