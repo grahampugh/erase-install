@@ -6,7 +6,7 @@ No date
 
 ## [27.1]
 
-14.10.2022
+24.10.2022
 
 - Add catalog for macOS Ventura to `installinstallmacos.py`, update checksum in `erase-install.sh`.
 
