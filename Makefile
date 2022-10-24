@@ -60,7 +60,7 @@ depnotify:
 	curl -H 'Cache-Control: no-cache' -s "$(IIM_URL)" -o "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/installinstallmacos.py"
 
 	@echo "Installing Python into /Library/Management/erase-install"
-	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)" --upgrade-pip
+	$(PYTHON) "$(PYTHON_INSTALLER_SCRIPT)" --destination "$(PKG_ROOT_DEPNOTIFY)/Library/Management/erase-install/" --python-version=$(PYTHON_VERSION) --os-version 11 --pip-requirements="$(PYTHON_REQUIREMENTS)" --upgrade-pip
 
 	@echo "Downloading and extracting DEPNotify.app into /Applications/Utilities"
 	mkdir -p "$(PKG_ROOT_DEPNOTIFY)/Applications/Utilities"
