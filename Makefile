@@ -1,7 +1,7 @@
 CURDIR := $(shell pwd)
 USER := $(shell whoami)
 MISTCLI_URL := "https://github.com/ninxsoft/mist-cli/releases/download/v1.9.1/mist-cli.1.9.1.pkg"
-SWIFTDIALOG_URL := "https://github.com/bartreardon/swiftDialog/releases/download/v2.0Preview1/dialog-2.0.Preview-3563.pkg"
+SWIFTDIALOG_URL := "https://github.com/bartreardon/swiftDialog/releases/download/v2.0.1/dialog-2.0.1-3814.pkg"
 MUNKIPKG := /usr/local/bin/munkipkg
 PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
 PKG_SCRIPTS := $(CURDIR)/pkg/erase-install/scripts
@@ -23,7 +23,7 @@ build:
 
 	@echo "Downloading mist-cli"
 	mkdir -p "$(PKG_SCRIPTS)"
-	curl -L "$(SWIFTDIALOG_URL)" -o "$(PKG_SCRIPTS)/mist-cli.pkg"
+	curl -L "$(MISTCLI_URL)" -o "$(PKG_SCRIPTS)/mist-cli.pkg"
 
 	@echo "Making package in $(PKG_ROOT) directory"
 	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
