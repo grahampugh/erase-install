@@ -16,10 +16,10 @@ No date
   - `security create-keychain -P NAME_OF_KEYCHAIN` - this will prompt you to create a password for the keychain. The keychain will be stored in `~/Library/Keychains`. `NAME_OF_KEYCHAIN` must match the value you give to the `--kc` key. The password you create must match the value you give to the `--kc-pass` key.
   - `security add-generic-password -s NAME_OF_SERVICE -a NAME_OF_USER -w PASSWORD NAME_OF_KEYCHAIN` - `NAME_OF_SERVICE` must match the value you provide to the `--kc-service` key. `NAME_OF_USER` and `PASSWORD` must be the valid credentials of an account on the computer with Volume Ownership.
 - New `--silent` mode. The script can now be run without any dialogues. On Apple Silicon, this requires the use of the keychain method to provide credentials. Minimum OS requirement for this is macOS 10.15.
+- Add Spanish dialogs.
   
 ### Known issues
 
-- Many of the dialog messages have changed considerably since the previous version, to take advantage of the extra capabilities of swiftDialog. The English messages probably still need working on, and the messages in other languages have not been updated at all. Help wanted!
 - Some processes appear to still run after the script has finished when using `--test-run`. These do not appear to affect future usage, but you may hear a timeout alert after one hour.
 - Some of the options previously provided by `--fs` and `--no-fs` are currently ignored.
 - It is not currently possible to download an installer app to a location of your choice, such as the working directory. The app is always downloaded to `/Applications`.
