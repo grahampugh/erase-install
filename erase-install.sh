@@ -830,10 +830,18 @@ find_extra_packages() {
 }
 
 # -----------------------------------------------------------------------------
+# Return code 143 and finish the script when TERMinated or INTerrupted
+# -----------------------------------------------------------------------------
+terminate() {
+    echo "   [terminate] Script was interrupted (last exit code was $?)"
+    exit 143
+}
+
+# -----------------------------------------------------------------------------
 # Things to carry out when the script exits
 # -----------------------------------------------------------------------------
 finish() {
-    local exit_code=$?
+    local exit_code=${1:-$?}
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
@@ -2031,6 +2039,9 @@ user_not_volume_owner() {
 
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
+
+# ensure the finish function is executed and an error code is returned when the script is TERMinated or INTerrupted
+trap "terminate" SIGINT SIGTERM
 
 # ensure some cleanup is done after startosinstall is run (thanks @frogor!)
 trap "post_prep_work" SIGUSR1  # 30 is the numerical representation of SIGUSR1 (thanks @n8felton)
