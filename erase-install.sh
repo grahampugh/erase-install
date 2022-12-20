@@ -2256,11 +2256,7 @@ echo "   [$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
 # Work through various options to decide whether to replace an existing installer
-if [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
-    # --overwrite option
-    overwrite_existing_installer
-
-elif [[ $overwrite == "yes" && -f "$working_installer_pkg" && ! $list ]]; then
+if [[ $overwrite == "yes" && -f "$working_installer_pkg" && ! $list ]]; then
     # --overwrite option and --pkg option
     echo "   [$script_name] Overwriting existing installer package"
     rm -f "$working_installer_pkg"
@@ -2270,6 +2266,10 @@ elif [[ $overwrite == "yes" && -f "$working_installer_pkg" && ! $list ]]; then
         kill_process "caffeinate"
         exit
     fi
+
+elif [[ $overwrite == "yes" && ! $list ]]; then
+    # --overwrite option
+    overwrite_existing_installer
 
 elif [[ $invalid_installer_found == "yes" ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid

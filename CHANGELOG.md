@@ -8,7 +8,7 @@ No date
 
 14.12.2022
 
-- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. Note: I now recommend to always use `--move` if not using `--pkg` or `--fetch-full-installer`.
+- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. This also fixes `--overwrite` where an existing sparseimage is present. 
 - Add `--no-timeout` option which extends the timeout period to 24h.
 
 ## [27.1]
