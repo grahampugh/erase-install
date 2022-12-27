@@ -1291,7 +1291,11 @@ run_installinstallmacos() {
         installinstallmacos_args+=("--list")
         installinstallmacos_args+=("--warnings")
     else
-        installinstallmacos_args+=("--ignore-cache")
+        if [[ $resumabledownload == "yes" ]]; then
+            echo "   [run_installinstallmacos] Enabling Resumable Download"
+        else
+            installinstallmacos_args+=("--ignore-cache")
+        fi
     fi
 
     if [[ $pkg_installer ]]; then
@@ -1708,6 +1712,9 @@ show_help() {
                         completes preparation, but before reboot.
                         An example might be 'jamf recon -department Spare'.
                         Ensure that the command is in quotes.
+    --resumable-download
+                        Enable resumable download (will not overwrite partly
+                        downloaded update file)
 
 
     Parameters for use with Apple Silicon Mac:
@@ -1981,6 +1988,8 @@ while test $# -gt 0 ; do
         -f|--ffi|--fetch-full-installer) ffi="yes"
             ;;
         -l|--list) list="yes"
+            ;;
+        --resumable-download) resumabledownload="yes"
             ;;
         --lfi|--list-full-installers)
             list_installers="yes"
