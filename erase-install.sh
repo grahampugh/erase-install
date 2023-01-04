@@ -41,7 +41,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="27.1"
+version="27.2"
 
 # URL for downloading installinstallmacos.py
 # The tag and checksum of the macadmin-scripts fork is updated to match the version 
@@ -1182,7 +1182,7 @@ END
 # results.  
 # -----------------------------------------------------------------------------
 overwrite_existing_installer() {
-    echo "   [overwrite_existing_installer] Overwrite option selected. Deleting existing version."
+    echo "   [overwrite_existing_installer] Deleting existing cached installer(s)."
     cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
     if [[ -d "$cached_installer" ]]; then
         echo "   [$script_name] Mounted installer will be unmounted: $cached_installer"
@@ -1750,6 +1750,8 @@ show_help() {
                         so you can still access the desktop while the script runs.
     --no-jamfhelper     Ignores a jamfHelper installation, so that you can test (or use)
                         osascript dialogs.
+    --no-timeout        The script will normally timeout if the installer has not successfully
+                        prepared after 1 hour. This extends that time limit to 1 day.
     --min-drive-space   override the default minimum space required for startosinstall
                         to run (45 GB).
     --pythonpath /path/to
@@ -2022,6 +2024,8 @@ while test $# -gt 0 ; do
             ;;
         --cleanup-after-use) cleanup_after_use="yes"
             ;;
+        --no-timeout) no_timeout="yes"
+            ;;
         --depnotify)
             if [[ -d "$depnotify_app" ]]; then
                 use_depnotify="yes"
@@ -2252,13 +2256,9 @@ echo "   [$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
 # Work through various options to decide whether to replace an existing installer
-if [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
-    # --overwrite option
-    overwrite_existing_installer
-
-elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") && ! $list ]]; then
+if [[ $overwrite == "yes" && -f "$working_installer_pkg" && ! $list ]]; then
     # --overwrite option and --pkg option
-    echo "   [$script_name] Deleting invalid installer package"
+    echo "   [$script_name] Overwriting existing installer package"
     rm -f "$working_installer_pkg"
     if [[ $clear_cache == "yes" ]]; then
         echo "   [$script_name] Quitting script as --clear-cache-only option was selected."
@@ -2267,13 +2267,17 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") &
         exit
     fi
 
+elif [[ $overwrite == "yes" && ! $list ]]; then
+    # --overwrite option
+    overwrite_existing_installer
+
 elif [[ $invalid_installer_found == "yes" ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid
-    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
-        overwrite_existing_installer
-    elif [[ ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
+    if [[ ($pkg_installer && ! -f "$working_installer_pkg") && ($replace_invalid_installer == "yes" || $update_installer == "yes") ]]; then
         echo "   [$script_name] Deleting invalid installer package"
         rm -f "$working_installer_pkg"
+        overwrite_existing_installer
+    elif [[ $replace_invalid_installer == "yes" || $update_installer == "yes" ]]; then
         overwrite_existing_installer
     elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
         echo "   [$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
@@ -2656,7 +2660,11 @@ if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
 fi
 exec 3>&-
 # wait for cat command to quit, but no longer than 1 hour
-(sleep 3600; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
+sleep_time=3600
+if [[ $no_timeout == "yes" ]]; then
+    sleep_time=86400
+fi
+(sleep $sleep_time; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
 wait $pipePID
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
 echo "   [$script_name] Reached end of script. Exit with error 42."

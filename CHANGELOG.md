@@ -4,6 +4,13 @@
 
 No date
 
+## [27.2]
+
+14.12.2022
+
+- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. This also fixes `--overwrite` where an existing sparseimage is present. 
+- Add `--no-timeout` option which extends the timeout period to 24h.
+
 ## [27.1]
 
 24.10.2022
@@ -446,7 +453,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v27.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v27.2...HEAD
+[27.2]: https://github.com/grahampugh/erase-install/compare/v27.1...v27.2
 [27.1]: https://github.com/grahampugh/erase-install/compare/v27.0...v27.1
 [27.0]: https://github.com/grahampugh/erase-install/compare/v26.2...v27.0
 [26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
