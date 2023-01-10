@@ -7,9 +7,6 @@
 DIR=$(dirname "$0")
 
 # swiftDialog
-dialog_app="/Library/Application Support/Dialog/Dialog.app"
-dialog_bin="/usr/local/bin/dialog"
-
 if /usr/sbin/installer -tgt / -pkg "$DIR/dialog.pkg"; then
     echo "swiftDialog successfully installed"
 else
