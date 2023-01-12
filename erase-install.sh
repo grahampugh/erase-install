@@ -59,7 +59,7 @@ workdir="/Library/Management/erase-install"
 # URL for downloading macadmins python (with tag version)
 # This ensures a compatible python is available if not using the recommended
 # package installer
-macadmins_python_version="v3.10.2.80694"
+macadmins_python_version="v3.9.10.02082022223633"
 macadmins_python_url="https://api.github.com/repos/macadmins/python/releases/tags/$macadmins_python_version"
 macadmins_python_path="/Library/ManagedFrameworks/Python/Python3.framework/Versions/Current/bin/python3"
 
