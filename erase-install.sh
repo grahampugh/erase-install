@@ -46,7 +46,10 @@ version="28.0b1"
 installer_directory="/Applications"
 
 # Default working directory (may be overridden by the --workdir parameter)
-workdir="/Library/Management/erase-install"
+workdir="/Users/Shared/erase-install"
+
+# Default logdir
+logdir="/Library/Management/erase-install/log"
 
 # mist tool
 mist_bin="/usr/local/bin/mist"
@@ -65,7 +68,8 @@ dialog_output="/var/tmp/dialog.json"
 # swiftDialog icons
 # dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
 # dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns"
-dialog_dl_icon="SF=applelogo,colour=gray"
+# dialog_dl_icon="SF=applelogo,colour=gray"
+dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
 # dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
@@ -97,6 +101,8 @@ ask_for_credentials() {
         "${dialog_window_title}"
         "--icon"
         "${dialog_confirmation_icon}"
+        "--overlayicon"
+        "SF=person.badge.key.fill,colour=grey"
         "--iconsize"
         "128"
         "--textfield"
@@ -215,6 +221,8 @@ check_free_space() {
             "${dialog_confirmation_icon}"
             "--iconsize"
             "128"
+            "--overlayicon"
+            "SF=externaldrive.fill.badge.exclamationmark,colour=red"
             "--message"
             "${!dialog_check_desc}"
             "--button1text"
@@ -429,7 +437,7 @@ check_power_status() {
 
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         writelog "[check_power_status] OK - AC power detected"
-    elif [[ ! $silent ]]; then
+    elif [[ $silent ]]; then
         writelog "[wait_for_power] ERROR - No AC power detected, cannot continue."
         echo
         exit 1
@@ -438,11 +446,14 @@ check_power_status() {
         # set the dialog command arguments
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
+        # original icon: ${dialog_confirmation_icon}
         dialog_args+=(
             "--title"
             "${!dialog_power_title}"
             "--icon"
             "${dialog_confirmation_icon}"
+            "--overlayicon"
+            "SF=powerplug.fill,colour=red"
             "--iconsize"
             "128"
             "--message"
@@ -480,6 +491,8 @@ check_power_status() {
             "${dialog_confirmation_icon}"
             "--iconsize"
             "128"
+            "--overlayicon"
+            "SF=powerplug.fill,colour=red"
             "--message"
             "${!dialog_nopower_desc}"
         )
@@ -586,18 +599,29 @@ compare_build_versions() {
 # Not used in --silent mode.
 # -----------------------------------------------------------------------------
 confirm() {
+    # options
+    if [[ "$erase" == "yes" ]]; then
+        local dialog_title="${!dialog_erase_title}"
+        local dialog_message="${!dialog_erase_confirmation_desc}"
+    else
+        local dialog_title="${!dialog_reinstall_title}"
+        local dialog_message="${!dialog_reinstall_confirmation_desc}"
+    fi
+
     # set the dialog command arguments
     get_default_dialog_args "utility"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
         "--title"
-        "${!dialog_erase_title}"
+        "$dialog_title"
         "--icon"
         "${dialog_confirmation_icon}"
         "--iconsize"
         "128"
+        "--overlayicon"
+        "SF=person.fill.checkmark,colour=red"
         "--message"
-        "${!dialog_erase_confirmation_desc}"
+        "$dialog_message"
         "--button1text"
         "${!dialog_confirmation_button}"
         "--button2text"
@@ -1025,6 +1049,11 @@ get_user_details() {
             read_from_keychain
         elif [[ ! $silent ]]; then
             ask_for_credentials
+            if [[ $? -eq 2 ]]; then
+                writelog "[get_user_details] user cancelled dialog so exiting..."
+                exit 0
+            fi
+
             # get account name (short name) and password
             account_shortname=$(ljt '/Username' < "$dialog_output")
             account_password=$(ljt '/Password' < "$dialog_output")
@@ -1169,6 +1198,13 @@ launch_startosinstall() {
     # get unique label and file name for LaunchDaemon
     plist_label="$pkg_label.startosinstall.$$"
     launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+
+    # reset the existing launchdaemon if present
+    if [[ -f "$launch_daemon" ]]; then
+        /bin/launchctl unload -F "$launch_daemon"
+        /bin/rm "$launch_daemon"
+    fi
+
     # prepare command parameters
     OLDIFS=$IFS
     IFS=$'\x00'
@@ -1186,6 +1222,7 @@ launch_startosinstall() {
         launch_daemon_args+=("-string")
         launch_daemon_args+=("$install_arg")
     done
+
     # Create the plist
     /usr/bin/defaults delete "$launch_daemon" 2>/dev/null
     /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
@@ -1196,7 +1233,9 @@ launch_startosinstall() {
     /usr/bin/defaults write "$launch_daemon" StandardErrorPath -string "${path_stderr}"
     /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
         "${launch_daemon_args[@]}"
+
     IFS=$OLDIFS
+
     # Start LaunchDaemon
     /usr/sbin/chown root:wheel "$launch_daemon"
     /bin/chmod 644 "$launch_daemon"
@@ -1658,11 +1697,11 @@ set_localisations() {
     dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
     # Dialogue localizations - reinstall lock screen - description
-    dialog_reinstall_desc_en="Preparing the installer may take up to 30 minutes.  \n\nOnce completed your computer will reboot and begin the upgrade."
-    dialog_reinstall_desc_de="Dieser Prozess kann bis zu 30 Minuten benötigen.  \n\nDer Computer startet anschliessend neu und beginnt mit der Aktualisierung."
-    dialog_reinstall_desc_nl="Dit proces duurt ongeveer 30 minuten.  \n\nZodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
-    dialog_reinstall_desc_fr="Ce processus peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
-    dialog_reinstall_desc_es="La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y comenzará la actualización."
+    dialog_reinstall_desc_en="### Preparing the installer may take up to 30 minutes.  \n\nOnce completed your computer will reboot and begin the upgrade."
+    dialog_reinstall_desc_de="### Dieser Prozess kann bis zu 30 Minuten benötigen.  \n\nDer Computer startet anschliessend neu und beginnt mit der Aktualisierung."
+    dialog_reinstall_desc_nl="### Dit proces duurt ongeveer 30 minuten.  \n\nZodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
+    dialog_reinstall_desc_fr="### Ce processus peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
+    dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y comenzará la actualización."
     dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - status message
@@ -1818,7 +1857,7 @@ set_seedprogram() {
             writelog "[set_seedprogram] already unenrolled"
         else
             seedutilresult=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll)
-            if [[ "$seedutilresult" == *"Program: (null)"* ]]; then
+            if [[ ! "$seedutilresult" == *"Program: (null)"* ]]; then
                 writelog "[set_seedprogram] ERROR: Unable to unenroll seed program. You might get unexpected results."
                 echo "progresstext: ERROR: Unable to unenroll seed program.." >> "$dialog_log"
                 sleep 5
@@ -1944,6 +1983,7 @@ show_help() {
     --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
                         options.
     --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
+                        (--reinstall option only)
     --kc                Keychain containing a user password (do not use the login keychain!!)
     --kc-pass           Password to open the keychain
     --kc-service        The name of the key containing the account and password
@@ -2034,6 +2074,8 @@ user_is_invalid() {
             "${dialog_warning_icon}"
             "--iconsize"
             "128"
+            "--overlayicon"
+            "SF=person.fill.xmark,colour=red"
             "--message"
             "${!dialog_invalid_user}"
         )
@@ -2055,11 +2097,13 @@ password_is_invalid() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
-            "${dialog_warning_icon}"
+            "${dialog_confirmation_icon}"
             "--iconsize"
             "128"
+            "--overlayicon"
+            "SF=person.fill.xmark,colour=red"
             "--message"
             "${!dialog_invalid_password} $user"
         )
@@ -2086,6 +2130,8 @@ user_not_volume_owner() {
             "${dialog_warning_icon}"
             "--iconsize"
             "128"
+            "--overlayicon"
+            "SF=person.fill.xmark,colour=red"
             "--message"
             "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}"
         )
@@ -2107,7 +2153,7 @@ writelog() {
 trap "finish" EXIT
 
 # ensure some cleanup is done after startosinstall is run (thanks @frogor!)
-trap "post_prep_work" SIGUSR1  # 30 is the numerical representation of SIGUSR1 (thanks @n8felton)
+trap "post_prep_work" SIGUSR1
 
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
@@ -2370,7 +2416,7 @@ if [[ $ffi ]]; then
     fi
 fi
 
-# ensure installer_directory (--path) and workdir exists
+# ensure installer_directory (--path), logdir and workdir exist
 if [[ ! -d "$installer_directory" ]]; then
     writelog "[$script_name] Making installer directory at $installer_directory"
     /bin/mkdir -p "$installer_directory"
@@ -2379,9 +2425,13 @@ if [[ ! -d "$workdir" ]]; then
     writelog "[$script_name] Making working directory at $workdir"
     /bin/mkdir -p "$workdir"
 fi
+if [[ ! -d "$logdir" ]]; then
+    writelog "[$script_name] Making log directory at $logdir"
+    /bin/mkdir -p "$logdir"
+fi
 
 # all output from now on is written also to a log file
-LOG_FILE="$workdir/erase-install.log"
+LOG_FILE="$logdir/erase-install.log"
 echo "" > "$LOG_FILE"
 exec > >(tee "${LOG_FILE}") 2>&1
 
@@ -2558,7 +2608,9 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "--title"
                 "${!dialog_dl_title}"
                 "--icon"
-                "${dialog_dl_icon}"
+                "${dialog_confirmation_icon}"
+                "--overlayicon"
+                "SF=arrow.down"
                 "--iconsize"
                 "$iconsize"
                 "--message"
@@ -2699,8 +2751,8 @@ if [[ $installer_darwin_version -ge 20 ]]; then
     install_args+=("--allowremoval")
 fi
 
-# macOS 10.15 (Darwin 19) and above can use the --rebootdelay option
-if [[ "$rebootdelay" -gt 0 ]]; then
+# macOS 10.15 (Darwin 19) and above can use the --rebootdelay option (reinstall option only)
+if [[ "$rebootdelay" -gt 0 && "$reinstall" == "yes" ]]; then
     install_args+=("--rebootdelay")
     install_args+=("$rebootdelay")
 else
