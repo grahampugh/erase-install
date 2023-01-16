@@ -12,7 +12,6 @@ No date
 - Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog). **Minimum OS requirement for this is macOS 11.**
 - The minimum compatible OS for swiftDialog is macOS Big Sur 11. If you need to upgrade a Mac on an older version of macOS, use Version 27.x of erase-install.
 - Downloads are now only available as a `pkg` or an `app`. Downlaoding of a `sparseimage` has been discontinued, though the script will continue to search for them to allow for upgrade from earlier versions of erase-install without having to re-download the installer.
-- The working directory for list outputs and downloads has changed to `/Users/Shared/erase-install`. This was done due to permissions problems with the old working directory at `/Library/Management/erase-install`, especially when using the `--fetch-full-installer` mode. However, `/Library/Management/erase-install` is still the default location for the `erase-install.sh` script. 
 - The log has moved to `/Library/Management/erase-install/log/erase-install.log`
 - New `--silent` mode. The script can now be run without any dialogues. On Apple Silicon, this requires the use of the keychain method to provide credentials. Minimum OS requirement for this is macOS 10.15.
 - Add Spanish dialogs.
@@ -23,7 +22,6 @@ No date
 ### Known issues
 
 - Some processes appear to still run after the script has finished when using `--test-run`. These do not appear to affect future usage, but you may hear a timeout alert after one hour.
-- Some of the options previously provided by `--fs` and `--no-fs` are currently ignored.
 - It is not currently possible to download an installer app to a location of your choice, such as the working directory. The app is always downloaded to `/Applications`.
 
 ## [27.0]

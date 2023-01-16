@@ -46,7 +46,7 @@ version="28.0b2"
 installer_directory="/Applications"
 
 # Default working directory (may be overridden by the --workdir parameter)
-workdir="/Users/Shared/erase-install"
+workdir="/Library/Management/erase-install"
 
 # Default logdir
 logdir="/Library/Management/erase-install/log"
