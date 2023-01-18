@@ -326,8 +326,6 @@ check_installer_pkg_is_valid() {
         working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="no"
     fi
-
-    working_macos_app="$cached_installer_app"
 }
 
 # -----------------------------------------------------------------------------
@@ -2531,8 +2529,12 @@ elif [[ "$prechosen_build" != "" ]]; then
 
 elif [[ "$prechosen_os" != "" ]]; then
     # check if the cached installer matches the requested OS
-    # first, get the OS of the existing installer
-    installer_darwin_version=${installer_build:0:2}
+    # first, get the OS of the existing installer app or pkg
+    if [[ "$installer_build" ]]; then
+        installer_darwin_version=${installer_build:0:2}
+    elif [[ "$installer_pkg_build" ]]; then
+        installer_darwin_version=${installer_pkg_build:0:2}
+    fi
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version -ne $prechosen_darwin_version ]]; then
         writelog "[$script_name] Existing installer does not match requested OS, so replacing..."
@@ -2558,7 +2560,7 @@ elif [[ $update_installer == "yes" ]]; then
         check_newer_available
         if [[ $newer_build_found == "yes" ]]; then
             writelog "[$script_name] Newer installer found so deleting existing installer package"
-            rm -f "$working_macos_app"
+            rm -f "$working_installer_pkg"
         fi
         if [[ $clear_cache == "yes" ]]; then
             writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
