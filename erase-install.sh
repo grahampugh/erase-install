@@ -2519,6 +2519,11 @@ elif [[ $invalid_installer_found == "yes" ]]; then
 elif [[ "$prechosen_build" != "" ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
+    if [[ "$installer_build" ]]; then
+        installer_darwin_version=${installer_build:0:2}
+    elif [[ "$installer_pkg_build" ]]; then
+        installer_darwin_version=${installer_pkg_build:0:2}
+    fi
     compare_build_versions "$prechosen_build" "$installer_build"
     if [[ "$builds_match" != "yes" ]]; then
         writelog "[$script_name] Existing installer does not match requested build, so replacing..."
