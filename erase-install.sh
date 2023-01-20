@@ -898,6 +898,7 @@ finish() {
     fi
 
     # set final exit code and quit, but do not call finish() again
+    echo "   [finish] Script execution completed: $(date)"
     echo "   [finish] Script exit code: $exit_code"
     (exit $exit_code)
 }
