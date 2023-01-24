@@ -1953,6 +1953,8 @@ show_help() {
                         to run (45 GB).
     --no-curl           Prevents the download of swiftDialog or mist in case your
                         security team don't like it.
+    --no-timeout        The script will normally timeout if the installer has not successfully
+                        prepared after 1 hour. This extends that time limit to 1 day.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2203,6 +2205,8 @@ while test $# -gt 0 ; do
         --keep-pkg) keep_pkg="yes"
             ;;
         --no-curl) no_curl="yes"
+            ;;
+        --no-timeout) no_timeout="yes"
             ;;
         --dialog-on-download) dl_dialog="yes"
             ;;
@@ -2882,7 +2886,11 @@ fi
 exec 3>&-
 
 # wait for cat command to quit, but no longer than 1 hour
-(sleep 3600; writelog "[$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
+sleep_time=3600
+if [[ $no_timeout == "yes" ]]; then
+    sleep_time=86400
+fi
+(sleep $sleep_time; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
 wait $pipePID
 
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
