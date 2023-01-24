@@ -41,14 +41,15 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="27.2"
+version="27.3"
 
 # URL for downloading installinstallmacos.py
 # The tag and checksum of the macadmin-scripts fork is updated to match the version 
 # of erase-install. This adds a bit of security to the curl download of
 # installinstallmacos.py if not using the recommended package installer
+# This is calculated with: shasum -a 256 installinstallmacos.py | cut -d' ' -f1
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="8285cfb5c436954dfad39303c6478b5f8dff2082911df4fde2681a295a53fdff"
+installinstallmacos_checksum="084fc6c563830467105feb7d8960f8ae77eacee0b28ecbfa7ced304118666ac1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"

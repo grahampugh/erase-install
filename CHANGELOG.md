@@ -4,6 +4,12 @@
 
 No date
 
+## [27.3]
+
+24.01.2023
+
+- (change to `installinstallmacos.py`): version comparisons are now done with the python module `packaging.version.LegacyVersion`, as `parse_version` proved unreliable.
+
 ## [27.2]
 
 14.12.2022
