@@ -4,7 +4,12 @@ by Graham Pugh
 
 ![](https://img.shields.io/github/v/release/grahampugh/erase-install)&nbsp;![](https://img.shields.io/github/downloads/grahampugh/erase-install/latest/total)&nbsp;![](https://img.shields.io/badge/macOS-10.12.4%2B-success)&nbsp;![](https://img.shields.io/github/license/grahampugh/erase-install)
 
-**Note:** The default (`main`) branch repo is the current latest release. There is often a beta version in development. Check the branches for the next release candidate, which will be labelled with the `-rc` suffix. For example, When version 27.2 was the current version, the branch `v28.0-rc` was the next version. **Pull requests will only be accepted on the current beta version.**
+**Note:** 
+The default (`main`) branch is the latest code commit of the production track, which represents versions 28.0 and newer. Any Pull Requests should be made to the `main` branch.
+
+The `release` branch should correspond to the current latest release.
+
+The `legacy` branch is the latest code commit of the legacy track, which represents versions up to 27.x. The legacy track is for those who need to use this script on macOS 10.15 or older.
 
 ---
 
