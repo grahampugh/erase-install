@@ -6,7 +6,7 @@ No date
 
 ## [28.0]
 
-No date
+24.01.2023
 
 - Calls to `installinstallmacos.py` have been replaced with calls to `mist`. Minimum OS requirement for this is macOS 10.15.
 - Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog). **Minimum OS requirement for this is macOS 11.**
@@ -24,9 +24,28 @@ No date
 - Some processes appear to still run after the script has finished when using `--test-run`. These do not appear to affect future usage, but you may hear a timeout alert after one hour.
 - It is not currently possible to download an installer app to a location of your choice, such as the working directory. The app is always downloaded to `/Applications`.
 
+## [27.3]
+
+24.01.2023
+
+- (change to `installinstallmacos.py`): version comparisons are now done with the python module `packaging.version.LegacyVersion`, as `parse_version` proved unreliable.
+
+## [27.2]
+
+14.12.2022
+
+- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. This also fixes `--overwrite` where an existing sparseimage is present. 
+- Add `--no-timeout` option which extends the timeout period to 24h.
+
+## [27.1]
+
+24.10.2022
+
+- Add catalog for macOS Ventura to `installinstallmacos.py`, update checksum in `erase-install.sh`.
+
 ## [27.0]
 
-No date
+14.10.2022
 
 - Allows for logs to be reported back to Jamf Pro by changing the method `startosinstall` is launched. This requires `rebootdelay` to be set, which allows uploading the script result to Jamf Pro before `startosinstall` force-quits our script and reboots the machine (thanks to @cvgs).
 - Adds launcher script `erase-install-launcher.sh` which can be used to start the pkg-delivered version of erase-install from the Scripts section of Jamf Pro (it also supports more than 8 arguments for `erase-install` because you can add multiple arguments in one Jamf Parameter field) (thanks to @cvgs).
@@ -461,7 +480,10 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v28.0...HEAD
-[28.0]: https://github.com/grahampugh/erase-install/compare/v27.0...v28.0
+[28.0]: https://github.com/grahampugh/erase-install/compare/v27.3...v28.0
+[27.3]: https://github.com/grahampugh/erase-install/compare/v27.2...v27.3
+[27.2]: https://github.com/grahampugh/erase-install/compare/v27.1...v27.2
+[27.1]: https://github.com/grahampugh/erase-install/compare/v27.0...v27.1
 [27.0]: https://github.com/grahampugh/erase-install/compare/v26.2...v27.0
 [26.2]: https://github.com/grahampugh/erase-install/compare/v26.1...v26.2
 [26.1]: https://github.com/grahampugh/erase-install/compare/v26.0...v26.1
