@@ -2,7 +2,7 @@
 
 by Graham Pugh
 
-![](https://img.shields.io/github/v/release/grahampugh/erase-install)&nbsp;![](https://img.shields.io/github/downloads/grahampugh/erase-install/latest/total)&nbsp;![](https://img.shields.io/badge/macOS-10.12.4%2B-success)&nbsp;![](https://img.shields.io/github/license/grahampugh/erase-install)
+![](https://img.shields.io/github/v/release/grahampugh/erase-install)&nbsp;![](https://img.shields.io/github/downloads/grahampugh/erase-install/latest/total)&nbsp;![](https://img.shields.io/badge/macOS-11%2B-success)&nbsp;![](https://img.shields.io/github/license/grahampugh/erase-install)
 
 **Note:** 
 The default (`main`) branch is the latest code commit of the production track, which represents versions 28.0 and newer. Any Pull Requests should be made to the `main` branch.
