@@ -4,6 +4,26 @@
 
 No date
 
+## [28.0]
+
+24.01.2023
+
+- Calls to `installinstallmacos.py` have been replaced with calls to `mist`. Minimum OS requirement for this is macOS 10.15.
+- Dialogues are now all presented using [swiftDialog](https://github.com/bartreardon/swiftDialog). **Minimum OS requirement for this is macOS 11.**
+- The minimum compatible OS for swiftDialog is macOS Big Sur 11. If you need to upgrade a Mac on an older version of macOS, use Version 27.x of erase-install.
+- Downloads are now only available as a `pkg` or an `app`. Downlaoding of a `sparseimage` has been discontinued, though the script will continue to search for them to allow for upgrade from earlier versions of erase-install without having to re-download the installer.
+- The log has moved to `/Library/Management/erase-install/log/erase-install.log`
+- New `--silent` mode. The script can now be run without any dialogues. On Apple Silicon, this requires the use of the keychain method to provide credentials. Minimum OS requirement for this is macOS 10.15.
+- Add Spanish dialogs.
+- For testing purposes, a username and password may be placed in a custom keychain. Username is optional as the current user can be used. To create the keychain and add the keys, run the following commands:
+  - `security create-keychain -P NAME_OF_KEYCHAIN` - this will prompt you to create a password for the keychain. The keychain will be stored in `~/Library/Keychains`. `NAME_OF_KEYCHAIN` must match the value you give to the `--kc` key. The password you create must match the value you give to the `--kc-pass` key.
+  - `security add-generic-password -s NAME_OF_SERVICE -a NAME_OF_USER -w PASSWORD NAME_OF_KEYCHAIN` - `NAME_OF_SERVICE` must match the value you provide to the `--kc-service` key. `NAME_OF_USER` and `PASSWORD` must be the valid credentials of an account on the computer with Volume Ownership.
+  
+### Known issues
+
+- Some processes appear to still run after the script has finished when using `--test-run`. These do not appear to affect future usage, but you may hear a timeout alert after one hour.
+- It is not currently possible to download an installer app to a location of your choice, such as the working directory. The app is always downloaded to `/Applications`.
+
 ## [27.3]
 
 24.01.2023
@@ -459,7 +479,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v27.2...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v28.0...HEAD
+[28.0]: https://github.com/grahampugh/erase-install/compare/v27.3...v28.0
+[27.3]: https://github.com/grahampugh/erase-install/compare/v27.2...v27.3
 [27.2]: https://github.com/grahampugh/erase-install/compare/v27.1...v27.2
 [27.1]: https://github.com/grahampugh/erase-install/compare/v27.0...v27.1
 [27.0]: https://github.com/grahampugh/erase-install/compare/v26.2...v27.0

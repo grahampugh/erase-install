@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# erase-install postinstall script
+# install swiftDialog and mist-cli if not already present
+
+# current directory
+DIR=$(dirname "$0")
+
+# swiftDialog
+if /usr/sbin/installer -tgt / -pkg "$DIR/dialog.pkg"; then
+    echo "swiftDialog successfully installed"
+else
+    echo "ERROR: swiftDialog was not installed"
+    exit 1
+fi
+
+# mist-cli
+if /usr/sbin/installer -tgt / -pkg "$DIR/mist-cli.pkg"; then
+    echo "mist-cli successfully installed"
+else
+    echo "ERROR: mist-cli was not installed"
+    exit 1
+fi
