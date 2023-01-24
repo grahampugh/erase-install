@@ -49,7 +49,7 @@ version="27.3"
 # installinstallmacos.py if not using the recommended package installer
 # This is calculated with: shasum -a 256 installinstallmacos.py | cut -d' ' -f1
 installinstallmacos_url="https://raw.githubusercontent.com/grahampugh/macadmin-scripts/v${version}/installinstallmacos.py"
-installinstallmacos_checksum="f224691912e8d50f2ab542b269b7371e0e0f9b646dcef0ffda7769bab2bc2049"
+installinstallmacos_checksum="084fc6c563830467105feb7d8960f8ae77eacee0b28ecbfa7ced304118666ac1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
