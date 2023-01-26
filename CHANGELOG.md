@@ -13,6 +13,7 @@ No date
 Bugfixes:
 - `mist` result is now correctly interpreted when checking for a newer version.
 - The `--update` option now triggers an invalid installer to be overwritten.
+- Progress is now once again shown during the preparation phase.
 
 ## [28.0]
 

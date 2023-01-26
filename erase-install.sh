@@ -688,6 +688,12 @@ dialog_progress() {
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
+        until grep -q "Preparing to run macOS Installer..." "$LOG_FILE" ; do
+            sleep 0.1
+        done
+        writelog "Sending to dialog: progresstext: Preparing to run macOS Installer..."
+        /bin/echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
+        
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
         done
@@ -701,6 +707,7 @@ dialog_progress() {
             done
             /bin/echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
+            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
         done
 
     elif [[ "$1" == "mist" ]]; then
@@ -2816,6 +2823,8 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "256"
         "--message"
         "${!dialog_erase_desc}"
+        "--progress"
+        "0"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
@@ -2836,6 +2845,8 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "256"
         "--message"
         "${!dialog_reinstall_desc}"
+        "--progress"
+        "0"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
