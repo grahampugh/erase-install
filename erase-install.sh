@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="28.0"
+version="28.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -378,7 +378,7 @@ check_newer_available() {
     fi
 
     # run mist with --list and then interrogate the plist
-    if ! "$mist_bin" "${mist_args[@]}" ; then
+    if "$mist_bin" "${mist_args[@]}" ; then
         newer_build_found="no"
         if [[ -f "$mist_export_file" ]]; then
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
@@ -2505,7 +2505,7 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") &
 
 elif [[ $invalid_installer_found == "yes" ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid
-    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
+    if [[ -d "$working_macos_app" && ($replace_invalid_installer == "yes" || $update_installer == "yes") ]]; then
         overwrite_existing_installer
     elif [[ ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
         writelog "[$script_name] Deleting invalid installer package"

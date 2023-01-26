@@ -4,6 +4,14 @@
 
 No date
 
+## [28.1]
+
+26.01.2023
+
+Bugfix.
+- `mist` result is now correctly interpreted when checking for a newer version.
+- The `--update` option now triggers an invalid installer to be overwritten.
+
 ## [28.0]
 
 24.01.2023
