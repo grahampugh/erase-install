@@ -1546,8 +1546,11 @@ run_mist() {
         mist_args+=("$installer_directory")
     fi
 
-    # cache downloads to save time (may remove this later)
-    mist_args+=("--cache-downloads")
+    # optionally cache downloads to save time when doing repeated tests
+    if [[ "$cache_downloads" == "yes" ]]; then
+        mist_args+=("--cache-downloads")
+    fi
+
     # force overwrite of existing app or pkg of the same name
     # mist_args+=("--force")
 
@@ -1998,6 +2001,8 @@ show_help() {
                         run is shown in stdout.
     --workdir /path/to  Supply an alternative working directory. The default is the same
                         directory in which erase-install.sh is saved.
+    --cache-downloads   Caches mist downloads in a temporary directory in /private/tmp/com.ninxsoft.mist
+                        Useful when running repeated tests.
 HELP
     exit
 }
@@ -2234,6 +2239,8 @@ while test $# -gt 0 ; do
             fi
             ;;
         --test-run) test_run="yes"
+            ;;
+        --cache-downloads) cache_downloads="yes"
             ;;
         --clear-cache-only) clear_cache="yes"
             ;;
