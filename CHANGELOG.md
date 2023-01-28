@@ -10,7 +10,8 @@ No date
 
 - `--cache-downloads` option. In 28.0, `mist` cached downloads into `/private/tmp/com.ninxsoft.mist`. This is now optional.
 - New experimental `--set-securebootlevel` option (in `--erase` mode only) uses the command `bputil -f -u $current_user -p $account_password` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught). 
-- New experimental `--clear-firmware` option (in `--erase` mode only) uses the command `nvram -c` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught). 
+- New experimental `--clear-firmware` option (in `--erase` mode only) uses the command `nvram -c` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught).
+- `erase-install` now reports a non-zero exit code (143 to be exact) when it is being abnormally terminated (e.g. by pressing CTRL+C or getting terminated by SIGTERM). Previously it would return the exit code of the last command being executed at time of termination, which could be non-zero or zero depending on the specific circumstances, which then could have been reported as successful execution in a Jamf policy. This change will make it easier to discover such errors. The exit code of the last executed command will be logged in addition to returning 143 to facilitate debugging (#318, thanks @cvgs).
 
 Bugfixes:
 - `mist` result is now correctly interpreted when checking for a newer version.
