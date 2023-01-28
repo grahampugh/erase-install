@@ -2003,7 +2003,10 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
                         to provide a password.
-    --preservecontainer Preserves other volumes in your APFS container when using --erase.
+    --preservecontainer Preserves other volumes in your APFS container when using --erase
+    --set-securebootlevel 
+                        Resets Secure Boot Level to High when using --erase
+    --clear-firmware    Clears the firmware NVRAM variables when using --erase
 
     Parameters useful in testing this script:
 
@@ -2258,6 +2261,8 @@ while test $# -gt 0 ; do
         --cleanup-after-use) cleanup_after_use="yes"
             ;;
         --set-securebootlevel) set_secureboot="yes"
+            ;;
+        --clear-firmware) clear_firmware="yes"
             ;;
         --check-power)
             check_power="yes"
@@ -2893,12 +2898,24 @@ if [[ "$arch" == "arm64" ]]; then
             writelog "[$script_name] WARNING! preboot files could not be updated."
         fi
 
+        # if --clear-firmware (thanks @mvught)
+        if [[ "$clear_firmware" == "yes" ]]; then
+            # note this process can take up to 10 seconds
+            writelog "[$script_name] Clearing the firmware settings with the nvram command"
+            /bin/echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
+            if /usr/sbin/nvram -c; then
+                writelog "[$script_name] nvram command exited with success"
+            else
+                writelog "[$script_name] WARNING! nvram command exited with error."
+            fi
+        fi
+
         # if --set-securebootlevel (thanks @mvught)
         if [[ "$set_secureboot" == "yes" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Setting high secure boot level with bputil command"
             /bin/echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
-            if bputil -f -u "$current_user" -p "$account_password"; then
+            if /usr/bin/bputil -f -u "$current_user" -p "$account_password"; then
                 writelog "[$script_name] bputil command exited with success"
             else
                 writelog "[$script_name] WARNING! bputil command exited with error."

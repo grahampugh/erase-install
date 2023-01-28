@@ -10,6 +10,7 @@ No date
 
 - `--cache-downloads` option. In 28.0, `mist` cached downloads into `/private/tmp/com.ninxsoft.mist`. This is now optional.
 - New experimental `--set-securebootlevel` option (in `--erase` mode only) uses the command `bputil -f -u $current_user -p $account_password` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught). 
+- New experimental `--clear-firmware` option (in `--erase` mode only) uses the command `nvram -c` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught). 
 
 Bugfixes:
 - `mist` result is now correctly interpreted when checking for a newer version.
