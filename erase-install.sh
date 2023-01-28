@@ -702,12 +702,16 @@ dialog_progress() {
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
-                current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
-                sleep 2
+                log_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                # check we got a number
+                if [ "$log_value" -eq "$log_value" ] 2>/dev/null; then
+                    current_progress_value="$log_value"
+                fi
+                sleep 1
             done
+            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
             /bin/echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
-            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
         done
 
     elif [[ "$1" == "mist" ]]; then
@@ -2824,7 +2828,7 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "--message"
         "${!dialog_erase_desc}"
         "--progress"
-        "0"
+        "100"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
@@ -2846,7 +2850,7 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "--message"
         "${!dialog_reinstall_desc}"
         "--progress"
-        "0"
+        "100"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1

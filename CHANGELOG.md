@@ -6,14 +6,14 @@ No date
 
 ## [28.1]
 
-26.01.2023
+28.01.2023
 
 - `--cache-downloads` option. In 28.0, `mist` cached downloads into `/private/tmp/com.ninxsoft.mist`. This is now optional.
 
 Bugfixes:
 - `mist` result is now correctly interpreted when checking for a newer version.
 - The `--update` option now triggers an invalid installer to be overwritten.
-- Progress is now once again shown during the preparation phase.
+- Progress is now once again shown during the preparation phase, and the progress bar properly shows incremental progress.
 
 ## [28.0]
 
