@@ -2257,6 +2257,8 @@ while test $# -gt 0 ; do
             ;;
         --cleanup-after-use) cleanup_after_use="yes"
             ;;
+        --set-securebootlevel) set_secureboot="yes"
+            ;;
         --check-power)
             check_power="yes"
             ;;
@@ -2883,10 +2885,24 @@ if [[ "$arch" == "arm64" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         writelog "[$script_name] updating preboot files (takes a few seconds)..."
+        sleep 0.1
+        /bin/echo "progresstext: Updating preboot files..." >> "$dialog_log"
         if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
             writelog "[$script_name] preboot files updated"
         else
             writelog "[$script_name] WARNING! preboot files could not be updated."
+        fi
+
+        # if --set-securebootlevel (thanks @mvught)
+        if [[ "$set_secureboot" == "yes" ]]; then
+            # note this process can take up to 10 seconds
+            writelog "[$script_name] Setting high secure boot level with bputil command"
+            /bin/echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
+            if bputil -f -u "$current_user" -p "$account_password"; then
+                writelog "[$script_name] bputil command exited with success"
+            else
+                writelog "[$script_name] WARNING! bputil command exited with error."
+            fi
         fi
     fi
 fi
