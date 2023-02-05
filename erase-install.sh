@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="28.1"
+version="29.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -73,10 +73,11 @@ dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versi
 # dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
+dialog_fmm_icon="/System/Library/PrivateFrameworks/AOSUI.framework/Versions/A/Resources/findmy.icns"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible dialog is used if not using the package installer
-dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v2.0.1/dialog-2.0.1-3814.pkg"
+dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v2.1.0/dialog-2.1.0-4148.pkg"
 
 # default app and package names for mist
 default_downloaded_app_name="Install %NAME%.app"
@@ -497,7 +498,7 @@ check_power_status() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
 
-        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}, cannot continue."
+        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -797,6 +798,87 @@ dialog_progress() {
             /bin/echo "progress: $countdown" >> "$dialog_log"
             countdown=$((countdown-1))
         done
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Dialogue to disable Find My Mac. 
+# Called when --check-fmm option is used.
+# Not used in --silent mode.
+# -----------------------------------------------------------------------------
+check_fmm() {
+    # default Finy My wait timer to 60 seconds
+    if [[ ! $fmm_wait_timer ]]; then 
+        fmm_wait_timer=300
+    fi
+
+    if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+        writelog "[check_fmm] OK - Find My not enabled"
+    elif [[ $silent ]]; then
+        writelog "[check_fmm] ERROR - Find My enabled, cannot continue."
+        echo
+        exit 1
+    else
+        writelog "[check_fmm] WARNING - Find My enabled"
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        # original icon: ${dialog_confirmation_icon}
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--overlayicon"
+            "${dialog_fmm_icon}"
+            "--iconsize"
+            "128"
+            "--message"
+            "${!dialog_fmm_desc}"
+            "--timer"
+            "${fmm_wait_timer}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+
+        # now count down while checking for power
+        while [[ "$fmm_wait_timer" -gt 0 ]]; do
+            if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+                writelog "[check_fmm] OK - Find My not enabled"
+                # quit dialog
+                writelog "[check_fmm] Sending to dialog: quit:"
+                /bin/echo "quit:" >> "$dialog_log"
+                return
+            fi
+            sleep 1
+            ((fmm_wait_timer--))
+        done
+
+        # quit dialog
+        writelog "[check_power_status] Sending to dialog: quit:"
+        /bin/echo "quit:" >> "$dialog_log"
+
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--iconsize"
+            "128"
+            "--overlayicon"
+            "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
+            "--message"
+            "${!dialog_fmmenabled_desc}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+
+        writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        echo
+        exit 1
     fi
 }
 
@@ -1788,6 +1870,30 @@ set_localisations() {
     dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulse OK para salir."
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
+    # Dialogue localizations - Find My check - title
+    dialog_fmm_title_en="Waiting for Find My to be disabled"
+    dialog_fmm_title_de="Auf Find My warten"
+    dialog_fmm_title_nl="Wachten op Find My"
+    dialog_fmm_title_fr="En attente de Find My"
+    dialog_fmm_title_es="A la espera de la Find My"
+    dialog_fmm_title=dialog_fmm_title_${user_language}
+
+    # Dialogue localizations - Find My check - description
+    dialog_fmm_desc_en="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_de="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_nl="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_fr="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_es="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc=dialog_fmm_desc_${user_language}
+
+    # Dialogue localizations - Find My check failed - description
+    dialog_fmmenabled_desc_en="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_de="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_nl="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_fr="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_es="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
+
     # Dialogue localizations - ask for credentials - erase
     dialog_erase_credentials_en="Erasing macOS requires authentication using local account credentials.  \n\nPlease enter your account name and password to start the erase process."
     dialog_erase_credentials_de="Das Löschen von macOS erfordert eine Authentifizierung mit den Anmeldedaten des lokalen Kontos.  \n\nBitte geben Sie Ihren Kontonamen und Ihr Passwort ein, um den Löschvorgang zu starten."
@@ -1918,6 +2024,9 @@ show_help() {
     --power-wait-limit NN
                         Maximum seconds to wait for detection of AC power, if
                         --check-power is set. Default is 60.
+    --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
+    --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
+                        --check-fmm is set. Default is 300.
 
     Options for filtering which installer to download/use:
 
@@ -2270,6 +2379,12 @@ while test $# -gt 0 ; do
         --clear-cache-only) clear_cache="yes"
             ;;
         --cleanup-after-use) cleanup_after_use="yes"
+            ;;
+        --check-fmm) check_fmm="yes"
+            ;;
+        --fmm-wait-limit)
+            shift
+            fmm_wait_timer="$1"
             ;;
         --set-securebootlevel) set_secureboot="yes"
             ;;
@@ -2633,8 +2748,11 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     get_user_details
 fi
 
+# check for Find My
+[[ "$check_fmm" == "yes"  && ($erase == "yes") ]] && check_fmm
+
 # check for power
-[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") && ! $silent ]] && check_power_status
+[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") ]] && check_power_status
 
 if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     if [[ ! $silent ]]; then
