@@ -2550,11 +2550,7 @@ if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
     exit 1
 fi
 
-# ensure installer_directory (--path), logdir and workdir exist
-if [[ ! -d "$installer_directory" ]]; then
-    writelog "[$script_name] Making installer directory at $installer_directory"
-    /bin/mkdir -p "$installer_directory"
-fi
+# ensure logdir and workdir exist
 if [[ ! -d "$workdir" ]]; then
     writelog "[$script_name] Making working directory at $workdir"
     /bin/mkdir -p "$workdir"
@@ -2581,6 +2577,12 @@ if [[ $ffi ]]; then
     if [[ $list == "yes" ]]; then
         list_installers="yes"
     fi
+fi
+
+# ensure installer_directory (--path) exists
+if [[ ! -d "$installer_directory" ]]; then
+    writelog "[$script_name] Making installer directory at $installer_directory"
+    /bin/mkdir -p "$installer_directory"
 fi
 
 # all output from now on is written also to a log file
