@@ -2435,6 +2435,16 @@ if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
     exit 1
 fi
 
+# ensure logdir and workdir exist
+if [[ ! -d "$workdir" ]]; then
+    writelog "[$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+if [[ ! -d "$logdir" ]]; then
+    writelog "[$script_name] Making log directory at $logdir"
+    /bin/mkdir -p "$logdir"
+fi
+
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
     if [[ $system_os_major -lt 11 ]]; then
@@ -2454,20 +2464,11 @@ if [[ $ffi ]]; then
     fi
 fi
 
-# ensure installer_directory (--path), logdir and workdir exist
+# ensure installer_directory (--path) exists
 if [[ ! -d "$installer_directory" ]]; then
     writelog "[$script_name] Making installer directory at $installer_directory"
     /bin/mkdir -p "$installer_directory"
 fi
-if [[ ! -d "$workdir" ]]; then
-    writelog "[$script_name] Making working directory at $workdir"
-    /bin/mkdir -p "$workdir"
-fi
-if [[ ! -d "$logdir" ]]; then
-    writelog "[$script_name] Making log directory at $logdir"
-    /bin/mkdir -p "$logdir"
-fi
-
 # all output from now on is written also to a log file
 LOG_FILE="$logdir/erase-install.log"
 echo "" > "$LOG_FILE"
