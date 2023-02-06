@@ -133,6 +133,87 @@ ask_for_credentials() {
 }
 
 # -----------------------------------------------------------------------------
+# Dialogue to disable Find My Mac. 
+# Called when --check-fmm option is used.
+# Not used in --silent mode.
+# -----------------------------------------------------------------------------
+check_fmm() {
+    # default Finy My wait timer to 60 seconds
+    if [[ ! $fmm_wait_timer ]]; then 
+        fmm_wait_timer=300
+    fi
+
+    if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+        writelog "[check_fmm] OK - Find My not enabled"
+    elif [[ $silent ]]; then
+        writelog "[check_fmm] ERROR - Find My enabled, cannot continue."
+        echo
+        exit 1
+    else
+        writelog "[check_fmm] WARNING - Find My enabled"
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        # original icon: ${dialog_confirmation_icon}
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--overlayicon"
+            "${dialog_fmm_icon}"
+            "--iconsize"
+            "128"
+            "--message"
+            "${!dialog_fmm_desc}"
+            "--timer"
+            "${fmm_wait_timer}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+
+        # now count down while checking for power
+        while [[ "$fmm_wait_timer" -gt 0 ]]; do
+            if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+                writelog "[check_fmm] OK - Find My not enabled"
+                # quit dialog
+                writelog "[check_fmm] Sending to dialog: quit:"
+                /bin/echo "quit:" >> "$dialog_log"
+                return
+            fi
+            sleep 1
+            ((fmm_wait_timer--))
+        done
+
+        # quit dialog
+        writelog "[check_power_status] Sending to dialog: quit:"
+        /bin/echo "quit:" >> "$dialog_log"
+
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--iconsize"
+            "128"
+            "--overlayicon"
+            "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
+            "--message"
+            "${!dialog_fmmenabled_desc}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+
+        writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        echo
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Download dialog if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_dialog_app() {
@@ -798,87 +879,6 @@ dialog_progress() {
             /bin/echo "progress: $countdown" >> "$dialog_log"
             countdown=$((countdown-1))
         done
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Dialogue to disable Find My Mac. 
-# Called when --check-fmm option is used.
-# Not used in --silent mode.
-# -----------------------------------------------------------------------------
-check_fmm() {
-    # default Finy My wait timer to 60 seconds
-    if [[ ! $fmm_wait_timer ]]; then 
-        fmm_wait_timer=300
-    fi
-
-    if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
-        writelog "[check_fmm] OK - Find My not enabled"
-    elif [[ $silent ]]; then
-        writelog "[check_fmm] ERROR - Find My enabled, cannot continue."
-        echo
-        exit 1
-    else
-        writelog "[check_fmm] WARNING - Find My enabled"
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        # original icon: ${dialog_confirmation_icon}
-        dialog_args+=(
-            "--title"
-            "${!dialog_fmm_title}"
-            "--icon"
-            "${dialog_confirmation_icon}"
-            "--overlayicon"
-            "${dialog_fmm_icon}"
-            "--iconsize"
-            "128"
-            "--message"
-            "${!dialog_fmm_desc}"
-            "--timer"
-            "${fmm_wait_timer}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
-
-        # now count down while checking for power
-        while [[ "$fmm_wait_timer" -gt 0 ]]; do
-            if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
-                writelog "[check_fmm] OK - Find My not enabled"
-                # quit dialog
-                writelog "[check_fmm] Sending to dialog: quit:"
-                /bin/echo "quit:" >> "$dialog_log"
-                return
-            fi
-            sleep 1
-            ((fmm_wait_timer--))
-        done
-
-        # quit dialog
-        writelog "[check_power_status] Sending to dialog: quit:"
-        /bin/echo "quit:" >> "$dialog_log"
-
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "--title"
-            "${!dialog_fmm_title}"
-            "--icon"
-            "${dialog_confirmation_icon}"
-            "--iconsize"
-            "128"
-            "--overlayicon"
-            "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
-            "--message"
-            "${!dialog_fmmenabled_desc}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
-
-        writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
-        echo
-        exit 1
     fi
 }
 
@@ -1747,7 +1747,7 @@ set_localisations() {
     elif [[ $language = es* ]]; then
         user_language="es"
     else
-        user_language="en"
+        user_language="de"
     fi
 
     # Dialogue localizations - download window - title
@@ -1871,27 +1871,27 @@ set_localisations() {
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
     # Dialogue localizations - Find My check - title
-    dialog_fmm_title_en="Waiting for Find My to be disabled"
-    dialog_fmm_title_de="Auf Find My warten"
-    dialog_fmm_title_nl="Wachten op Find My"
-    dialog_fmm_title_fr="En attente de Find My"
-    dialog_fmm_title_es="A la espera de la Find My"
+    dialog_fmm_title_en="Waiting for Find My Mac to be disabled"
+    dialog_fmm_title_de="Warte auf die Deaktivierung von «Meinen Mac suchen»"
+    dialog_fmm_title_nl="Wachten op Vind mijn Mac"
+    dialog_fmm_title_fr="En attente de Localiser mon Mac"
+    dialog_fmm_title_es="A la espera de la Buscar mi Mac"
     dialog_fmm_title=dialog_fmm_title_${user_language}
 
     # Dialogue localizations - Find My check - description
-    dialog_fmm_desc_en="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
-    dialog_fmm_desc_de="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
-    dialog_fmm_desc_nl="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
-    dialog_fmm_desc_fr="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
-    dialog_fmm_desc_es="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found by launching **System Preferences** and clicking either the **iCloud** or **Apple ID** button.  \n\nUncheck **\"Find My Mac\"** in the list of iCloud settings.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_en="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found in **System Preferences** > **Apple ID** > **iCloud**.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_de="Bitte deaktiviere **«Meinen Mac suchen»** in Ihren iCloud-Einstellungen.  \n\nDiese Einstellung finden Sie in **Systemeinstellungen** > **Apple ID** > **iCloud**.  \n\nDieser Vorgang wird fortgesetzt, wenn «Meinen Mac suchen» innerhalb der angegebenen Zeit deaktiviert wurde."
+    dialog_fmm_desc_nl="Schakel **Vind mijn Mac** uit in uw iCloud-instellingen.  \n\nDeze instelling vindt u in **Systeemvoorkeuren** > **Apple ID** > **iCloud**.  \n\nDit proces wordt voortgezet als **Vind mijn Mac** binnen de opgegeven tijd is uitgeschakeld."
+    dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
+    dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
     dialog_fmm_desc=dialog_fmm_desc_${user_language}
 
     # Dialogue localizations - Find My check failed - description
-    dialog_fmmenabled_desc_en="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
-    dialog_fmmenabled_desc_de="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
-    dialog_fmmenabled_desc_nl="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
-    dialog_fmmenabled_desc_fr="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
-    dialog_fmmenabled_desc_es="### Find My was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_en="### Find My Mac was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_de="### «Meinem Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
+    dialog_fmmenabled_desc_nl="### Vind mijn Mac was niet uitgeschakeld in de opgegeven tijd.  \n\nDruk op OK om af te sluiten."
+    dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
+    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulse OK para salir."
     dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
@@ -2550,6 +2550,20 @@ if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
     exit 1
 fi
 
+# ensure installer_directory (--path), logdir and workdir exist
+if [[ ! -d "$installer_directory" ]]; then
+    writelog "[$script_name] Making installer directory at $installer_directory"
+    /bin/mkdir -p "$installer_directory"
+fi
+if [[ ! -d "$workdir" ]]; then
+    writelog "[$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+if [[ ! -d "$logdir" ]]; then
+    writelog "[$script_name] Making log directory at $logdir"
+    /bin/mkdir -p "$logdir"
+fi
+
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
     if [[ $system_os_major -lt 11 ]]; then
@@ -2567,20 +2581,6 @@ if [[ $ffi ]]; then
     if [[ $list == "yes" ]]; then
         list_installers="yes"
     fi
-fi
-
-# ensure installer_directory (--path), logdir and workdir exist
-if [[ ! -d "$installer_directory" ]]; then
-    writelog "[$script_name] Making installer directory at $installer_directory"
-    /bin/mkdir -p "$installer_directory"
-fi
-if [[ ! -d "$workdir" ]]; then
-    writelog "[$script_name] Making working directory at $workdir"
-    /bin/mkdir -p "$workdir"
-fi
-if [[ ! -d "$logdir" ]]; then
-    writelog "[$script_name] Making log directory at $logdir"
-    /bin/mkdir -p "$logdir"
 fi
 
 # all output from now on is written also to a log file
