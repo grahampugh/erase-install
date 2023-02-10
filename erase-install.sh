@@ -2572,7 +2572,7 @@ if [[ ! $silent ]]; then
 fi
 
 # different dialog icon for OS older than macOS 13
-if [[ $system_os_major -le 13 ]]; then
+if [[ $system_os_major -lt 13 ]]; then
     dialog_confirmation_icon="/System/Applications/System Preferences.app"
 fi
 
