@@ -10,9 +10,12 @@ No date
 
 - New `--check-fmm` option to prompt the user to disable Find My Mac if it is enabled (in `--erase` mode only). The default wait limit is 5 minutes before failing. This can be altered using a new `--fmm-wait-limit` option.
 
-### Known issues
+### Bugfixes
 
-- Currently there are no translations for the Find My dialogs.
+- Fixed Minimum Drive Space dialog not showing (fixes #353).
+- Fixed incorrect full screen "reboot delay" screen (fixes #348). If `--fs` mode is used, the fullscreen preparation window now remains until the end of the reboot delay period.
+- Fixed some incorrect/inconsistent window and icon sizes.
+- Fixed some missing window titles.
 
 ## [28.1]
 

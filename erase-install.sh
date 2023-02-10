@@ -287,7 +287,7 @@ check_free_space() {
     # if there isn't enough space, then we show a failure message to the user
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         writelog "[check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
-    elif [[ ! $silent ]]; then
+    elif [[ $silent ]]; then
         writelog "[check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         echo
         exit 1
@@ -298,7 +298,7 @@ check_free_space() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
@@ -1308,16 +1308,17 @@ launch_startosinstall() {
     OLDIFS=$IFS
     IFS=$'\x00'
     if [[ $test_run != "yes" ]]; then
-        programPath="$working_macos_app/Contents/Resources/startosinstall"
+        program_path="$working_macos_app/Contents/Resources/startosinstall"
         combined_args=("${install_args[@]}" "--pidtosignal" "$$" "--agreetolicense" "--nointeraction" "${install_package_list[@]}")
     else
-        programPath="/bin/zsh"
+        program_path="/bin/zsh"
         combined_args=("-c" "/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+
         writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
         writelog "[launch_startosinstall] $working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}"
     fi
     launch_daemon_args=()
-    for install_arg in $programPath "${combined_args[@]}"; do
+    for install_arg in $program_path "${combined_args[@]}"; do
         launch_daemon_args+=("-string")
         launch_daemon_args+=("$install_arg")
     done
@@ -1413,13 +1414,17 @@ overwrite_existing_installer() {
 # -----------------------------------------------------------------------------
 post_prep_work() {
     # set dialog progress for rebootdelay if set
-    if [[ "$rebootdelay" -gt 10 && ! $silent ]]; then
+    if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
         # quit an existing window
         writelog "[post_prep_work] Sending to dialog: quit:"
         echo "quit:" >> "$dialog_log"
         writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
+
+        window_type="utility"
+        iconsize=100
+
         # set the dialog command arguments
-        get_default_dialog_args "fullscreen"
+        get_default_dialog_args "$window_type"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
@@ -1427,11 +1432,10 @@ post_prep_work() {
             "--icon"
             "${dialog_install_icon}"
             "--iconsize"
-            "256"
+            "$iconsize"
             "--message"
             "${!dialog_rebooting_heading}"
-            "--button1text"
-            "${!dialog_cancel_button}"
+            "--button1disabled"
             "--progress"
             "$rebootdelay"
         )
@@ -1747,7 +1751,7 @@ set_localisations() {
     elif [[ $language = es* ]]; then
         user_language="es"
     else
-        user_language="de"
+        user_language="en"
     fi
 
     # Dialogue localizations - download window - title
@@ -1815,11 +1819,11 @@ set_localisations() {
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
-    dialog_rebooting_heading_en="The upgrade is now ready for installation"
-    dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit"
-    dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie"
-    dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée"
-    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada"
+    dialog_rebooting_heading_en="The upgrade is now ready for installation.  \n\n### Save any open work now!"
+    dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit.  \n\n### Speichern Sie jetzt alle offenen Arbeiten ab!"
+    dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie.  \n\n### Bewaar nu al het open werk!"
+    dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée.  \n\n### Sauvegardez les travaux en cours maintenant!"
+    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarde ahora los trabajos pendientes!"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -2205,7 +2209,7 @@ user_is_invalid() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
@@ -2261,7 +2265,7 @@ user_not_volume_owner() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
@@ -2936,19 +2940,21 @@ if [[ $erase == "yes" && $newvolumename ]]; then
     install_args+=("$newvolumename")
 fi
 
-# if no_fs is set, show a utility window instead of the full screen display (for test purposes)
-if [[ $no_fs == "yes" || $rebootdelay -gt 10 ]]; then
-    window_type="utility"
-else
-    window_type="fullscreen"
-fi
-
 # icon for dialogs
 macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
 if [[ -f "$macos_installer_icon" ]]; then
     dialog_install_icon="$macos_installer_icon"
 else
     dialog_install_icon="warning"
+fi
+
+# window type for erase and reinstall dialogs
+if [[ $fs == "yes" ]]; then
+    window_type="fullscreen"
+    iconsize=200
+else
+    window_type="utility"
+    iconsize=100
 fi
 
 # dialogs for erase
@@ -2961,8 +2967,6 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "${!dialog_erase_title}"
         "--icon"
         "${dialog_install_icon}"
-        "--iconsize"
-        "256"
         "--message"
         "${!dialog_erase_desc}"
         "--progress"
@@ -2983,8 +2987,6 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "${!dialog_reinstall_title}"
         "--icon"
         "${dialog_install_icon}"
-        "--iconsize"
-        "256"
         "--message"
         "${!dialog_reinstall_desc}"
         "--progress"
