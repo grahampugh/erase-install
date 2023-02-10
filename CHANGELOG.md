@@ -16,6 +16,7 @@ No date
 - Fixed incorrect full screen "reboot delay" screen (fixes #348). If `--fs` mode is used, the fullscreen preparation window now remains until the end of the reboot delay period.
 - Fixed some incorrect/inconsistent window and icon sizes.
 - Fixed some missing window titles.
+- Fixed missing icon on macOS<13.
 
 ## [28.1]
 
