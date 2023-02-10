@@ -66,11 +66,7 @@ dialog_log="/var/tmp/dialog.log"
 dialog_output="/var/tmp/dialog.json"
 
 # swiftDialog icons
-# dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
-# dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns"
-# dialog_dl_icon="SF=applelogo,colour=gray"
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
-# dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
 dialog_fmm_icon="/System/Library/PrivateFrameworks/AOSUI.framework/Versions/A/Resources/findmy.icns"
@@ -2573,6 +2569,11 @@ if [[ ! $silent ]]; then
     fi
     # get dialog app if not silent mode
     check_for_dialog_app
+fi
+
+# different dialog icon for OS older than macOS 13
+if [[ $system_os_major -le 13 ]]; then
+    dialog_confirmation_icon="/System/Applications/System Preferences.app"
 fi
 
 # /Applications is the only path for fetch-full-installer
