@@ -4,6 +4,19 @@
 
 No date
 
+## [29.0]
+
+No date
+
+- New `--check-fmm` option to prompt the user to disable Find My Mac if it is enabled (in `--erase` mode only). The default wait limit is 5 minutes before failing. This can be altered using a new `--fmm-wait-limit` option.
+
+### Bugfixes
+
+- Fixed Minimum Drive Space dialog not showing (fixes #353).
+- Fixed incorrect full screen "reboot delay" screen (fixes #348). If `--fs` mode is used, the fullscreen preparation window now remains until the end of the reboot delay period.
+- Fixed some incorrect/inconsistent window and icon sizes.
+- Fixed some missing window titles.
+
 ## [28.1]
 
 28.01.2023
@@ -13,7 +26,8 @@ No date
 - New experimental `--clear-firmware` option (in `--erase` mode only) uses the command `nvram -c` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught).
 - `erase-install` now reports a non-zero exit code (143 to be exact) when it is being abnormally terminated (e.g. by pressing CTRL+C or getting terminated by SIGTERM). Previously it would return the exit code of the last command being executed at time of termination, which could be non-zero or zero depending on the specific circumstances, which then could have been reported as successful execution in a Jamf policy. This change will make it easier to discover such errors. The exit code of the last executed command will be logged in addition to returning 143 to facilitate debugging (#318, thanks @cvgs).
 
-Bugfixes:
+### Bugfixes
+
 - `mist` result is now correctly interpreted when checking for a newer version.
 - The `--update` option now triggers an invalid installer to be overwritten.
 - Progress is now once again shown during the preparation phase, and the progress bar properly shows incremental progress.
@@ -96,7 +110,6 @@ Bugfixes:
 - Some minor changes to the German translation (thanks to @cvgs).
 - Adds an additional check for `--min-drive-space` right before start of the installation (should address #242, thanks to @cvgs).
 - Adds `-nobrowse` to all instances of `hdiutil` to prevent mounted images appearing on the desktop (thanks to @cvgs).
-
 
 ## [26.0]
 
@@ -493,7 +506,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v28.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v29.0...HEAD
+[29.0]: https://github.com/grahampugh/erase-install/compare/v28.1...v29.0
 [28.1]: https://github.com/grahampugh/erase-install/compare/v28.0...v28.1
 [28.0]: https://github.com/grahampugh/erase-install/compare/v27.3...v28.0
 [27.3]: https://github.com/grahampugh/erase-install/compare/v27.2...v27.3
