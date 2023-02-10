@@ -6,7 +6,7 @@ No date
 
 ## [29.0]
 
-No date
+10.02.2023
 
 - New `--check-fmm` option to prompt the user to disable Find My Mac if it is enabled (in `--erase` mode only). The default wait limit is 5 minutes before failing. This can be altered using a new `--fmm-wait-limit` option.
 
