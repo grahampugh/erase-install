@@ -1290,9 +1290,10 @@ launch_startosinstall() {
     local install_arg
     local combined_args=()
     local launch_daemon_args=()
-    # get unique label and file name for LaunchDaemon
-    plist_label="$pkg_label.startosinstall.$$"
-    launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    # set label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall"
+    # launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
 
     # reset the existing launchdaemon if present
     if [[ -f "$launch_daemon" ]]; then
@@ -1453,7 +1454,7 @@ post_prep_work() {
 
     if [[ $test_run != "yes" ]]; then
         # we need to quit so our management system can report back home before being killed by startosinstall
-        writelog "[post_prep_work] Skipping rebootdelay of ${rebootdelay}s"
+        writelog "[post_prep_work] Reboot delay set to ${rebootdelay}s"
     else
         writelog "[post_prep_work] Waiting ${rebootdelay}s"
         sleep "$rebootdelay"
