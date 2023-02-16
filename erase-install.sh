@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="28.0"
+version="29.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -66,17 +66,14 @@ dialog_log="/var/tmp/dialog.log"
 dialog_output="/var/tmp/dialog.json"
 
 # swiftDialog icons
-# dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/SidebarDownloadsFolder.icns"
-# dialog_dl_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns"
-# dialog_dl_icon="SF=applelogo,colour=gray"
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
-# dialog_confirmation_icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertStopIcon.icns"
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
+dialog_fmm_icon="/System/Library/PrivateFrameworks/AOSUI.framework/Versions/A/Resources/findmy.icns"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible dialog is used if not using the package installer
-dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v2.0.1/dialog-2.0.1-3814.pkg"
+dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v2.1.0/dialog-2.1.0-4148.pkg"
 
 # default app and package names for mist
 default_downloaded_app_name="Install %NAME%.app"
@@ -129,6 +126,87 @@ ask_for_credentials() {
 
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" > "$dialog_output"
+}
+
+# -----------------------------------------------------------------------------
+# Dialogue to disable Find My Mac. 
+# Called when --check-fmm option is used.
+# Not used in --silent mode.
+# -----------------------------------------------------------------------------
+check_fmm() {
+    # default Finy My wait timer to 60 seconds
+    if [[ ! $fmm_wait_timer ]]; then 
+        fmm_wait_timer=300
+    fi
+
+    if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+        writelog "[check_fmm] OK - Find My not enabled"
+    elif [[ $silent ]]; then
+        writelog "[check_fmm] ERROR - Find My enabled, cannot continue."
+        echo
+        exit 1
+    else
+        writelog "[check_fmm] WARNING - Find My enabled"
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        # original icon: ${dialog_confirmation_icon}
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--overlayicon"
+            "${dialog_fmm_icon}"
+            "--iconsize"
+            "128"
+            "--message"
+            "${!dialog_fmm_desc}"
+            "--timer"
+            "${fmm_wait_timer}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+
+        # now count down while checking for power
+        while [[ "$fmm_wait_timer" -gt 0 ]]; do
+            if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
+                writelog "[check_fmm] OK - Find My not enabled"
+                # quit dialog
+                writelog "[check_fmm] Sending to dialog: quit:"
+                /bin/echo "quit:" >> "$dialog_log"
+                return
+            fi
+            sleep 1
+            ((fmm_wait_timer--))
+        done
+
+        # quit dialog
+        writelog "[check_power_status] Sending to dialog: quit:"
+        /bin/echo "quit:" >> "$dialog_log"
+
+        # set the dialog command arguments
+        get_default_dialog_args "utility"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "--title"
+            "${!dialog_fmm_title}"
+            "--icon"
+            "${dialog_confirmation_icon}"
+            "--iconsize"
+            "128"
+            "--overlayicon"
+            "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
+            "--message"
+            "${!dialog_fmmenabled_desc}"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}"
+
+        writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        echo
+        exit 1
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -205,7 +283,7 @@ check_free_space() {
     # if there isn't enough space, then we show a failure message to the user
     if [[ $free_disk_space -ge $min_drive_space ]]; then
         writelog "[check_free_space] OK - $free_disk_space GB free/purgeable disk space detected"
-    elif [[ ! $silent ]]; then
+    elif [[ $silent ]]; then
         writelog "[check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
         echo
         exit 1
@@ -216,7 +294,7 @@ check_free_space() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
@@ -378,7 +456,7 @@ check_newer_available() {
     fi
 
     # run mist with --list and then interrogate the plist
-    if ! "$mist_bin" "${mist_args[@]}" ; then
+    if "$mist_bin" "${mist_args[@]}" ; then
         newer_build_found="no"
         if [[ -f "$mist_export_file" ]]; then
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
@@ -497,7 +575,7 @@ check_power_status() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
 
-        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}, cannot continue."
+        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -688,6 +766,12 @@ dialog_progress() {
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
+        until grep -q "Preparing to run macOS Installer..." "$LOG_FILE" ; do
+            sleep 0.1
+        done
+        writelog "Sending to dialog: progresstext: Preparing to run macOS Installer..."
+        /bin/echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
+        
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
         done
@@ -696,9 +780,14 @@ dialog_progress() {
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
             until [[ $current_progress_value -gt $last_progress_value ]]; do
-                current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
-                sleep 2
+                log_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
+                # check we got a number
+                if [ "$log_value" -eq "$log_value" ] 2>/dev/null; then
+                    current_progress_value="$log_value"
+                fi
+                sleep 1
             done
+            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
             /bin/echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
@@ -852,10 +941,18 @@ find_extra_packages() {
 }
 
 # -----------------------------------------------------------------------------
+# Return code 143 and finish the script when TERMinated or INTerrupted
+# -----------------------------------------------------------------------------
+terminate() {
+    echo "   [terminate] Script was interrupted (last exit code was $?)"
+    exit 143
+}
+
+# -----------------------------------------------------------------------------
 # Things to carry out when the script exits
 # -----------------------------------------------------------------------------
 finish() {
-    local exit_code=$?
+    local exit_code=${1:-$?}
     # if we promoted the user then we should demote it again
     if [[ $promoted_user ]]; then
         /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
@@ -1207,16 +1304,17 @@ launch_startosinstall() {
     OLDIFS=$IFS
     IFS=$'\x00'
     if [[ $test_run != "yes" ]]; then
-        programPath="$working_macos_app/Contents/Resources/startosinstall"
+        program_path="$working_macos_app/Contents/Resources/startosinstall"
         combined_args=("${install_args[@]}" "--pidtosignal" "$$" "--agreetolicense" "--nointeraction" "${install_package_list[@]}")
     else
-        programPath="/bin/zsh"
+        program_path="/bin/zsh"
         combined_args=("-c" "/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+
         writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
         writelog "[launch_startosinstall] $working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}"
     fi
     launch_daemon_args=()
-    for install_arg in $programPath "${combined_args[@]}"; do
+    for install_arg in $program_path "${combined_args[@]}"; do
         launch_daemon_args+=("-string")
         launch_daemon_args+=("$install_arg")
     done
@@ -1312,13 +1410,17 @@ overwrite_existing_installer() {
 # -----------------------------------------------------------------------------
 post_prep_work() {
     # set dialog progress for rebootdelay if set
-    if [[ "$rebootdelay" -gt 10 && ! $silent ]]; then
+    if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
         # quit an existing window
         writelog "[post_prep_work] Sending to dialog: quit:"
         echo "quit:" >> "$dialog_log"
         writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
+
+        window_type="utility"
+        iconsize=100
+
         # set the dialog command arguments
-        get_default_dialog_args "fullscreen"
+        get_default_dialog_args "$window_type"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
@@ -1326,11 +1428,10 @@ post_prep_work() {
             "--icon"
             "${dialog_install_icon}"
             "--iconsize"
-            "256"
+            "$iconsize"
             "--message"
             "${!dialog_rebooting_heading}"
-            "--button1text"
-            "${!dialog_cancel_button}"
+            "--button1disabled"
             "--progress"
             "$rebootdelay"
         )
@@ -1546,8 +1647,11 @@ run_mist() {
         mist_args+=("$installer_directory")
     fi
 
-    # cache downloads to save time (may remove this later)
-    mist_args+=("--cache-downloads")
+    # optionally cache downloads to save time when doing repeated tests
+    if [[ "$cache_downloads" == "yes" ]]; then
+        mist_args+=("--cache-downloads")
+    fi
+
     # force overwrite of existing app or pkg of the same name
     # mist_args+=("--force")
 
@@ -1711,11 +1815,11 @@ set_localisations() {
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
-    dialog_rebooting_heading_en="The upgrade is now ready for installation"
-    dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit"
-    dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie"
-    dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée"
-    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada"
+    dialog_rebooting_heading_en="The upgrade is now ready for installation.  \n\n### Save any open work now!"
+    dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit.  \n\n### Speichern Sie jetzt alle offenen Arbeiten ab!"
+    dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie.  \n\n### Bewaar nu al het open werk!"
+    dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée.  \n\n### Sauvegardez les travaux en cours maintenant!"
+    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarde ahora los trabajos pendientes!"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -1765,6 +1869,30 @@ set_localisations() {
     dialog_nopower_desc_fr="### Le courant alternatif n'a pas été branché dans le délai spécifié.  \n\nAppuyez sur OK pour quitter."
     dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulse OK para salir."
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
+
+    # Dialogue localizations - Find My check - title
+    dialog_fmm_title_en="Waiting for Find My Mac to be disabled"
+    dialog_fmm_title_de="Warte auf die Deaktivierung von «Meinen Mac suchen»"
+    dialog_fmm_title_nl="Wachten op Vind mijn Mac"
+    dialog_fmm_title_fr="En attente de Localiser mon Mac"
+    dialog_fmm_title_es="A la espera de la Buscar mi Mac"
+    dialog_fmm_title=dialog_fmm_title_${user_language}
+
+    # Dialogue localizations - Find My check - description
+    dialog_fmm_desc_en="Please disable **Find My Mac** in your iCloud settings.  \n\nThis setting can be found in **System Preferences** > **Apple ID** > **iCloud**.  \n\nThis process will continue if Find My has been disabled within the specified time."
+    dialog_fmm_desc_de="Bitte deaktiviere **«Meinen Mac suchen»** in Ihren iCloud-Einstellungen.  \n\nDiese Einstellung finden Sie in **Systemeinstellungen** > **Apple ID** > **iCloud**.  \n\nDieser Vorgang wird fortgesetzt, wenn «Meinen Mac suchen» innerhalb der angegebenen Zeit deaktiviert wurde."
+    dialog_fmm_desc_nl="Schakel **Vind mijn Mac** uit in uw iCloud-instellingen.  \n\nDeze instelling vindt u in **Systeemvoorkeuren** > **Apple ID** > **iCloud**.  \n\nDit proces wordt voortgezet als **Vind mijn Mac** binnen de opgegeven tijd is uitgeschakeld."
+    dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
+    dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
+    dialog_fmm_desc=dialog_fmm_desc_${user_language}
+
+    # Dialogue localizations - Find My check failed - description
+    dialog_fmmenabled_desc_en="### Find My Mac was not disabled in the specified time.  \n\nPress OK to quit."
+    dialog_fmmenabled_desc_de="### «Meinem Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
+    dialog_fmmenabled_desc_nl="### Vind mijn Mac was niet uitgeschakeld in de opgegeven tijd.  \n\nDruk op OK om af te sluiten."
+    dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
+    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulse OK para salir."
+    dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
     dialog_erase_credentials_en="Erasing macOS requires authentication using local account credentials.  \n\nPlease enter your account name and password to start the erase process."
@@ -1896,6 +2024,9 @@ show_help() {
     --power-wait-limit NN
                         Maximum seconds to wait for detection of AC power, if
                         --check-power is set. Default is 60.
+    --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
+    --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
+                        --check-fmm is set. Default is 300.
 
     Options for filtering which installer to download/use:
 
@@ -1989,7 +2120,10 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
                         to provide a password.
-    --preservecontainer Preserves other volumes in your APFS container when using --erase.
+    --preservecontainer Preserves other volumes in your APFS container when using --erase
+    --set-securebootlevel 
+                        Resets Secure Boot Level to High when using --erase
+    --clear-firmware    Clears the firmware NVRAM variables when using --erase
 
     Parameters useful in testing this script:
 
@@ -1998,6 +2132,8 @@ show_help() {
                         run is shown in stdout.
     --workdir /path/to  Supply an alternative working directory. The default is the same
                         directory in which erase-install.sh is saved.
+    --cache-downloads   Caches mist downloads in a temporary directory in /private/tmp/com.ninxsoft.mist
+                        Useful when running repeated tests.
 HELP
     exit
 }
@@ -2069,7 +2205,7 @@ user_is_invalid() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
@@ -2125,7 +2261,7 @@ user_not_volume_owner() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_window_title}"
+            "${dialog_window_title}"
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
@@ -2151,6 +2287,9 @@ writelog() {
 
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
+
+# ensure the finish function is executed and an error code is returned when the script is TERMinated or INTerrupted
+trap "terminate" SIGINT SIGTERM
 
 # ensure some cleanup is done after startosinstall is run (thanks @frogor!)
 trap "post_prep_work" SIGUSR1
@@ -2235,9 +2374,21 @@ while test $# -gt 0 ; do
             ;;
         --test-run) test_run="yes"
             ;;
+        --cache-downloads) cache_downloads="yes"
+            ;;
         --clear-cache-only) clear_cache="yes"
             ;;
         --cleanup-after-use) cleanup_after_use="yes"
+            ;;
+        --check-fmm) check_fmm="yes"
+            ;;
+        --fmm-wait-limit)
+            shift
+            fmm_wait_timer="$1"
+            ;;
+        --set-securebootlevel) set_secureboot="yes"
+            ;;
+        --clear-firmware) clear_firmware="yes"
             ;;
         --check-power)
             check_power="yes"
@@ -2399,6 +2550,16 @@ if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
     exit 1
 fi
 
+# ensure logdir and workdir exist
+if [[ ! -d "$workdir" ]]; then
+    writelog "[$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+if [[ ! -d "$logdir" ]]; then
+    writelog "[$script_name] Making log directory at $logdir"
+    /bin/mkdir -p "$logdir"
+fi
+
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
     if [[ $system_os_major -lt 11 ]]; then
@@ -2410,6 +2571,11 @@ if [[ ! $silent ]]; then
     check_for_dialog_app
 fi
 
+# different dialog icon for OS older than macOS 13
+if [[ $system_os_major -lt 13 ]]; then
+    dialog_confirmation_icon="/System/Applications/System Preferences.app"
+fi
+
 # /Applications is the only path for fetch-full-installer
 if [[ $ffi ]]; then
     installer_directory="/Applications"
@@ -2418,18 +2584,10 @@ if [[ $ffi ]]; then
     fi
 fi
 
-# ensure installer_directory (--path), logdir and workdir exist
+# ensure installer_directory (--path) exists
 if [[ ! -d "$installer_directory" ]]; then
     writelog "[$script_name] Making installer directory at $installer_directory"
     /bin/mkdir -p "$installer_directory"
-fi
-if [[ ! -d "$workdir" ]]; then
-    writelog "[$script_name] Making working directory at $workdir"
-    /bin/mkdir -p "$workdir"
-fi
-if [[ ! -d "$logdir" ]]; then
-    writelog "[$script_name] Making log directory at $logdir"
-    /bin/mkdir -p "$logdir"
 fi
 
 # all output from now on is written also to a log file
@@ -2505,7 +2663,7 @@ elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") &
 
 elif [[ $invalid_installer_found == "yes" ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid
-    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
+    if [[ -d "$working_macos_app" && ($replace_invalid_installer == "yes" || $update_installer == "yes") ]]; then
         overwrite_existing_installer
     elif [[ ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
         writelog "[$script_name] Deleting invalid installer package"
@@ -2597,8 +2755,11 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
     get_user_details
 fi
 
+# check for Find My
+[[ "$check_fmm" == "yes"  && ($erase == "yes") ]] && check_fmm
+
 # check for power
-[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") && ! $silent ]] && check_power_status
+[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") ]] && check_power_status
 
 if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     if [[ ! $silent ]]; then
@@ -2780,19 +2941,21 @@ if [[ $erase == "yes" && $newvolumename ]]; then
     install_args+=("$newvolumename")
 fi
 
-# if no_fs is set, show a utility window instead of the full screen display (for test purposes)
-if [[ $no_fs == "yes" || $rebootdelay -gt 10 ]]; then
-    window_type="utility"
-else
-    window_type="fullscreen"
-fi
-
 # icon for dialogs
 macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
 if [[ -f "$macos_installer_icon" ]]; then
     dialog_install_icon="$macos_installer_icon"
 else
     dialog_install_icon="warning"
+fi
+
+# window type for erase and reinstall dialogs
+if [[ $fs == "yes" ]]; then
+    window_type="fullscreen"
+    iconsize=200
+else
+    window_type="utility"
+    iconsize=100
 fi
 
 # dialogs for erase
@@ -2805,10 +2968,10 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "${!dialog_erase_title}"
         "--icon"
         "${dialog_install_icon}"
-        "--iconsize"
-        "256"
         "--message"
         "${!dialog_erase_desc}"
+        "--progress"
+        "100"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
@@ -2825,10 +2988,10 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "${!dialog_reinstall_title}"
         "--icon"
         "${dialog_install_icon}"
-        "--iconsize"
-        "256"
         "--message"
         "${!dialog_reinstall_desc}"
+        "--progress"
+        "100"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
@@ -2861,10 +3024,36 @@ if [[ "$arch" == "arm64" ]]; then
         # startosinstall --eraseinstall may fail if a user was converted to admin using the Privileges app
         # this command supposedly fixes this problem (experimental!)
         writelog "[$script_name] updating preboot files (takes a few seconds)..."
+        sleep 0.1
+        /bin/echo "progresstext: Updating preboot files..." >> "$dialog_log"
         if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
             writelog "[$script_name] preboot files updated"
         else
             writelog "[$script_name] WARNING! preboot files could not be updated."
+        fi
+
+        # if --clear-firmware (thanks @mvught)
+        if [[ "$clear_firmware" == "yes" ]]; then
+            # note this process can take up to 10 seconds
+            writelog "[$script_name] Clearing the firmware settings with the nvram command"
+            /bin/echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
+            if /usr/sbin/nvram -c; then
+                writelog "[$script_name] nvram command exited with success"
+            else
+                writelog "[$script_name] WARNING! nvram command exited with error."
+            fi
+        fi
+
+        # if --set-securebootlevel (thanks @mvught)
+        if [[ "$set_secureboot" == "yes" ]]; then
+            # note this process can take up to 10 seconds
+            writelog "[$script_name] Setting high secure boot level with bputil command"
+            /bin/echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
+            if /usr/bin/bputil -f -u "$current_user" -p "$account_password"; then
+                writelog "[$script_name] bputil command exited with success"
+            else
+                writelog "[$script_name] WARNING! bputil command exited with error."
+            fi
         fi
     fi
 fi
