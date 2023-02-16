@@ -1588,7 +1588,7 @@ run_mist() {
                 build_found=1
                 break
             fi
-            (( i+1 ))
+            ((i++))
         done
         if [[ $build_found = 0 ]]; then
             writelog "[run_mist] ERROR: build is not available"
