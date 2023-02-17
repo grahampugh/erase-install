@@ -424,7 +424,9 @@ check_newer_available() {
     mist_args=()
     mist_args+=("list")
     mist_args+=("installer")
-
+    mist_args+=("--export")
+    mist_args+=("$mist_export_file")
+    
     if [[ $prechosen_version ]]; then
         writelog "[check_newer_available] Checking that selected version $prechosen_version is available"
         mist_args+=("$prechosen_version")
