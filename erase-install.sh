@@ -2326,8 +2326,7 @@ user_not_volume_owner() {
 }
 
 # -----------------------------------------------------------------------------
-# Rotate existing log files
-# Goes up to a maximum of 9 log files
+# Rotate existing log files up to a maximum of 9 log files
 # Older files will be overwritten
 # -----------------------------------------------------------------------------
 log_rotate() {
@@ -2335,18 +2334,18 @@ log_rotate() {
     max_log_keep=9
 
     i="$max_log_keep"
-    while [[ "$i" > 0 ]];do
-        current_filename=$LOG_FILE.$(( $i - 1))
-        new_filename=$LOG_FILE.$i
+    while [[ "$i" -gt 0 ]];do
+        current_filename="$LOG_FILE.$((i-1))"
+        new_filename="$LOG_FILE.$i"
         if [[ -f "$current_filename" ]];then
-            writelog "[log_rotate] mv $current_filename $new_filename"
+            writelog "[log_rotate] moving $current_filename to $new_filename"
             mv "$current_filename" "$new_filename"
         fi
         ((i--))
     done
 
     if [[ -f "$LOG_FILE" ]];then
-        writelog "[log_rotate] mv $LOG_FILE $LOG_FILE.1"
+        writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
         mv "$LOG_FILE" "$LOG_FILE.1"
     fi
 
