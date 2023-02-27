@@ -2295,7 +2295,7 @@ log_rotate() {
             writelog "[log_rotate] mv $current_filename $new_filename"
             mv "$current_filename" "$new_filename"
         fi
-        i=$(( $i - 1 ))
+        ((i--))
     done
 
     if [[ -f "$LOG_FILE" ]];then
