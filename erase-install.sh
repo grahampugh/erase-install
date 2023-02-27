@@ -2278,6 +2278,37 @@ user_not_volume_owner() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Rotate existing log files
+# Goes up to a maximum of 9 log files
+# Older files will be overwritten
+# -----------------------------------------------------------------------------
+log_rotate() {
+    writelog "[log_rotate] Start rotating logs in $logdir"
+    max_log_keep=9
+
+    i="$max_log_keep"
+    while [[ "$i" > 0 ]];do
+        current_filename=$LOG_FILE.$(( $i - 1))
+        new_filename=$LOG_FILE.$i
+        if [[ -f "$current_filename" ]];then
+            writelog "[log_rotate] mv $current_filename $new_filename"
+            mv "$current_filename" "$new_filename"
+        fi
+        i=$(( $i - 1 ))
+    done
+
+    if [[ -f "$LOG_FILE" ]];then
+        writelog "[log_rotate] mv $LOG_FILE $LOG_FILE.1"
+        mv "$LOG_FILE" "$LOG_FILE.1"
+    fi
+
+    writelog "[log_rotate] Finished rotating logs in $logdir"
+}
+
+# -----------------------------------------------------------------------------
+# Add context to log messages
+# -----------------------------------------------------------------------------
 writelog() {
     DATE=$(date +%Y-%m-%d\ %H:%M:%S)
     echo "$DATE" " $1"
@@ -2594,6 +2625,7 @@ fi
 
 # all output from now on is written also to a log file
 LOG_FILE="$logdir/erase-install.log"
+log_rotate
 echo "" > "$LOG_FILE"
 exec > >(tee "${LOG_FILE}") 2>&1
 
