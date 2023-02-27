@@ -873,7 +873,7 @@ dialog_progress() {
             current_progress_value=$countdown
             /bin/echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
             /bin/echo "progress: $countdown" >> "$dialog_log"
-            countdown=$((countdown-1))
+            ((countdown--))
         done
     fi
 }
@@ -1164,7 +1164,7 @@ get_user_details() {
                     echo
                     exit 1
                 fi
-                password_attempts=$((password_attempts+1))
+                ((password_attempts++))
                 continue
             fi
         fi
@@ -1177,7 +1177,7 @@ get_user_details() {
                 echo
                 exit 1
             fi
-            password_attempts=$((password_attempts+1))
+            ((password_attempts++))
             continue
         fi
 
@@ -1212,7 +1212,7 @@ get_user_details() {
                         user_is_volume_owner=1
                         break
                     fi
-                    record_name_index=$((record_name_index+1))
+                    ((record_name_index++))
                 done
                 # if needed, compare the RealName (which might contain spaces)
                 if [[ $user_is_volume_owner -eq 0 ]]; then
@@ -1234,7 +1234,7 @@ get_user_details() {
                 password_is_invalid
                 exit 1
             fi
-            password_attempts=$((password_attempts+1))
+            ((password_attempts++))
             continue
         fi
 
@@ -1245,7 +1245,7 @@ get_user_details() {
             password_is_invalid
             exit 1
         fi
-        password_attempts=$((password_attempts+1))
+        ((password_attempts++))
     done
 
     # if we are performing eraseinstall the user needs to be an admin so let's promote the user
@@ -1589,7 +1589,7 @@ run_mist() {
                 build_found=1
                 break
             fi
-            (( i+1 ))
+            ((i++))
         done
         if [[ $build_found = 0 ]]; then
             writelog "[run_mist] ERROR: build is not available"
@@ -2163,7 +2163,7 @@ run_list_full_installers() {
                 break
             fi
         fi
-        try=$(( try-1 ))
+        ((try--))
     done
     if [[ $try -eq 0 ]]; then
         writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
