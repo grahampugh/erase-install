@@ -11,6 +11,7 @@ No date
 - `--os` can now be used along with `--fetch-full-installer`.
 - Remove audible sound when 1 hour timeout is reached.
 - Add `--quiet` option to prevent large output from mist. Note that with this mode enabled, there is no download progress bar, since the output is required to read the download progress.
+- Log files are now rotated up to 9 times (#369, thanks to @aschwanb).
 
 ### Bugfixes
 
