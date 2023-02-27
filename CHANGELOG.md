@@ -4,6 +4,22 @@
 
 No date
 
+## [29.1]
+
+27.02.2023
+
+- `--os` can now be used along with `--fetch-full-installer`.
+- Remove audible sound when 1 hour timeout is reached.
+- Add `--quiet` option to prevent large output from mist. Note that with this mode enabled, there is no download progress bar, since the output is required to read the download progress.
+
+### Bugfixes
+
+- Do not list deferred updates when using along `--list` with  `--fetch-full-installer` (addresses #347).
+- Fix issue with swiftDialog windows not showing up. This was due to a change in behaviour in swiftDialog version 2.1 enforcing running the app as the local user rather than root, which meant that the log file could not be overwritten. The log file is now deleted after use and each run creates a random logfile path (addresses #352, #366 and #368).
+- Reintroduce `--skip-validation` functionality.
+- Fix issue with using `--version` along with `--fetch-full-installer`.
+- Fix a problem where `mist` did not correctly output (addresses #357).
+
 ## [29.0]
 
 10.02.2023
