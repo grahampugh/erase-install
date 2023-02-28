@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="29.0"
+version="29.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -62,7 +62,7 @@ mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.10/
 # swiftDialog tool
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_bin="/usr/local/bin/dialog"
-dialog_log="/var/tmp/dialog.log"
+dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
 dialog_output="/var/tmp/dialog.json"
 
 # swiftDialog icons
@@ -173,7 +173,7 @@ check_fmm() {
             if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
                 writelog "[check_fmm] OK - Find My not enabled"
                 # quit dialog
-                writelog "[check_fmm] Sending to dialog: quit:"
+                writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
                 /bin/echo "quit:" >> "$dialog_log"
                 return
             fi
@@ -182,7 +182,7 @@ check_fmm() {
         done
 
         # quit dialog
-        writelog "[check_power_status] Sending to dialog: quit:"
+        writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
         /bin/echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
@@ -224,18 +224,22 @@ check_for_dialog_app() {
                 fi
             else
                 writelog "[check_for_dialog_app] dialog download failed"
+                exit 1
             fi
         fi
         # check it did actually get downloaded
         if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
             writelog "[check_for_dialog_app] dialog is installed"
-            # quit an existing window
-            writelog "[check_for_dialog_app] Sending to dialog: quit:"
-            echo "quit:" >> "$dialog_log"
         else
             writelog "[check_for_dialog_app] Could not download dialog."
+            exit 1
         fi
     fi
+    # ensure log file is writable
+    writelog "[check_for_dialog_app] Creating dialog log ($dialog_log)..."
+    /usr/bin/touch "$dialog_log"
+    /usr/sbin/chown "$current_user:wheel" "$dialog_log"
+    /bin/chmod 666 "$dialog_log"
 }
 
 # -----------------------------------------------------------------------------
@@ -424,7 +428,9 @@ check_newer_available() {
     mist_args=()
     mist_args+=("list")
     mist_args+=("installer")
-
+    mist_args+=("--export")
+    mist_args+=("$mist_export_file")
+    
     if [[ $prechosen_version ]]; then
         writelog "[check_newer_available] Checking that selected version $prechosen_version is available"
         mist_args+=("$prechosen_version")
@@ -433,7 +439,9 @@ check_newer_available() {
         mist_args+=("$prechosen_os")
     fi
 
-    mist_args+=("--compatible")
+    if [[ "$skip_validation" != "yes" ]]; then
+        mist_args+=("--compatible")
+    fi
     mist_args+=("--latest")
 
     # set alternative catalog if selected
@@ -545,7 +553,7 @@ check_power_status() {
             if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
                 writelog "[check_power_status] OK - AC power detected"
                 # quit dialog
-                writelog "[check_power_status] Sending to dialog: quit:"
+                writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
                 /bin/echo "quit:" >> "$dialog_log"
                 return
             fi
@@ -554,7 +562,7 @@ check_power_status() {
         done
 
         # quit dialog
-        writelog "[check_power_status] Sending to dialog: quit:"
+        writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
         /bin/echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
@@ -793,50 +801,54 @@ dialog_progress() {
         done
 
     elif [[ "$1" == "mist" ]]; then
-        # Wait for a search message to appear
-        until grep -q "SEARCH" "$LOG_FILE" ; do
-            sleep 1
-        done
-        writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
-        /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+        # if mist runs in quiet mode we cannot display download progress
+        if [[ "$quiet" == "yes" ]]; then
+            /bin/echo "progresstext: Downloading macOS installer..." >> "$dialog_log"
+        else
+            # Wait for a search message to appear
+            until grep -q "SEARCH" "$LOG_FILE" ; do
+                sleep 1
+            done
+            writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
+            /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
 
-        # Wait for a Found message to appear
-        until grep -q "Found \[" "$LOG_FILE" ; do
-            sleep 1
-        done
-        dialog_found_installer=$(/usr/bin/grep "Found \[" "$LOG_FILE" | sed 's/.*Found \[.*\] //' | sed 's/ \[.*\]//')
-        writelog "Sending to dialog: progresstext: Found $dialog_found_installer"
-        /bin/echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
+            # Wait for a Found message to appear
+            until grep -q "Found \[" "$LOG_FILE" ; do
+                sleep 1
+            done
+            dialog_found_installer=$(/usr/bin/grep "Found \[" "$LOG_FILE" | sed 's/.*Found \[.*\] //' | sed 's/ \[.*\]//')
+            writelog "Sending to dialog: progresstext: Found $dialog_found_installer"
+            /bin/echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
 
-        # Wait for the download to start and set the progress bar to 100 steps
-        until grep -q "DOWNLOAD" "$LOG_FILE" ; do
-            sleep 2
-        done
-        writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
-        /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-        /bin/echo  "progress: 0" >> "$dialog_log"
-        # Wait for the InstallAssistant package to start downloading
-        until grep -q "InstallAssistant.pkg" "$LOG_FILE" ; do
-            sleep 2
-        done
-        /bin/echo  "progress: 0" >> "$dialog_log"
-        sleep 2
-        until [[ $current_progress_value -gt 100 ]]; do
-            until [[ $current_progress_value -gt $last_progress_value ]]; do
-                progress_from_mist=$(grep "InstallAssistant" "$LOG_FILE" | tail -1 | cut -d'(' -f2 | cut -d')' -f1)
-                current_progress_value=$(cut -d. -f1 <<< "$progress_from_mist" | sed 's|^0||')
+            # Wait for the download to start and set the progress bar to 100 steps
+            until grep -q "DOWNLOAD" "$LOG_FILE" ; do
                 sleep 2
             done
-            /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
-            /bin/echo "progress: $current_progress_value" >> "$dialog_log"
-            last_progress_value=$current_progress_value
-        done
-        # if the percentage reaches or goes over 100, show that we are finishing up
-        writelog "Sending to dialog: progress: complete"
-        /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
-        writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
-        /bin/echo "progress: complete" >> "$dialog_log"
-
+            writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
+            /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
+            /bin/echo  "progress: 0" >> "$dialog_log"
+            # Wait for the InstallAssistant package to start downloading
+            until grep -q "InstallAssistant.pkg" "$LOG_FILE" ; do
+                sleep 2
+            done
+            /bin/echo  "progress: 0" >> "$dialog_log"
+            sleep 2
+            until [[ $current_progress_value -gt 100 ]]; do
+                until [[ $current_progress_value -gt $last_progress_value ]]; do
+                    progress_from_mist=$(grep "InstallAssistant" "$LOG_FILE" | tail -1 | cut -d'(' -f2 | cut -d')' -f1)
+                    current_progress_value=$(cut -d. -f1 <<< "$progress_from_mist" | sed 's|^0||')
+                    sleep 2
+                done
+                /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+                /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+                last_progress_value=$current_progress_value
+            done
+            # if the percentage reaches or goes over 100, show that we are finishing up
+            writelog "Sending to dialog: progress: complete"
+            /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
+            writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
+            /bin/echo "progress: complete" >> "$dialog_log"
+        fi
     elif [[ "$1" == "fetch-full-installer" ]]; then
         writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
         /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
@@ -873,7 +885,7 @@ dialog_progress() {
             current_progress_value=$countdown
             /bin/echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
             /bin/echo "progress: $countdown" >> "$dialog_log"
-            countdown=$((countdown-1))
+            ((countdown--))
         done
     fi
 }
@@ -968,8 +980,11 @@ finish() {
 
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
-        writelog "[finish] quitting dialog"
+        writelog "[finish] sending quit message to dialog ($dialog_log)"
         /bin/echo "quit:" >> "$dialog_log"
+        # delete dialog logfile
+        sleep 0.5
+        # /bin/rm -f "$dialog_log"
     fi
 
     # set final exit code and quit, but do not call finish() again
@@ -1033,6 +1048,8 @@ get_default_dialog_args() {
     # set the dialog command arguments
     # $1 - window type
     default_dialog_args=(
+        "--commandfile"
+        "$dialog_log"
         "--ontop"
         "--json"
         "--ignorednd"
@@ -1087,7 +1104,9 @@ get_mist_list() {
     mist_args=()
     mist_args+=("list")
     mist_args+=("installer")
-    mist_args+=("--compatible")
+    if [[ "$skip_validation" != "yes" ]]; then
+        mist_args+=("--compatible")
+    fi
     mist_args+=("--export")
     mist_args+=("$mist_export_file")
 
@@ -1164,7 +1183,7 @@ get_user_details() {
                     echo
                     exit 1
                 fi
-                password_attempts=$((password_attempts+1))
+                ((password_attempts++))
                 continue
             fi
         fi
@@ -1177,7 +1196,7 @@ get_user_details() {
                 echo
                 exit 1
             fi
-            password_attempts=$((password_attempts+1))
+            ((password_attempts++))
             continue
         fi
 
@@ -1212,7 +1231,7 @@ get_user_details() {
                         user_is_volume_owner=1
                         break
                     fi
-                    record_name_index=$((record_name_index+1))
+                    ((record_name_index++))
                 done
                 # if needed, compare the RealName (which might contain spaces)
                 if [[ $user_is_volume_owner -eq 0 ]]; then
@@ -1234,7 +1253,7 @@ get_user_details() {
                 password_is_invalid
                 exit 1
             fi
-            password_attempts=$((password_attempts+1))
+            ((password_attempts++))
             continue
         fi
 
@@ -1245,7 +1264,7 @@ get_user_details() {
             password_is_invalid
             exit 1
         fi
-        password_attempts=$((password_attempts+1))
+        ((password_attempts++))
     done
 
     # if we are performing eraseinstall the user needs to be an admin so let's promote the user
@@ -1290,9 +1309,10 @@ launch_startosinstall() {
     local install_arg
     local combined_args=()
     local launch_daemon_args=()
-    # get unique label and file name for LaunchDaemon
-    plist_label="$pkg_label.startosinstall.$$"
-    launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    # set label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall"
+    # launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
 
     # reset the existing launchdaemon if present
     if [[ -f "$launch_daemon" ]]; then
@@ -1412,7 +1432,7 @@ post_prep_work() {
     # set dialog progress for rebootdelay if set
     if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
         # quit an existing window
-        writelog "[post_prep_work] Sending to dialog: quit:"
+        writelog "[post_prep_work] Sending quit message to dialog log ($dialog_log)"
         echo "quit:" >> "$dialog_log"
         writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
 
@@ -1453,7 +1473,7 @@ post_prep_work() {
 
     if [[ $test_run != "yes" ]]; then
         # we need to quit so our management system can report back home before being killed by startosinstall
-        writelog "[post_prep_work] Skipping rebootdelay of ${rebootdelay}s"
+        writelog "[post_prep_work] Reboot delay set to ${rebootdelay}s"
     else
         writelog "[post_prep_work] Waiting ${rebootdelay}s"
         sleep "$rebootdelay"
@@ -1481,6 +1501,24 @@ run_fetch_full_installer() {
                 # get the chosen version
                 writelog "[run_fetch_full_installer] Found version $prechosen_version"
                 softwareupdate_args+=" --full-installer-version $prechosen_version"
+            else
+                writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
+            fi
+        elif [[ $prechosen_os ]]; then
+            # check that this OS is available in the list
+            ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # get the latest version within the chosen OS
+                if [[ "$beta" == "yes" ]]; then
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                else
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                fi
+                
+                writelog "[run_fetch_full_installer] Found version $latest_ffi"
+                softwareupdate_args+=" --full-installer-version $latest_ffi"
+            else
+                writelog "[run_fetch_full_installer] WARNING: No available version for macOS $prechosen_os found. Defaulting to latest available version."
             fi
         else
             # if no version is selected, we want to obtain the latest. The list obtained from
@@ -1493,7 +1531,11 @@ run_fetch_full_installer() {
 
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
-                if [[ (${latest_ffi:0:2} -lt $system_os_major) || (${latest_ffi:0:2} -eq $latest_ffi && ${latest_ffi:3} -lt $system_os_version) ]]; then
+                echo "system_os_major: $system_os_major"  # TEMP
+                echo "system_os_version: $system_os_version"  # TEMP
+                echo "latest_ffi: $latest_ffi"  # TEMP
+                echo "latest_ffi:3:1: ${latest_ffi:3:1}"  # TEMP
+                if [[ (${latest_ffi:0:2} -lt $system_os_major) || (${latest_ffi:0:2} -eq $system_os_major && ${latest_ffi:3:1} -lt $system_os_version) ]]; then
                     writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
                     echo
                     exit 1
@@ -1588,7 +1630,7 @@ run_mist() {
                 build_found=1
                 break
             fi
-            (( i+1 ))
+            ((i++))
         done
         if [[ $build_found = 0 ]]; then
             writelog "[run_mist] ERROR: build is not available"
@@ -1616,7 +1658,7 @@ run_mist() {
         # if no version was selected, we want the latest available, which is the first in the mist-list
         latest_version=$(ljt '0.version' < "$mist_export_file")
         if [[ $latest_version ]]; then
-            if [[ (${latest_version:0:2} -lt $system_os_major) || (${latest_version:0:2} -eq $system_os_major && ${latest_version:3} -lt $system_os_version) ]]; then
+            if [[ (${latest_version:0:2} -lt $system_os_major) || (${latest_version:0:2} -eq $system_os_major && ${latest_version:3:1} -lt $system_os_version) ]]; then
                 writelog "[run_mist] ERROR: latest version in catalog $latest_version is older OS than the system version $system_version"
                 echo
                 exit 1
@@ -1645,6 +1687,11 @@ run_mist() {
         mist_args+=("$default_downloaded_app_name")
         mist_args+=("--output-directory")
         mist_args+=("$installer_directory")
+    fi
+
+    # reduce output if --quiet mode
+    if [[ "$quiet" == "yes" ]]; then
+        mist_args+=("--quiet")
     fi
 
     # optionally cache downloads to save time when doing repeated tests
@@ -2120,6 +2167,8 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
                         to provide a password.
+    --quiet             Remove output from mist during installer download. Note that no progress 
+                        is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
     --set-securebootlevel 
                         Resets Secure Boot Level to High when using --erase
@@ -2157,12 +2206,12 @@ run_list_full_installers() {
     # try up to 3 times to workaround bug when changing seed programs
     try=3
     while [[ $try -gt 0 ]]; do
-        if /usr/sbin/softwareupdate --list-full-installers > "$workdir/ffi-list-full-installers.txt"; then
+        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
             if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
                 break
             fi
         fi
-        try=$(( try-1 ))
+        ((try--))
     done
     if [[ $try -eq 0 ]]; then
         writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
@@ -2276,6 +2325,36 @@ user_not_volume_owner() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Rotate existing log files up to a maximum of 9 log files
+# Older files will be overwritten
+# -----------------------------------------------------------------------------
+log_rotate() {
+    writelog "[log_rotate] Start rotating logs in $logdir"
+    max_log_keep=9
+
+    i="$max_log_keep"
+    while [[ "$i" -gt 0 ]];do
+        current_filename="$LOG_FILE.$((i-1))"
+        new_filename="$LOG_FILE.$i"
+        if [[ -f "$current_filename" ]];then
+            writelog "[log_rotate] moving $current_filename to $new_filename"
+            mv "$current_filename" "$new_filename"
+        fi
+        ((i--))
+    done
+
+    if [[ -f "$LOG_FILE" ]];then
+        writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
+        mv "$LOG_FILE" "$LOG_FILE.1"
+    fi
+
+    writelog "[log_rotate] Finished rotating logs in $logdir"
+}
+
+# -----------------------------------------------------------------------------
+# Add context to log messages
+# -----------------------------------------------------------------------------
 writelog() {
     DATE=$(date +%Y-%m-%d\ %H:%M:%S)
     echo "$DATE" " $1"
@@ -2392,6 +2471,9 @@ while test $# -gt 0 ; do
             ;;
         --check-power)
             check_power="yes"
+            ;;
+        --quiet)
+            quiet="yes"
             ;;
         --power-wait-limit)
             shift
@@ -2592,6 +2674,7 @@ fi
 
 # all output from now on is written also to a log file
 LOG_FILE="$logdir/erase-install.log"
+log_rotate
 echo "" > "$LOG_FILE"
 exec > >(tee "${LOG_FILE}") 2>&1
 
@@ -2827,9 +2910,8 @@ fi
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
     if [[ ! $silent ]]; then
         # quit dialog when the download is complete
-        writelog "[$script_name] Sending to dialog: quit:"
+        writelog "[$script_name] Sending quit message to dialog log ($dialog_log)"
         echo "quit:" >> "$dialog_log" & sleep 0.1
-        # echo "" > "$dialog_log"
     fi
 
     # Unmount the dmg
@@ -2882,9 +2964,8 @@ echo
 
 if [[ ! $silent ]]; then
     # quit dialog when the download is complete
-    writelog "[$script_name] Sending to dialog: quit:"
+    writelog "[$script_name] Sending quit message to dialog log ($dialog_log)"
     echo "quit:" >> "$dialog_log" & sleep 0.1
-    # echo "" > "$dialog_log"
 fi
 
 # if configured to do so, display a confirmation window to the user
@@ -3079,7 +3160,7 @@ sleep_time=3600
 if [[ $no_timeout == "yes" ]]; then
     sleep_time=86400
 fi
-(sleep $sleep_time; echo "   [$script_name] Timeout reached for PID $pipePID!"; /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"; kill -TERM $pipePID) &
+(sleep $sleep_time; echo "   [$script_name] Timeout reached for PID $pipePID!"; kill -TERM $pipePID) &
 wait $pipePID
 
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
