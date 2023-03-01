@@ -849,6 +849,7 @@ dialog_progress() {
             writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
             /bin/echo "progress: complete" >> "$dialog_log"
         fi
+
     elif [[ "$1" == "fetch-full-installer" ]]; then
         writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
         /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
@@ -1688,6 +1689,9 @@ run_mist() {
         mist_args+=("--output-directory")
         mist_args+=("$installer_directory")
     fi
+
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
 
     # reduce output if --quiet mode
     if [[ "$quiet" == "yes" ]]; then
@@ -3031,7 +3035,7 @@ else
 fi
 
 # window type for erase and reinstall dialogs
-if [[ $fs == "yes" ]]; then
+if [[ $fs == "yes" || ($erase == "yes" && $no_fs != "yes") || ($reinstall == "yes" && $no_fs != "yes" && $rebootdelay -lt 10) ]]; then
     window_type="fullscreen"
     iconsize=200
 else
