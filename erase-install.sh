@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="29.1"
+version="29.2"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -57,7 +57,7 @@ mist_export_file="$workdir/mist-list.json"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible dialog is used if not using the package installer
-mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.10/mist-cli.1.10.pkg"
+mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.11/mist-cli.1.11.pkg"
 
 # swiftDialog tool
 dialog_app="/Library/Application Support/Dialog/Dialog.app"

@@ -4,6 +4,12 @@
 
 No date
 
+## [29.2]
+
+14.05.2023
+
+- Bump version of mist-cli to 1.11 to reduce the amount of log output on slow downloads.
+
 ## [29.1]
 
 27.02.2023
