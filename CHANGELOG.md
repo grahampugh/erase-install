@@ -4,6 +4,13 @@
 
 No date
 
+## [29.2]
+
+No date
+
+- Fix downloads from mist only selecting compatible builds.
+- Version bump to use mist-cli v1.12, which includes a less verbose output for the download logs (one register per percentage download instead of one register per second).
+
 ## [29.1]
 
 27.02.2023

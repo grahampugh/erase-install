@@ -1,6 +1,6 @@
 CURDIR := $(shell pwd)
 USER := $(shell whoami)
-MISTCLI_URL := "https://github.com/ninxsoft/mist-cli/releases/download/v1.10/mist-cli.1.10.pkg"
+MISTCLI_URL := "https://github.com/ninxsoft/mist-cli/releases/download/v1.12/mist-cli.1.12.pkg"
 SWIFTDIALOG_URL := "https://github.com/bartreardon/swiftDialog/releases/download/v2.1.0/dialog-2.1.0-4148.pkg"
 MUNKIPKG := /usr/local/bin/munkipkg
 PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
