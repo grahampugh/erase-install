@@ -57,7 +57,7 @@ mist_export_file="$workdir/mist-list.json"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible dialog is used if not using the package installer
-mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.10/mist-cli.1.10.pkg"
+mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.12/mist-cli.1.12.pkg"
 
 # swiftDialog tool
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -956,6 +956,7 @@ find_extra_packages() {
 # -----------------------------------------------------------------------------
 # Return code 143 and finish the script when TERMinated or INTerrupted
 # -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
 terminate() {
     echo "   [terminate] Script was interrupted (last exit code was $?)"
     exit 143
@@ -964,6 +965,7 @@ terminate() {
 # -----------------------------------------------------------------------------
 # Things to carry out when the script exits
 # -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
 finish() {
     local exit_code=${1:-$?}
     # if we promoted the user then we should demote it again
@@ -990,7 +992,7 @@ finish() {
 
     # set final exit code and quit, but do not call finish() again
     writelog "[finish] Script exit code: $exit_code"
-    (exit $exit_code)
+    (exit "$exit_code")
 }
 
 # -----------------------------------------------------------------------------
@@ -1249,7 +1251,7 @@ get_user_details() {
 
         if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
             writelog "[get_user_details] $account_shortname is not a Volume Owner"
-            user_not_volume_owner=1
+            user_not_volume_owner
             if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
                 password_is_invalid
                 exit 1
@@ -1429,6 +1431,7 @@ overwrite_existing_installer() {
 # -----------------------------------------------------------------------------
 # Things to do after startosinstall has finished preparing
 # -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
 post_prep_work() {
     # set dialog progress for rebootdelay if set
     if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
@@ -1688,6 +1691,10 @@ run_mist() {
         mist_args+=("$default_downloaded_app_name")
         mist_args+=("--output-directory")
         mist_args+=("$installer_directory")
+    fi
+
+    if [[ "$skip_validation" != "yes" ]]; then
+        mist_args+=("--compatible")
     fi
 
     # run in no-ansi mode which is less pretty but better for our logs
@@ -2305,6 +2312,7 @@ password_is_invalid() {
 # Open dialog to show that the user is not a Volume Owner.
 # This is required on Apple Silicon Mac
 # -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
 user_not_volume_owner() {
     # required for Silicon Macs
     writelog "[user_is_invalid] ERROR - user is not a Volume Owner."
