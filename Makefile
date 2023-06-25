@@ -1,31 +1,41 @@
-CURDIR := $(shell pwd)
-USER := $(shell whoami)
-MISTCLI_URL := "https://github.com/ninxsoft/mist-cli/releases/download/v1.12/mist-cli.1.12.pkg"
-SWIFTDIALOG_URL := "https://github.com/bartreardon/swiftDialog/releases/download/v2.1.0/dialog-2.1.0-4148.pkg"
+SHELL := /bin/bash
+CURDIR != pwd
 MUNKIPKG := /usr/local/bin/munkipkg
 PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
 PKG_SCRIPTS := $(CURDIR)/pkg/erase-install/scripts
 PKG_BUILD := $(CURDIR)/pkg/erase-install/build
-PKG_VERSION := $(shell defaults read $(CURDIR)/pkg/erase-install/build-info.plist version)
 
 all: build
 
 .PHONY : build
 build: 
-	@echo "Copying erase-install.sh into /Library/Management/erase-install"
+	@echo
+	@echo "## Copying erase-install.sh into /Library/Management/erase-install"
 	mkdir -p "$(PKG_ROOT)/Library/Management/erase-install"
 	cp "$(CURDIR)/erase-install.sh" "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
 	chmod 755 "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
-
-	@echo "Downloading swiftDialog"
 	mkdir -p "$(PKG_SCRIPTS)"
-	curl -L "$(SWIFTDIALOG_URL)" -o "$(PKG_SCRIPTS)/dialog.pkg"
 
-	@echo "Downloading mist-cli"
-	mkdir -p "$(PKG_SCRIPTS)"
-	curl -L "$(MISTCLI_URL)" -o "$(PKG_SCRIPTS)/mist-cli.pkg"
+	@echo
+	swiftdialog_version=$$(awk -F '=' '/swiftdialog_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	swiftdialog_tag=$$( awk -F '-' '{print $$1}' <<< "$$swiftdialog_version") ;\
+	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
+	swiftdialog_url="https://github.com/bartreardon/swiftDialog/releases/download/v$$swiftdialog_tag/dialog-$$swiftdialog_version.pkg" ;\
+	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg"
 
-	@echo "Making package in $(PKG_ROOT) directory"
+	@echo
+	mist_version=$$(awk -F '=' '/mist_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Downloading mist-cli v$$mist_version" ;\
+	mist_url="https://github.com/ninxsoft/mist-cli/releases/download/v$$mist_version/mist-cli.$$mist_version.pkg" ;\
+	curl -L "$$mist_url" -o "$(PKG_SCRIPTS)/mist-cli.pkg"
+
+	@echo
+	pkg_version=$$(awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Writing version string $$pkg_version to build-info.plist" ;\
+	/usr/libexec/PlistBuddy -c "Set :version '$$pkg_version'" $(CURDIR)/pkg/erase-install/build-info.plist
+
+	@echo
+	@echo "## Making package in '$(PKG_ROOT)' directory"
 	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
 	open $(PKG_BUILD)
 

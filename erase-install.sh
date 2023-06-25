@@ -1,11 +1,11 @@
-#!/bin/bash
-
+#!/bin/zsh 
+# shellcheck shell=bash
 # shellcheck disable=SC2001
 # this is to use sed in the case statements
-# shellcheck disable=SC2034
-# this is due to the dynamic variable assignments used in the localization strings
+# shellcheck disable=SC2034,SC2296
+# these are due to the dynamic variable assignments used in the localization strings
 
-:<<DOC
+: <<DOC
 ==============================================================================
 erase-install.sh
 ==============================================================================
@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="29.2"
+version="30.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -53,13 +53,19 @@ logdir="/Library/Management/erase-install/log"
 
 # mist tool
 mist_bin="/usr/local/bin/mist"
-mist_export_file="$workdir/mist-list.json"
 
 # URL for downloading dialog (with tag version)
-# This ensures a compatible dialog is used if not using the package installer
-mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v1.12/mist-cli.1.12.pkg"
+# This ensures a compatible mist version is used if not using the package installer
+mist_version_required="1.13"
+mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
 
-# swiftDialog tool
+# URL for downloading swiftDialog (with tag version)
+# This ensures a compatible swiftDialog version is used if not using the package installer
+swiftdialog_version_required="2.2.1-4591"
+swiftdialog_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_version_required")
+dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_tag_required}/dialog-${swiftdialog_version_required}.pkg"
+
+# swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_bin="/usr/local/bin/dialog"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
@@ -70,10 +76,6 @@ dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versi
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
 dialog_fmm_icon="/System/Library/PrivateFrameworks/AOSUI.framework/Versions/A/Resources/findmy.icns"
-
-# URL for downloading dialog (with tag version)
-# This ensures a compatible dialog is used if not using the package installer
-dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v2.1.0/dialog-2.1.0-4148.pkg"
 
 # default app and package names for mist
 default_downloaded_app_name="Install %NAME%.app"
@@ -112,12 +114,12 @@ ask_for_credentials() {
     if [[ "$erase" == "yes" ]]; then
         dialog_args+=(
             "--message"
-            "${!dialog_erase_credentials}"
+            "${(P)dialog_erase_credentials}"
         )
     else
         dialog_args+=(
             "--message"
-            "${!dialog_reinstall_credentials}"
+            "${(P)dialog_reinstall_credentials}"
         )
     fi
     if [[ $max_password_attempts != "infinite" ]]; then
@@ -153,7 +155,7 @@ check_fmm() {
         # original icon: ${dialog_confirmation_icon}
         dialog_args+=(
             "--title"
-            "${!dialog_fmm_title}"
+            "${(P)dialog_fmm_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--overlayicon"
@@ -161,7 +163,7 @@ check_fmm() {
             "--iconsize"
             "128"
             "--message"
-            "${!dialog_fmm_desc}"
+            "${(P)dialog_fmm_desc}"
             "--timer"
             "${fmm_wait_timer}"
         )
@@ -190,7 +192,7 @@ check_fmm() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_fmm_title}"
+            "${(P)dialog_fmm_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
@@ -198,7 +200,7 @@ check_fmm() {
             "--overlayicon"
             "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
             "--message"
-            "${!dialog_fmmenabled_desc}"
+            "${(P)dialog_fmmenabled_desc}"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -207,39 +209,6 @@ check_fmm() {
         echo
         exit 1
     fi
-}
-
-# -----------------------------------------------------------------------------
-# Download dialog if not present and not --silent mode
-# -----------------------------------------------------------------------------
-check_for_dialog_app() {
-    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        writelog "[check_for_dialog_app] dialog is installed ($dialog_app)"
-    else
-        if [[ ! $no_curl ]]; then
-            writelog "[check_for_dialog_app] Downloading dialog..."
-            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
-                    writelog "[check_for_dialog_app] dialog installation failed"
-                fi
-            else
-                writelog "[check_for_dialog_app] dialog download failed"
-                exit 1
-            fi
-        fi
-        # check it did actually get downloaded
-        if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-            writelog "[check_for_dialog_app] dialog is installed"
-        else
-            writelog "[check_for_dialog_app] Could not download dialog."
-            exit 1
-        fi
-    fi
-    # ensure log file is writable
-    writelog "[check_for_dialog_app] Creating dialog log ($dialog_log)..."
-    /usr/bin/touch "$dialog_log"
-    /usr/sbin/chown "$current_user:wheel" "$dialog_log"
-    /bin/chmod 666 "$dialog_log"
 }
 
 # -----------------------------------------------------------------------------
@@ -266,6 +235,54 @@ check_for_mist() {
             writelog "[check_for_mist] Could not download dialog."
         fi
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Download dialog if not present and not --silent mode
+# -----------------------------------------------------------------------------
+check_for_swiftdialog_app() {
+    # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
+    if [[ $system_os_major -le 11 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
+            writelog "[check_for_swiftdialog_app] swiftDialog 2.3 or above is not compatible with macOS 11. Removing 2.3..."
+            app_directory="/Library/Application Support/Dialog"
+            bin_shortcut="/usr/local/bin/dialog"
+            /bin/rm -rf "$app_directory" 
+            /bin/rm -f "$bin_shortcut" /var/tmp/dialog.*
+        fi
+    fi
+
+    # now check for any version of swiftDialog and download if not present
+    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        writelog "[check_for_swiftdialog_app] swiftDialog is installed ($dialog_app)"
+    else
+        if [[ ! $no_curl ]]; then
+            writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
+            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
+                if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
+                    writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                fi
+            else
+                writelog "[check_for_swiftdialog_app] swiftDialog download failed"
+                exit 1
+            fi
+        fi
+        # check it did actually get downloaded
+        if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+            writelog "[check_for_swiftdialog_app] swiftDialog is installed"
+        else
+            writelog "[check_for_swiftdialog_app] Could not download swiftDialog."
+            exit 1
+        fi
+    fi
+
+    # ensure log file is writable
+    writelog "[check_for_swiftdialog_app] Creating dialog log ($dialog_log)..."
+    /usr/bin/touch "$dialog_log"
+    /usr/sbin/chown "${current_user}:wheel" "$dialog_log"
+    /bin/chmod 666 "$dialog_log"
 }
 
 # -----------------------------------------------------------------------------
@@ -306,9 +323,9 @@ check_free_space() {
             "--overlayicon"
             "SF=externaldrive.fill.badge.exclamationmark,colour=red"
             "--message"
-            "${!dialog_check_desc}"
+            "${(P)dialog_check_desc}"
             "--button1text"
-            "${!dialog_cancel_button}"
+            "${(P)dialog_cancel_button}"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -394,7 +411,7 @@ check_installer_is_valid() {
 # -----------------------------------------------------------------------------
 check_installer_pkg_is_valid() {
     writelog "[check_installer_pkg_is_valid] Checking validity of $cached_installer_pkg."
-    installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f 3 )
+    installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f3 )
 
     # compare the local system's build number with that of InstallAssistant.pkg 
     compare_build_versions "$system_build" "$installer_pkg_build"
@@ -424,6 +441,9 @@ check_newer_available() {
     # Download mist if not present
     check_for_mist
 
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
     # now clear the variables and build the download command
     mist_args=()
     mist_args+=("list")
@@ -431,12 +451,21 @@ check_newer_available() {
     mist_args+=("--export")
     mist_args+=("$mist_export_file")
     
+    # set the search restriction based on --os, --version or --sameos
     if [[ $prechosen_version ]]; then
         writelog "[check_newer_available] Checking that selected version $prechosen_version is available"
         mist_args+=("$prechosen_version")
     elif [[ $prechosen_os ]]; then
         writelog "[check_newer_available] Restricting to selected OS $prechosen_os"
         mist_args+=("$prechosen_os")
+    elif [[ $sameos ]]; then
+        if [[ $system_os_major == "10" ]]; then
+            writelog "[run_mist] Restricting to selected OS $system_os_major.$system_os_version"
+            mist_args+=("$system_os_major.$system_os_version")
+        else
+            writelog "[run_mist] Restricting to selected OS $system_os_major"
+            mist_args+=("$system_os_major")
+        fi
     fi
 
     if [[ "$skip_validation" != "yes" ]]; then
@@ -533,7 +562,7 @@ check_power_status() {
         # original icon: ${dialog_confirmation_icon}
         dialog_args+=(
             "--title"
-            "${!dialog_power_title}"
+            "${(P)dialog_power_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--overlayicon"
@@ -541,7 +570,7 @@ check_power_status() {
             "--iconsize"
             "128"
             "--message"
-            "${!dialog_power_desc}"
+            "${(P)dialog_power_desc}"
             "--timer"
             "${power_wait_timer}"
         )
@@ -570,7 +599,7 @@ check_power_status() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_power_title}"
+            "${(P)dialog_power_title}"
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
@@ -578,7 +607,7 @@ check_power_status() {
             "--overlayicon"
             "SF=powerplug.fill,colour=red"
             "--message"
-            "${!dialog_nopower_desc}"
+            "${(P)dialog_nopower_desc}"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -685,11 +714,11 @@ compare_build_versions() {
 confirm() {
     # options
     if [[ "$erase" == "yes" ]]; then
-        local dialog_title="${!dialog_erase_title}"
-        local dialog_message="${!dialog_erase_confirmation_desc}"
+        local dialog_title="${(P)dialog_erase_title}"
+        local dialog_message="${(P)dialog_erase_confirmation_desc}"
     else
-        local dialog_title="${!dialog_reinstall_title}"
-        local dialog_message="${!dialog_reinstall_confirmation_desc}"
+        local dialog_title="${(P)dialog_reinstall_title}"
+        local dialog_message="${(P)dialog_reinstall_confirmation_desc}"
     fi
 
     # set the dialog command arguments
@@ -707,9 +736,9 @@ confirm() {
         "--message"
         "$dialog_message"
         "--button1text"
-        "${!dialog_confirmation_button}"
+        "${(P)dialog_confirmation_button}"
         "--button2text"
-        "${!dialog_cancel_button}"
+        "${(P)dialog_cancel_button}"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}"
@@ -943,14 +972,16 @@ find_existing_installer() {
 # -----------------------------------------------------------------------------
 find_extra_packages() {
     # set install_package_list to blank.
-    install_package_list=()
-    for file in "$extras_directory"/*.pkg; do
-        if [[ $file != *"/*.pkg" ]]; then
-            writelog "[find_extra_installers] Additional package to install: $file"
-            install_package_list+=("--installpackage")
-            install_package_list+=("$file")
-        fi
-    done
+    if [[ -d "$extras_directory" ]]; then
+        install_package_list=()
+        for file in "$extras_directory"/*.pkg; do
+            if [[ $file != *"/*.pkg" ]]; then
+                writelog "[find_extra_installers] Additional package to install: $file"
+                install_package_list+=("--installpackage")
+                install_package_list+=("$file")
+            fi
+        done
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -1021,9 +1052,9 @@ read_from_keychain() {
     writelog "[read_from_keychain] Attempting to unlock keychain..."
     if security unlock-keychain -p "$kc_pass" "$kc"; then
         writelog "[read_from_keychain] Unlocked keychain..."
-        account_shortname=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "acct" | cut -d \" -f 4)
+        account_shortname=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "acct" | cut -d \" -f4)
         [[ $account_shortname ]] && writelog "[read_from_keychain] Obtained user $account_shortname..."
-        account_password=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "password" | cut -d \" -f 2)
+        account_password=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "password" | cut -d \" -f2)
         [[ $account_password ]] && writelog "[read_from_keychain] Obtained password..."
     else
         writelog "[read_from_keychain] Could not unlock keychain. Continuing..."
@@ -1104,6 +1135,9 @@ get_mist_list() {
     # Download mist if not present
     check_for_mist
 
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
     mist_args=()
     mist_args+=("list")
     mist_args+=("installer")
@@ -1164,6 +1198,15 @@ get_user_details() {
         # otherwise, ask via dialog
         if [[ $password_attempts = 1 && $kc && $kc_pass ]]; then
             read_from_keychain
+        elif [[ $password_attempts = 1 && $credentials && $very_insecure_mode == "yes" ]]; then
+            credentials_decoded=$(base64 -d <<< "$credentials")
+            if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
+                account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
+                account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
+            else
+                writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
+                exit 1
+            fi
         elif [[ ! $silent ]]; then
             ask_for_credentials
             if [[ $? -eq 2 ]]; then
@@ -1206,12 +1249,10 @@ get_user_details() {
         # check that the user is a Volume Owner
         user_is_volume_owner=0
         users=$(/usr/sbin/diskutil apfs listUsers /)
-        enabled_users=""
         while read -r line ; do
             user=$(/usr/bin/cut -d, -f1 <<< "$line")
             guid=$(/usr/bin/cut -d, -f2 <<< "$line")
             # passwords are case sensitive, account names are not
-            shopt -s nocasematch
             if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
                 enabled_users+="$user "
                 # The entered username might not match the output of fdesetup, so we compare
@@ -1228,7 +1269,7 @@ get_user_details() {
                     if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
                         break
                     fi
-                    if [[ "$account_shortname" == "$user_record_name" ]]; then
+                    if [[ "${account_shortname:u}" == "${user_record_name:u}" ]]; then
                         account_shortname="$user"
                         writelog "[get_user_details] $account_shortname is a Volume Owner"
                         user_is_volume_owner=1
@@ -1239,14 +1280,13 @@ get_user_details() {
                 # if needed, compare the RealName (which might contain spaces)
                 if [[ $user_is_volume_owner -eq 0 ]]; then
                     user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
-                    if [[ "$account_shortname" == "$user_real_name" ]]; then
+                    if [[ "${account_shortname:u}" == "${user_real_name:u}" ]]; then
                         account_shortname="$user"
                         writelog "[get_user_details] $account_shortname is a Volume Owner"
                         user_is_volume_owner=1
                     fi
                 fi
             fi
-            shopt -u nocasematch
         done <<< "$(/usr/bin/fdesetup list)"
 
         if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
@@ -1365,18 +1405,18 @@ launch_startosinstall() {
 }
 
 # -----------------------------------------------------------------------------
-# ljt v1.0.7
+# ljt v1.0.9
 # This is used only to help obtain the correct version of MacAdmins Python.
 # -----------------------------------------------------------------------------
 : <<-LICENSE_BLOCK
 ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 LICENSE_BLOCK
 
-ljt() ( 
-    [ -n "${-//[^x]/}" ] && set +x; read -r -d '' JSCode <<-'EOT'
-    try{var query=decodeURIComponent(escape(arguments[0])),file=decodeURIComponent(escape(arguments[1]));if("/"===query[0]||""===query){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(a){return"["+JSON.stringify(a.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if("$"===query[0]||"."===query[0]||"["===query[0]){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw Error("Invalid path: "+query);}else query=query.replace("\\.","\udead").split(".").map(function(a){return"["+JSON.stringify(a.replace("\udead","."))+"]"}).join("");"$"===query[0]&&(query=query.slice(1,query.length));var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(a){}}catch(a){printErr(a),quit()}void 0!==result?null!==result&&result.constructor===String?print(result):print(JSON.stringify(result,null,2)):printErr("Path not found.");
+ljt () ( #v1.0.9 ljt [query] [file]
+    { set +x; } &> /dev/null; read -r -d '' JSCode <<-'EOT'
+try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
 EOT
-    queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else [ -t '0' ] && echo -e "ljt (v1.0.7) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+    queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
 )
 
 # -----------------------------------------------------------------------------
@@ -1448,13 +1488,13 @@ post_prep_work() {
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
             "--title"
-            "${!dialog_reinstall_title}"
+            "${(P)dialog_reinstall_title}"
             "--icon"
             "${dialog_install_icon}"
             "--iconsize"
             "$iconsize"
             "--message"
-            "${!dialog_rebooting_heading}"
+            "${(P)dialog_rebooting_heading}"
             "--button1disabled"
             "--progress"
             "$rebootdelay"
@@ -1592,6 +1632,9 @@ run_mist() {
     # first, if we didn't already check for updates, run mist list to get some needed information about builds
     get_mist_list
 
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
     # now clear the variables and build the download command
     mist_args=()
     mist_args+=("download")
@@ -1694,6 +1737,7 @@ run_mist() {
     fi
 
     if [[ "$skip_validation" != "yes" ]]; then
+        writelog "[run_mist] Setting mist to only list compatible installers"
         mist_args+=("--compatible")
     fi
 
@@ -1702,12 +1746,21 @@ run_mist() {
 
     # reduce output if --quiet mode
     if [[ "$quiet" == "yes" ]]; then
+        writelog "[run_mist] Setting mist to quiet mode"
         mist_args+=("--quiet")
     fi
 
     # optionally cache downloads to save time when doing repeated tests
     if [[ "$cache_downloads" == "yes" ]]; then
+        writelog "[run_mist] Setting mist to cache downloads"
         mist_args+=("--cache-downloads")
+    fi
+
+    # optionally set mist to use a caching server
+    if [[ "$caching_server" ]]; then
+        writelog "[run_mist] Setting mist to use Caching Server $caching_server"
+        mist_args+=("--caching-server")
+        mist_args+=("$caching_server")
     fi
 
     # force overwrite of existing app or pkg of the same name
@@ -2059,13 +2112,10 @@ set_seedprogram() {
 show_help() {
     echo
     /bin/cat << HELP
-    [$script_name] by @GrahamRPugh
+    $script_name v$version, a script by @GrahamRPugh
 
     Common usage:
-    [sudo] ./erase-install.sh [--list] [--erase] [--reinstall] [--move]
-                [--os MAJOR_VERSION] [--version MAJOR_VERSION.MINOR_VERSION] [--samebuild] [--sameos]
-                [--update] [--beta] [--replace-invalid] [--overwrite]
-                [--test-run]
+    [sudo] ./$script_name.sh [options]
 
     Standard options for list, download, reinstall and erase: 
 
@@ -2125,8 +2175,11 @@ show_help() {
                         completes preparation, but before reboot.
                         An example might be 'jamf recon -department Spare'.
                         Ensure that the command is in quotes.
-    --catalog ...       Override the default catalog with one from a different OS (overrides seedprogram)
-    --catalogurl ...    Select a non-standard catalog URL (overrides seedprogram)
+    --catalog ...       Override the default catalog with one from a different OS 
+                        (overrides --seed/--seedprogram).
+    --catalogurl ...    Select a non-standard catalog URL (overrides --seed/--seedprogram).
+    --caching-server ...
+                        Set mist-cli to use a Caching Server, specifying the URL to the server.
     --pkg               Creates a package from the installer. Ignored if --move, --erase or --reinstall is selected.
                         Note that mist takes a long time to build the package from the complete installer, so
                         this method is not recommended for normal workflows.
@@ -2176,8 +2229,10 @@ show_help() {
     --kc                Keychain containing a user password (do not use the login keychain!!)
     --kc-pass           Password to open the keychain
     --kc-service        The name of the key containing the account and password
+    --credentials       A base64 credential set. Only works in conjunction with
+    --i-know-the-security-risks-and-i-still-want-to-supply-a-password-in-plain-text
     --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
-                        to provide a password.
+                        to provide a password, or the --credentials mode.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -2273,7 +2328,7 @@ user_is_invalid() {
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
-            "${!dialog_invalid_user}"
+            "${(P)dialog_invalid_user}"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -2301,7 +2356,7 @@ password_is_invalid() {
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
-            "${!dialog_invalid_password} $user"
+            "${(P)dialog_invalid_password} $user"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -2330,7 +2385,7 @@ user_not_volume_owner() {
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
-            "$account_shortname ${!dialog_not_volume_owner}: ${enabled_users}"
+            "$account_shortname ${(P)dialog_not_volume_owner}: ${enabled_users}"
         )
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}"
@@ -2342,9 +2397,16 @@ user_not_volume_owner() {
 # Older files will be overwritten
 # -----------------------------------------------------------------------------
 log_rotate() {
+    # logs probably cannot be rotated when running as root
+    if [[ $EUID -ne 0 ]]; then
+        writelog "[log_rotate] Not running as root so cannot rotate logs"
+        return
+    fi
+
     writelog "[log_rotate] Start rotating logs in $logdir"
     max_log_keep=9
 
+    # move all logs up one file
     i="$max_log_keep"
     while [[ "$i" -gt 0 ]];do
         current_filename="$LOG_FILE.$((i-1))"
@@ -2360,6 +2422,10 @@ log_rotate() {
         writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
         mv "$LOG_FILE" "$LOG_FILE.1"
     fi
+
+    # now create the new log file
+    echo "" > "$LOG_FILE"
+    exec > >(tee "${LOG_FILE}") 2>&1
 
     writelog "[log_rotate] Finished rotating logs in $logdir"
 }
@@ -2465,6 +2531,10 @@ while test $# -gt 0 ; do
             ;;
         --test-run) test_run="yes"
             ;;
+        --caching-server)
+            shift
+            caching_server="$1"
+            ;;
         --cache-downloads) cache_downloads="yes"
             ;;
         --clear-cache-only) clear_cache="yes"
@@ -2543,6 +2613,12 @@ while test $# -gt 0 ; do
             shift
             postinstall_command+=("$1")
             ;;
+        --very-insecure-mode) very_insecure_mode="yes"
+            ;;
+        --credentials)
+            shift
+            credentials="$1"
+            ;;
         --kc)
             shift
             kc="$1"
@@ -2578,6 +2654,9 @@ while test $# -gt 0 ; do
             ;;
         --catalog*)
             catalog=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --caching-server*)
+            caching_server=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
         --path*)
             installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
@@ -2626,8 +2705,17 @@ while test $# -gt 0 ; do
     shift
 done
 
+# output that the script has started running
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
+
+# check if this is the latest version of erase-install
+if [[ "$no_curl" != "yes" ]]; then
+    latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
+    if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
+        writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v29.2 to obtain v$version "
+    fi
+fi
 
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
@@ -2642,6 +2730,13 @@ if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
     writelog "[$script_name] This script requires macOS 10.15 or newer. Plesse use version 27.x of erase-install.sh on older systems."
     echo
     exit 1
+fi
+
+# create tmp working and log directories if not running as root
+if [[ $EUID -ne 0 && "$list" == "yes" ]]; then
+    workdir=$(/usr/bin/mktemp -d /var/tmp/erase-install.XXX)
+    writelog "[$script_name] Not running as root so will write output and logs to $workdir."
+    logdir="$workdir"
 fi
 
 # ensure logdir and workdir exist
@@ -2662,7 +2757,7 @@ if [[ ! $silent ]]; then
         exit 1
     fi
     # get dialog app if not silent mode
-    check_for_dialog_app
+    check_for_swiftdialog_app
 fi
 
 # different dialog icon for OS older than macOS 13
@@ -2687,8 +2782,6 @@ fi
 # all output from now on is written also to a log file
 LOG_FILE="$logdir/erase-install.log"
 log_rotate
-echo "" > "$LOG_FILE"
-exec > >(tee "${LOG_FILE}") 2>&1
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list == "yes" && ! $ffi ]]; then
@@ -2705,6 +2798,12 @@ elif [[ $list_installers ]]; then
     exit
 fi
 
+# everything after this point requires running as root, so stop here if not doing so
+if [[ $EUID -ne 0 ]]; then
+    writelog "[$script_name] Not running as root so cannot continue."
+    exit
+fi
+
 # ensure computer does not go to sleep while running this script
 writelog "[$script_name] Caffeinating this script (pid=$$)"
 /usr/bin/caffeinate -dimsu -w $$ &
@@ -2715,9 +2814,9 @@ extras_directory="$workdir/extras"
 
 # set dynamic dialog titles
 if [[ $erase == "yes" ]]; then
-    dialog_window_title="${!dialog_erase_title}"
+    dialog_window_title="${(P)dialog_erase_title}"
 else
-    dialog_window_title="${!dialog_reinstall_title}"
+    dialog_window_title="${(P)dialog_reinstall_title}"
 fi
 
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
@@ -2804,7 +2903,7 @@ elif [[ "$prechosen_os" != "" ]]; then
     fi
 
 elif [[ $update_installer == "yes" ]]; then
-    # --update option: checks for a newer installer. This operates within the confines of the --os, --version and --beta options if present
+    # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
     if [[ -d "$working_macos_app" ]]; then
         writelog "[$script_name] Checking for newer installer"
         check_newer_available
@@ -2873,7 +2972,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
             dialog_args=("${default_dialog_args[@]}")
             dialog_args+=(
                 "--title"
-                "${!dialog_dl_title}"
+                "${(P)dialog_dl_title}"
                 "--icon"
                 "${dialog_confirmation_icon}"
                 "--overlayicon"
@@ -2881,7 +2980,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "--iconsize"
                 "$iconsize"
                 "--message"
-                "${!dialog_dl_desc}"
+                "${(P)dialog_dl_desc}"
                 "--progress"
                 "100"
             )
@@ -3058,11 +3157,11 @@ if [[ $erase == "yes" && ! $silent ]]; then
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
         "--title"
-        "${!dialog_erase_title}"
+        "${(P)dialog_erase_title}"
         "--icon"
         "${dialog_install_icon}"
         "--message"
-        "${!dialog_erase_desc}"
+        "${(P)dialog_erase_desc}"
         "--progress"
         "100"
     )
@@ -3078,11 +3177,11 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
         "--title"
-        "${!dialog_reinstall_title}"
+        "${(P)dialog_reinstall_title}"
         "--icon"
         "${dialog_install_icon}"
         "--message"
-        "${!dialog_reinstall_desc}"
+        "${(P)dialog_reinstall_desc}"
         "--progress"
         "100"
     )
