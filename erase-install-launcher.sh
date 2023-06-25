@@ -42,8 +42,6 @@ for i in {4..10}; do
     done
 done
 
-echo "${11}"
-
 if [[ "${11}" != "" ]]; then
     eraseinstall_path="${11}"
 else
