@@ -9,6 +9,8 @@ No date
 No date
 
 - Converted to `zsh`.
+- Bumped the compatible version of mist-cli to v1.13.
+- Bumped the compatible version of swiftDialog to 2.2.1.4591.
 - Can now run `erase-install.sh --list` safely as the current user (without sudo); logs and files are written to a temporary location.
 - A notification is shown if running an older version of erase-install than the latest available.
 - Allows `mist` to use a caching server (addresses #406). Add the following option:
