@@ -56,7 +56,7 @@ mist_bin="/usr/local/bin/mist"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible mist version is used if not using the package installer
-mist_version_required="1.13"
+mist_version_required="1.14"
 mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
 
 # URL for downloading swiftDialog (with tag version)
@@ -2709,14 +2709,6 @@ done
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
 
-# check if this is the latest version of erase-install
-if [[ "$no_curl" != "yes" ]]; then
-    latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
-    if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
-        writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v29.2 to obtain v$version "
-    fi
-fi
-
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
 system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
@@ -2724,6 +2716,14 @@ system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 system_build=$( /usr/bin/sw_vers -buildVersion )
 
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
+
+# check if this is the latest version of erase-install
+if [[ "$no_curl" != "yes" && $system_version -ge 13 ]]; then
+    latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
+    if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
+        writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
+    fi
+fi
 
 # bail if system is older than macOS 10.15
 if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then

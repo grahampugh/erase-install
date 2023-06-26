@@ -9,10 +9,10 @@ No date
 No date
 
 - Converted to `zsh`.
-- Bumped the compatible version of mist-cli to v1.13.
+- Bumped the compatible version of mist-cli to v1.14.
 - Bumped the compatible version of swiftDialog to 2.2.1.4591.
 - Can now run `erase-install.sh --list` safely as the current user (without sudo); logs and files are written to a temporary location.
-- A notification is shown if running an older version of erase-install than the latest available.
+- A notification is shown if running an older version of erase-install than the latest available (on macOS 13 or newer).
 - Allows `mist` to use a caching server (addresses #406). Add the following option:
   - `--caching-server https://YOUR_URL_HERE`
 - It is now possible to supply credentials in base64 format to avoid the prompt for credentials on Apple Silicon computers.
