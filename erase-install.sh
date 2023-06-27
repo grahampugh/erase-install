@@ -2718,7 +2718,7 @@ system_build=$( /usr/bin/sw_vers -buildVersion )
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
 
 # check if this is the latest version of erase-install
-if [[ "$no_curl" != "yes" && $system_version -ge 13 ]]; then
+if [[ "$no_curl" != "yes" && $system_os_major -ge 13 ]]; then
     latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
     if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
         writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
