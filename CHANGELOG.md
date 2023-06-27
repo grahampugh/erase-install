@@ -25,6 +25,8 @@ No date
 - `--update` no longer ignores `--sameos` (fixes #407).
 - `erase-install-launcher.sh` is also converted to zsh.
 - `erase-install-launcher.sh` should now respect parameters that have spaces in them, such as commands called by the `--postinstall-command` option.
+- Fixed version comparisons where there is a point release (fixes #410).
+- Pre- and post-install commands are now run in `--test-run` mode.
 
 ## [29.2]
 

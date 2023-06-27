@@ -242,7 +242,7 @@ check_for_mist() {
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
-    if [[ $system_os_major -le 11 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
+    if [[ $(echo "$system_version_major < 12" | bc) == 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
@@ -459,13 +459,8 @@ check_newer_available() {
         writelog "[check_newer_available] Restricting to selected OS $prechosen_os"
         mist_args+=("$prechosen_os")
     elif [[ $sameos ]]; then
-        if [[ $system_os_major == "10" ]]; then
-            writelog "[run_mist] Restricting to selected OS $system_os_major.$system_os_version"
-            mist_args+=("$system_os_major.$system_os_version")
-        else
-            writelog "[run_mist] Restricting to selected OS $system_os_major"
-            mist_args+=("$system_os_major")
-        fi
+        writelog "[run_mist] Restricting to selected OS $system_version_major"
+        mist_args+=("$system_version_major")
     fi
 
     if [[ "$skip_validation" != "yes" ]]; then
@@ -756,22 +751,54 @@ confirm() {
 }
 
 # -----------------------------------------------------------------------------
+# Create a LaunchDaemon that runs startosinstall.
+# -----------------------------------------------------------------------------
+create_launchdaemon_to_run_startosinstall () {
+    local install_arg
+
+    # Name of LaunchDaemon
+    # set label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
+
+    # Create the plist
+    if [[ -f "$launch_daemon" ]]; then
+        rm "$launch_daemon" 
+    fi
+
+    /usr/libexec/PlistBuddy -c "Add :Label string '$plist_label'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :LaunchOnlyOnce bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :StandardInPath string '$pipe_input'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :StandardOutPath string '$pipe_output'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :StandardErrorPath string '$pipe_output'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$launch_daemon"
+
+    i=0
+    for install_arg in "${combined_args[@]}"; do
+        /usr/libexec/PlistBuddy -c "Add :ProgramArguments:$i string '$install_arg'" "$launch_daemon"
+        (( i++ ))
+    done
+}
+
+# -----------------------------------------------------------------------------
 # Create a LaunchDaemon that removes the working directory after a reboot.
 # This is used with the --cleanup-after-use option.
 # -----------------------------------------------------------------------------
 create_launchdaemon_to_remove_workdir () {
     # Name of LaunchDaemon
-    plist_label="com.github.grahampugh.erase-install.remove"
+    plist_label="$pkg_label.remove"
     launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
+
     # Create the plist
-    /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
-    /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
-        -string /bin/rm \
-        -string -Rf \
-        -string "$workdir" \
-        -string "$launch_daemon"
-    /usr/bin/defaults write "$launch_daemon" RunAtLoad -boolean yes
-    /usr/bin/defaults write "$launch_daemon" LaunchOnlyOnce -boolean yes
+    /usr/libexec/PlistBuddy -c "Add :Label string '$plist_label'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :LaunchOnlyOnce bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:0 string '/bin/rm'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:1 string '-Rf'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:2 string '$workdir'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:3 string '$launch_daemon'" "$launch_daemon"
 
     /usr/sbin/chown root:wheel "$launch_daemon"
     /bin/chmod 644 "$launch_daemon"
@@ -989,7 +1016,7 @@ find_extra_packages() {
 # -----------------------------------------------------------------------------
 # shellcheck disable=SC2317
 terminate() {
-    echo "   [terminate] Script was interrupted (last exit code was $?)"
+    writelog "[terminate] Script was interrupted (last exit code was $?)"
     exit 143
 }
 
@@ -1031,13 +1058,13 @@ finish() {
 # -----------------------------------------------------------------------------
 get_darwin_from_os_version() {
     # convert a macOS major version to a darwin version
-    os_version="$1"
-    if [[ "${os_version:0:2}" == "10" ]]; then
-        darwin_version=${os_version:3:2}
+    os_major="$1"
+    os_major_check=$(cut -d. -f1 <<< "$os_major")
+    if [[ $os_major_check -eq 10 ]]; then
+        darwin_version=$(cut -d. -f2 <<< "$os_major")
         darwin_version=$((darwin_version+4))
     else
-        darwin_version=${os_version:0:2}
-        darwin_version=$((darwin_version+9))
+        darwin_version=$((os_major_check+9))
     fi
     echo "$darwin_version"
 }
@@ -1346,61 +1373,53 @@ kill_process() {
 # before the computer restarts
 # -----------------------------------------------------------------------------
 launch_startosinstall() {
-    local path_stdin="${1}"
-    local path_stdout="${2}"
-    local path_stderr="${3}"
-    local install_arg
-    local combined_args=()
-    local launch_daemon_args=()
+    # Prepare pipes for communication with startosinstall
+    pipe_input=$( create_pipe "$script_name.in" )
+    exec 3<> "$pipe_input"
+    pipe_output=$( create_pipe "$script_name.out" )
+    exec 4<> "$pipe_output"
+    /bin/cat <&4 &
+    pipePID=$!
+
     # set label and file name for LaunchDaemon
     plist_label="$pkg_label.startosinstall"
-    # launch_daemon="$( /usr/bin/mktemp -u -t "${pkg_label}.startosinstall" ).plist"
     launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
 
     # reset the existing launchdaemon if present
-    if [[ -f "$launch_daemon" ]]; then
-        /bin/launchctl unload -F "$launch_daemon"
+    if /bin/launchctl list "$plist_label" >/dev/null 2>&1; then
+        /bin/launchctl bootout system "$launch_daemon"
         /bin/rm "$launch_daemon"
     fi
 
     # prepare command parameters
-    OLDIFS=$IFS
-    IFS=$'\x00'
-    if [[ $test_run != "yes" ]]; then
-        program_path="$working_macos_app/Contents/Resources/startosinstall"
-        combined_args=("${install_args[@]}" "--pidtosignal" "$$" "--agreetolicense" "--nointeraction" "${install_package_list[@]}")
-    else
-        program_path="/bin/zsh"
-        combined_args=("-c" "/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+    combined_args=()
+    if [[ $test_run == "yes" ]]; then
+        combined_args+=("/bin/zsh")
+        combined_args+=("-c")
+        combined_args+=("/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
 
         writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
-        writelog "[launch_startosinstall] $working_macos_app/Contents/Resources/startosinstall" "${install_args[@]}" --pidtosignal $$ --agreetolicense --nointeraction "${install_package_list[@]}"
-    fi
-    launch_daemon_args=()
-    for install_arg in $program_path "${combined_args[@]}"; do
-        launch_daemon_args+=("-string")
-        launch_daemon_args+=("$install_arg")
-    done
+        writelog "[launch_startosinstall] $(printf " %q" "$working_macos_app/Contents/Resources/startosinstall")$(printf " %q" "${install_args[@]}") --pidtosignal $$ --agreetolicense --nointeraction $(printf " %q" "${install_package_list[@]}")"
+    else
+        combined_args+=("$working_macos_app/Contents/Resources/startosinstall")
+        combined_args+=("${install_args[@]}")
+        combined_args+=("--pidtosignal")
+        combined_args+=("$$")
+        combined_args+=("--agreetolicense")
+        combined_args+=("--nointeraction")
+        combined_args+=("${install_package_list[@]}")
+    
+        writelog "[launch_startosinstall] Launching startosinstall"
+fi
 
-    # Create the plist
-    /usr/bin/defaults delete "$launch_daemon" 2>/dev/null
-    /usr/bin/defaults write "$launch_daemon" Label -string "$plist_label"
-    /usr/bin/defaults write "$launch_daemon" RunAtLoad -boolean yes
-    /usr/bin/defaults write "$launch_daemon" LaunchOnlyOnce -boolean yes
-    /usr/bin/defaults write "$launch_daemon" StandardInPath -string "${path_stdin}"
-    /usr/bin/defaults write "$launch_daemon" StandardOutPath -string "${path_stdout}"
-    /usr/bin/defaults write "$launch_daemon" StandardErrorPath -string "${path_stderr}"
-    /usr/bin/defaults write "$launch_daemon" ProgramArguments -array \
-        "${launch_daemon_args[@]}"
-
-    IFS=$OLDIFS
+    # write the launchdaemon
+    create_launchdaemon_to_run_startosinstall
 
     # Start LaunchDaemon
     /usr/sbin/chown root:wheel "$launch_daemon"
     /bin/chmod 644 "$launch_daemon"
-    writelog "[launch_startosinstall] Launching startosinstall"
-    /bin/launchctl bootstrap system "${launch_daemon}"
-    /bin/rm -f "${launch_daemon}"
+    /bin/launchctl bootstrap system "$launch_daemon"
+    /bin/rm -f "$launch_daemon"
     return 0
 }
 
@@ -1412,11 +1431,12 @@ launch_startosinstall() {
 ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 LICENSE_BLOCK
 
-ljt () ( #v1.0.9 ljt [query] [file]
+ljt() ( #v1.0.9 ljt [query] [file]
     { set +x; } &> /dev/null; read -r -d '' JSCode <<-'EOT'
 try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
 EOT
-    queryArg="${1}"; fileArg="${2}";jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc');[ -z "${jsc}" ] && jsc=$(which jsc);[ -f "${queryArg}" -a -z "${fileArg}" ] && fileArg="${queryArg}" && unset queryArg;if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1;else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi;if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+
+    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
 )
 
 # -----------------------------------------------------------------------------
@@ -1507,25 +1527,23 @@ post_prep_work() {
 
     # run any postinstall commands
     for command in "${postinstall_command[@]}"; do
-        if [[ $test_run != "yes" ]]; then
+        if [[ $command ]]; then
             writelog "[post_prep_work] Now running postinstall command: $command"
-            /bin/bash -c "$command"
-        else
-            writelog "[post_prep_work] Simulating postinstall command: $command"
+            eval "$command"
         fi
     done
 
-    if [[ $test_run != "yes" ]]; then
+    if [[ $test_run == "yes" ]]; then
+        writelog "[post_prep_work] Simulating reboot delay of ${rebootdelay}s"
+        sleep "$rebootdelay"
+    else
         # we need to quit so our management system can report back home before being killed by startosinstall
         writelog "[post_prep_work] Reboot delay set to ${rebootdelay}s"
-    else
-        writelog "[post_prep_work] Waiting ${rebootdelay}s"
-        sleep "$rebootdelay"
+        # then shut everything down
+        kill_process "Self Service"
     fi
 
-    # then shut everything down
-    kill_process "Self Service"
-    # set exit code to 0 and call finish()
+    # set exit code to 0 which will call finish()
     exit 0
 }
 
@@ -1535,7 +1553,7 @@ post_prep_work() {
 # available in some versions of Catalina. 
 # -----------------------------------------------------------------------------
 run_fetch_full_installer() {
-    softwareupdate_args=''
+    softwareupdate_args=()
     run_list_full_installers
     if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
         if [[ $prechosen_version ]]; then
@@ -1544,7 +1562,8 @@ run_fetch_full_installer() {
             if [[ $ffi_available -ge 1 ]]; then
                 # get the chosen version
                 writelog "[run_fetch_full_installer] Found version $prechosen_version"
-                softwareupdate_args+=" --full-installer-version $prechosen_version"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$prechosen_version")
             else
                 writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
             fi
@@ -1560,7 +1579,8 @@ run_fetch_full_installer() {
                 fi
                 
                 writelog "[run_fetch_full_installer] Found version $latest_ffi"
-                softwareupdate_args+=" --full-installer-version $latest_ffi"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
             else
                 writelog "[run_fetch_full_installer] WARNING: No available version for macOS $prechosen_os found. Defaulting to latest available version."
             fi
@@ -1575,16 +1595,15 @@ run_fetch_full_installer() {
 
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
-                echo "system_os_major: $system_os_major"  # TEMP
-                echo "system_os_version: $system_os_version"  # TEMP
-                echo "latest_ffi: $latest_ffi"  # TEMP
-                echo "latest_ffi:3:1: ${latest_ffi:3:1}"  # TEMP
-                if [[ (${latest_ffi:0:2} -lt $system_os_major) || (${latest_ffi:0:2} -eq $system_os_major && ${latest_ffi:3:1} -lt $system_os_version) ]]; then
+                latest_ffi_major=$(cut -d. -f1 <<< "$latest_ffi")
+                latest_ffi_minor=$(cut -d. -f2,3 <<< "$latest_ffi")
+                if [[ $latest_ffi_major -lt $system_version_major || "$latest_ffi_major" == "$system_version_major" && $(echo "$latest_ffi_minor < $system_version_minor" | bc) == 1 ]]; then
                     writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
                     echo
                     exit 1
                 fi
-                softwareupdate_args+=" --full-installer-version $latest_ffi"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
             else
                 writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
             fi
@@ -1597,12 +1616,8 @@ run_fetch_full_installer() {
     fi
 
     # now download the installer
-    writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args"
-    # shellcheck disable=SC2086
-    /usr/sbin/softwareupdate --fetch-full-installer $softwareupdate_args
-
-    # shellcheck disable=SC2181
-    if [[ $? == 0 ]]; then
+    writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
+    if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
         # Identify the installer
         if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
             cached_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
@@ -1640,26 +1655,36 @@ run_mist() {
     mist_args+=("download")
     mist_args+=("installer")
 
-    # restrict to a particular OS, version or build if selected
+    # restrict to a particular major OS if selected
     if [[ $prechosen_os ]]; then
-        if [[ $prechosen_os -lt $system_os_major ]]; then
+        # account for when people mistakenly put a version string instead of a major OS
+        prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
+        if [[ $prechosen_os_check = 10 ]]; then
+            prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
+        else
+            prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
+        fi
+        # check whether chosen OS is older than the system
+        if [[ $prechosen_os < $system_version_major ]]; then
             writelog "[run_mist] ERROR: cannot select an older OS than the system"
-            echo
-            exit 1
-        elif [[ (${prechosen_os:0:2} -eq "10" && $prechosen_os == "10."*"."*) || (${prechosen_os:0:2} -gt "10" && $prechosen_os == *"."*) ]]; then
-            writelog "[run_mist] ERROR: select a major version with --os, e.g. 10.15, 11, 12"
             echo
             exit 1
         fi
         writelog "[run_mist] Restricting to selected OS $prechosen_os"
         mist_args+=("$prechosen_os")
 
+    # restrict to a particular version if selected
     elif [[ $prechosen_version ]]; then
-        if [[ ${prechosen_version:0:2} -lt $system_os_major ]]; then
-            writelog "[run_mist] ERROR: cannot select an older OS than the system"
-            echo
-            exit 1
-        elif [[ ${prechosen_version:0:2} -eq $system_os_major && ${prechosen_version:3} -lt $system_os_version ]]; then
+        prechosen_version_check=$(cut -d. -f1 <<< "$prechosen_version")
+        if [[ $prechosen_version_check -eq 10 ]]; then
+            prechosen_version_major=$(cut -d. -f1,2 <<< "$prechosen_version")
+            prechosen_version_minor=$(cut -d. -f3 <<< "$prechosen_version")
+        else
+            prechosen_version_major=$(cut -d. -f1 <<< "$prechosen_version")
+            prechosen_version_minor=$(cut -d. -f2,3 <<< "$prechosen_version")
+        fi
+        # check for an older version
+        if [[ $(echo "$prechosen_version_major < $system_version_major " | bc) == 1 || "$prechosen_version_major" == "$system_version_major" && $(echo "$prechosen_version_minor < $system_version_minor" | bc) == 1 ]]; then
             writelog "[run_mist] ERROR: cannot select an older version than the system"
             echo
             exit 1
@@ -1667,6 +1692,7 @@ run_mist() {
         writelog "[run_mist] Checking that selected version $prechosen_version is available"
         mist_args+=("$prechosen_version")
 
+    # restrict to a particular build if selected
     elif [[ $prechosen_build ]]; then
         builds_available=$(grep -c build "$mist_export_file")
         build_found=0
@@ -1687,25 +1713,30 @@ run_mist() {
         writelog "[run_mist] Checking that selected build $prechosen_build is available"
         mist_args+=("$prechosen_build")
 
+    # restrict to the same build as the system if selected
     elif [[ $samebuild == "yes" ]]; then
         # temporarily we will just check for the same version
         writelog "[run_mist] Checking that current version $system_version is available"
         mist_args+=("$system_version")
 
+    # restrict to the same major OS as the system if selected
     elif [[ $sameos == "yes" ]]; then
-        if [[ $system_os_major == "10" ]]; then
-            writelog "[run_mist] Checking that current OS $system_os_major.$system_os_version is available"
-            mist_args+=("$system_os_major.$system_os_version")
-        else
-            writelog "[run_mist] Checking that current OS $system_os_major is available"
-            mist_args+=("$system_os_major")
-        fi
+        writelog "[run_mist] Checking that current OS $system_version_major is available"
+        mist_args+=("$system_version_major")
 
     else
         # if no version was selected, we want the latest available, which is the first in the mist-list
         latest_version=$(ljt '0.version' < "$mist_export_file")
+        latest_version_check=$(cut -d. -f1 <<< "$latest_version")
+        if [[ $latest_version_check -eq 10 ]]; then
+            latest_version_major=$(cut -d. -f1,2 <<< "$latest_version")
+            latest_version_minor=$(cut -d. -f3 <<< "$latest_version")
+        else
+            latest_version_major=$(cut -d. -f1 <<< "$latest_version")
+            latest_version_minor=$(cut -d. -f2,3 <<< "$latest_version")
+        fi
         if [[ $latest_version ]]; then
-            if [[ (${latest_version:0:2} -lt $system_os_major) || (${latest_version:0:2} -eq $system_os_major && ${latest_version:3:1} -lt $system_os_version) ]]; then
+            if [[ $(echo "$latest_version_major < $system_version_major" | bc) == 1 || ("$latest_version_major" == "$system_version_major" && $(echo "$latest_version_minor < $system_version_minor" | bc) == 1) ]]; then
                 writelog "[run_mist] ERROR: latest version in catalog $latest_version is older OS than the system version $system_version"
                 echo
                 exit 1
@@ -1788,7 +1819,7 @@ run_mist() {
     echo
     writelog "[run_mist] This command is now being run:"
     echo
-    writelog "    mist ${mist_args[*]}"
+    writelog "mist ${mist_args[*]}"
 
     if ! "$mist_bin" "${mist_args[@]}" ; then
         writelog "[run_mist] An error occurred running mist. Cannot continue."
@@ -2435,7 +2466,7 @@ log_rotate() {
 # -----------------------------------------------------------------------------
 writelog() {
     DATE=$(date +%Y-%m-%d\ %H:%M:%S)
-    echo "$DATE" " $1"
+    echo "$DATE | v$version | $1"
 }
 
 # =============================================================================
@@ -2465,6 +2496,10 @@ max_password_attempts=5
 
 # set language and localisations
 set_localisations
+
+# predefine arrays
+preinstall_command=()
+postinstall_command=()
 
 while test $# -gt 0 ; do
     case "$1" in
@@ -2709,16 +2744,35 @@ done
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
 
+# announce if the Test Run mode is implemented
+if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+    if [[ $test_run == "yes" ]]; then
+        echo
+        echo "*** TEST-RUN ONLY! ***"
+        echo "* This script will perform all tasks up to the point of erase or reinstall,"
+        echo "* but will not actually erase or reinstall."
+        echo "* Remove the --test-run argument to perform the erase or reinstall."
+        echo "**********************"
+        echo
+    fi
+fi
+
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
-system_os_major=$( echo "$system_version" | cut -d '.' -f 1 )
-system_os_version=$( echo "$system_version" | cut -d '.' -f 2 )
 system_build=$( /usr/bin/sw_vers -buildVersion )
+system_os=$(cut -d. -f 1 <<< "$system_version")
+if [[ $system_os -eq 10 ]]; then
+    system_version_major=$(cut -d. -f1,2 <<< "$system_version")
+    system_version_minor=$(cut -d. -f3 <<< "$system_version")
+else
+    system_version_major=$(cut -d. -f1 <<< "$system_version")
+    system_version_minor=$(cut -d. -f2,3 <<< "$system_version")
+fi
 
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
 
 # check if this is the latest version of erase-install
-if [[ "$no_curl" != "yes" && $system_os_major -ge 13 ]]; then
+if [[ "$no_curl" != "yes" && $(echo "$system_version_major >= 13" | bc) == 1 ]]; then
     latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
     if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
         writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
@@ -2726,7 +2780,7 @@ if [[ "$no_curl" != "yes" && $system_os_major -ge 13 ]]; then
 fi
 
 # bail if system is older than macOS 10.15
-if [[ $system_os_major -le 10 && $system_os_version -lt 15 ]]; then
+if [[ $(echo "$system_version_major < 10.15" | bc) == 1 ]]; then
     writelog "[$script_name] This script requires macOS 10.15 or newer. Plesse use version 27.x of erase-install.sh on older systems."
     echo
     exit 1
@@ -2751,7 +2805,7 @@ fi
 
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
-    if [[ $system_os_major -lt 11 ]]; then
+    if [[ $(echo "$system_version_major < 11" | bc) == 1 ]]; then
         writelog "[$script_name] This script requires macOS 11 or newer in interactive mode. Please use version 27.x of erase-install.sh on older systems."
         echo
         exit 1
@@ -2761,7 +2815,7 @@ if [[ ! $silent ]]; then
 fi
 
 # different dialog icon for OS older than macOS 13
-if [[ $system_os_major -lt 13 ]]; then
+if [[ $(echo "$system_version_major < 13" | bc) == 1 ]]; then
     dialog_confirmation_icon="/System/Applications/System Preferences.app"
 fi
 
@@ -2820,17 +2874,6 @@ else
 fi
 
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
-    # announce that the Test Run mode is implemented
-    if [[ $test_run == "yes" ]]; then
-        echo
-        echo "*** TEST-RUN ONLY! ***"
-        echo "* This script will perform all tasks up to the point of erase or reinstall,"
-        echo "* but will not actually erase or reinstall."
-        echo "* Remove the --test-run argument to perform the erase or reinstall."
-        echo "**********************"
-        echo
-    fi
-
     # check for drive space if invoking erase or reinstall options
     check_free_space
 fi
@@ -3199,11 +3242,9 @@ fi
 
 # run preinstall commands
 for command in "${preinstall_command[@]}"; do
-    if [[ $test_run != "yes" ]]; then
+    if [[ $command ]]; then
         writelog "[$script_name] Now running preinstall command: $command"
-        /bin/bash -c "$command"
-    else
-        writelog "[$script_name] Simulating preinstall command: $command"
+        eval "$command"
     fi
 done
 
@@ -3250,16 +3291,9 @@ if [[ "$arch" == "arm64" ]]; then
     fi
 fi
 
-# Prepare pipes for communication with startosinstall
-pipe_input=$( create_pipe "$script_name.in" )
-exec 3<> "$pipe_input"
-pipe_output=$( create_pipe "$script_name.out" )
-exec 4<> "$pipe_output"
-/bin/cat <&4 &
-pipePID=$!
-
 # now actually run startosinstall
-launch_startosinstall "$pipe_input" "$pipe_output" "$pipe_output"
+launch_startosinstall
+
 if [[ "$arch" == "arm64" && $test_run != "yes" ]]; then
     writelog "[$script_name] Sending password to startosinstall"
     /bin/cat >&3 <<< "$account_password"
@@ -3271,7 +3305,8 @@ sleep_time=3600
 if [[ $no_timeout == "yes" ]]; then
     sleep_time=86400
 fi
-(sleep $sleep_time; echo "   [$script_name] Timeout reached for PID $pipePID!"; kill -TERM $pipePID) &
+
+(sleep $sleep_time; writelog "[$script_name] Timeout reached for PID $pipePID!"; kill -TERM $pipePID) &
 wait $pipePID
 
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
