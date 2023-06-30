@@ -1398,18 +1398,37 @@ launch_startosinstall() {
         combined_args+=("-c")
         combined_args+=("/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
 
+        test_args=()
+        test_args+=("$working_macos_app/Contents/Resources/startosinstall")
+        test_args+=("--pidtosignal")
+        test_args+=("$$")
+        test_args+=("--agreetolicense")
+        test_args+=("--nointeraction")
+        if [[ "${#install_args[@]}" -ge 1 ]]; then
+            test_args+=("${install_args[@]}")
+        fi
+        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
+            test_args+=("${install_package_list[@]}")
+        fi
+
         writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
-        writelog "[launch_startosinstall] $(printf " %q" "$working_macos_app/Contents/Resources/startosinstall")$(printf " %q" "${install_args[@]}") --pidtosignal $$ --agreetolicense --nointeraction $(printf " %q" "${install_package_list[@]}")"
+        writelog "[launch_startosinstall] $(printf "%q " "${test_args[@]}")"
     else
         combined_args+=("$working_macos_app/Contents/Resources/startosinstall")
-        combined_args+=("${install_args[@]}")
         combined_args+=("--pidtosignal")
         combined_args+=("$$")
         combined_args+=("--agreetolicense")
         combined_args+=("--nointeraction")
-        combined_args+=("${install_package_list[@]}")
+        if [[ "${#install_args[@]}" -ge 1 ]]; then
+            combined_args+=("${install_args[@]}")
+        fi
+        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
+            combined_args+=("${install_package_list[@]}")
+        fi
     
-        writelog "[launch_startosinstall] Launching startosinstall"
+        writelog "[launch_startosinstall] This is the startosinstall command that will be used:"
+        writelog "[launch_startosinstall] $(printf "%q " "${combined_args[@]}")"
+        writelog "[launch_startosinstall] Launching startosinstall..."
 fi
 
     # write the launchdaemon
@@ -1657,13 +1676,6 @@ run_mist() {
 
     # restrict to a particular major OS if selected
     if [[ $prechosen_os ]]; then
-        # account for when people mistakenly put a version string instead of a major OS
-        prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
-        if [[ $prechosen_os_check = 10 ]]; then
-            prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
-        else
-            prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
-        fi
         # check whether chosen OS is older than the system
         if [[ $prechosen_os < $system_version_major ]]; then
             writelog "[run_mist] ERROR: cannot select an older OS than the system"
@@ -2501,11 +2513,15 @@ set_localisations
 preinstall_command=()
 postinstall_command=()
 
+# print out all the arguments
+all_args="$*"
+
 while test $# -gt 0 ; do
     case "$1" in
-        -e|--erase) erase="yes"
+        -r|--reinstall) 
+            reinstall="yes"
             ;;
-        -r|--reinstall) reinstall="yes"
+        -e|--erase) erase="yes"
             ;;
         -m|--move) move="yes"
             ;;
@@ -2743,16 +2759,40 @@ done
 # output that the script has started running
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
+echo
+writelog "[$script_name] Arguments provided: $all_args"
+
+# exit out or correct for incompatible options
+if [[ $erase == "yes" && $reinstall == "yes" ]]; then
+    writelog "[$script_name] ERROR: Choose either --erase or --reinstall options, but not both!"
+    exit 1
+elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_os) || ($sameos && $prechosen_build) ]]; then
+    writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"
+    exit 1
+elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then
+    writelog "[$script_name] ERROR: Choose a maximum of one of the --overwrite, --update, or --replace-invalid options at the same time!"
+    exit 1
+fi
+
+# account for when people mistakenly put a version string instead of a major OS
+if [[ "$prechosen_os" ]]; then
+    prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
+    if [[ $prechosen_os_check = 10 ]]; then
+        prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
+    else
+        prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
+    fi
+fi
 
 # announce if the Test Run mode is implemented
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     if [[ $test_run == "yes" ]]; then
         echo
-        echo "*** TEST-RUN ONLY! ***"
-        echo "* This script will perform all tasks up to the point of erase or reinstall,"
-        echo "* but will not actually erase or reinstall."
-        echo "* Remove the --test-run argument to perform the erase or reinstall."
-        echo "**********************"
+        writelog "*** TEST-RUN ONLY! ***"
+        writelog "* This script will perform all tasks up to the point of erase or reinstall,"
+        writelog "* but will not actually erase or reinstall."
+        writelog "* Remove the --test-run argument to perform the erase or reinstall."
+        writelog "**********************"
         echo
     fi
 fi
@@ -2941,7 +2981,7 @@ elif [[ "$prechosen_os" != "" ]]; then
     fi
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version -ne $prechosen_darwin_version ]]; then
-        writelog "[$script_name] Existing installer does not match requested OS, so replacing..."
+        writelog "[$script_name] Existing installer does not match requested OS ($prechosen_os), so replacing..."
         overwrite_existing_installer
     fi
 
@@ -3310,5 +3350,5 @@ fi
 wait $pipePID
 
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
-writelog "[$script_name] Reached end of script. Exit with error 42."
+writelog "[$script_name] Reached end of script unexpectedly. This probably means startosinstall failed to complete within $(sleep_time/60) minutes."
 exit 42

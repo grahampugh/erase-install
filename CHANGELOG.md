@@ -27,6 +27,7 @@ No date
 - `erase-install-launcher.sh` should now respect parameters that have spaces in them, such as commands called by the `--postinstall-command` option.
 - Fixed version comparisons where there is a point release (fixes #410).
 - Pre- and post-install commands are now run in `--test-run` mode.
+- Now exits out when some incompatible arguments are provided at the same time.
 
 ## [29.2]
 
