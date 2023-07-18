@@ -4,9 +4,34 @@
 
 No date
 
+## [30.0]
+
+18.07.2023
+
+- Converted to `zsh` (but the filename remains erase-install.sh).
+- Bumped the compatible version of mist-cli to v1.14.
+- Bumped the compatible version of swiftDialog to 2.2.1.4591.
+- Can now run `erase-install.sh --list` safely as the current user (without sudo); logs and files are written to a temporary location.
+- A notification is shown if running an older version of erase-install than the latest available (on macOS 13 or newer).
+- Allows `mist` to use a caching server (addresses #406). Add the following option:
+  - `--caching-server https://YOUR_URL_HERE`
+- It is now possible to supply credentials in base64 format to avoid the prompt for credentials on Apple Silicon computers.
+  - **NOTE THIS IS VERY INSECURE! ONLY USE IN A SAFE ENVIRONMENT!!!**
+  - Use the supplied script `set-credentials.sh` to generate the base64-encoded credentials.
+  - Alternatively use the following shell command: `printf "%s:%s" "<USERNAME>" "<PASSWORD>" | iconv -t ISO-8859-1 | base64 -i -`
+  - Add the following option: `--credentials ENCODEDCREDENTIALS`
+  - Also add this option: `--very-insecure-mode` (this is required in addition to the `--credentials` option!).
+- If running the script on macOS 11, it now checks ot see if the swiftDialog version is too new (addresses #392).
+- `--update` no longer ignores `--sameos` (fixes #407).
+- `erase-install-launcher.sh` is also converted to zsh.
+- `erase-install-launcher.sh` should now respect parameters that have spaces in them, such as commands called by the `--postinstall-command` option.
+- Fixed version comparisons where there is a point release (fixes #410).
+- Pre- and post-install commands are now run in `--test-run` mode.
+- Now exits out when some incompatible arguments are provided at the same time.
+
 ## [29.2]
 
-No date
+07.06.2023
 
 - Fix downloads from mist only selecting compatible builds.
 - Version bump to use mist-cli v1.12, which includes a less verbose output for the download logs (one register per percentage download instead of one register per second).
@@ -532,7 +557,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v29.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v30.0...HEAD
+[30.0]: https://github.com/grahampugh/erase-install/compare/v29.1...v30.0
 [29.1]: https://github.com/grahampugh/erase-install/compare/v29.0...v29.1
 [29.0]: https://github.com/grahampugh/erase-install/compare/v28.1...v29.0
 [28.1]: https://github.com/grahampugh/erase-install/compare/v28.0...v28.1

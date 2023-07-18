@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/bin/zsh
+# shellcheck shell=bash
+# shellcheck disable=SC2034,SC2296
+# these are due to the dynamic variable assignments used in the localization strings
 
-:<<DOC
+: <<DOC
 erase-install-launcher.sh
 
 This script is designed to be used as a stub for launching erase-install.sh when
@@ -19,11 +22,35 @@ DOC
 
 script_name="erase-install-launcher"
 
-IFS=" " read -r -a eraseinstall_args <<< "${4} ${5} ${6} ${7} ${8} ${9} ${10}"
-eraseinstall_path="${11:-/Library/Management/erase-install/erase-install.sh}"
+escape_args() {
+    temp_string=$(awk -F\" '{OFS="\""; for(i=2;i<NF;i+=2)gsub(/ /,"++",$i);print}' <<< "$1")
+    temp_string="${temp_string//\\ /++}"
+    echo "$temp_string"
+}
+
+eraseinstall_args=()
+for i in {4..10}; do
+    eval_string="${(P)i}"
+    parsed_parameter="$(escape_args "$eval_string")"
+
+    for p in $parsed_parameter; do
+        if [[ $p =~ \" ]]; then
+            eraseinstall_args+=("${p//++/ }")
+        else
+            eraseinstall_args+=("${p//++/\\ }")
+        fi
+    done
+done
+
+if [[ "${11}" != "" ]]; then
+    eraseinstall_path="${11}"
+else
+    eraseinstall_path="/Library/Management/erase-install/erase-install.sh"
+fi
 
 echo "[$script_name] Starting script \"${eraseinstall_path}\"" "${eraseinstall_args[@]}"
 "${eraseinstall_path}" "${eraseinstall_args[@]}"
+
 rc=$?
 
 echo "[$script_name] Exit ($rc)"
