@@ -6,9 +6,9 @@ No date
 
 ## [30.0]
 
-No date
+18.07.2023
 
-- Converted to `zsh`.
+- Converted to `zsh` (but the filename remains erase-install.sh).
 - Bumped the compatible version of mist-cli to v1.14.
 - Bumped the compatible version of swiftDialog to 2.2.1.4591.
 - Can now run `erase-install.sh --list` safely as the current user (without sudo); logs and files are written to a temporary location.
@@ -31,7 +31,7 @@ No date
 
 ## [29.2]
 
-No date
+07.06.2023
 
 - Fix downloads from mist only selecting compatible builds.
 - Version bump to use mist-cli v1.12, which includes a less verbose output for the download logs (one register per percentage download instead of one register per second).
