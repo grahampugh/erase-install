@@ -2821,7 +2821,7 @@ fi
 
 # bail if system is older than macOS 10.15
 if [[ $(echo "$system_version_major < 10.15" | bc) == 1 ]]; then
-    writelog "[$script_name] This script requires macOS 10.15 or newer. Plesse use version 27.x of erase-install.sh on older systems."
+    writelog "[$script_name] This script requires macOS 10.15 or newer. Please use version 27.x of erase-install.sh on older systems."
     echo
     exit 1
 fi
