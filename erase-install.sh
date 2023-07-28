@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="30.0"
+version="30.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -127,7 +127,7 @@ ask_for_credentials() {
     fi
 
     # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" > "$dialog_output"
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null > "$dialog_output"
 }
 
 # -----------------------------------------------------------------------------
@@ -168,7 +168,7 @@ check_fmm() {
             "${fmm_wait_timer}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
         # now count down while checking for power
         while [[ "$fmm_wait_timer" -gt 0 ]]; do
@@ -203,7 +203,7 @@ check_fmm() {
             "${(P)dialog_fmmenabled_desc}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
         writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
         echo
@@ -328,7 +328,7 @@ check_free_space() {
             "${(P)dialog_cancel_button}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
         exit 1
     fi
 }
@@ -487,6 +487,9 @@ check_newer_available() {
         mist_args+=("--include-betas")
     fi
 
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
+
     # run mist with --list and then interrogate the plist
     if "$mist_bin" "${mist_args[@]}" ; then
         newer_build_found="no"
@@ -569,8 +572,8 @@ check_power_status() {
             "--timer"
             "${power_wait_timer}"
         )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+        # run the dialog command (stderr to dev/null to prevent Xfont errors)
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
         # now count down while checking for power
         while [[ "$power_wait_timer" -gt 0 ]]; do
@@ -605,7 +608,7 @@ check_power_status() {
             "${(P)dialog_nopower_desc}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
         writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
         echo
@@ -736,7 +739,7 @@ confirm() {
         "${(P)dialog_cancel_button}"
     )
     # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}"
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
     confirmation=$?
 
     if [[ "$confirmation" == "2" ]]; then
@@ -1171,6 +1174,7 @@ get_mist_list() {
     if [[ "$skip_validation" != "yes" ]]; then
         mist_args+=("--compatible")
     fi
+
     mist_args+=("--export")
     mist_args+=("$mist_export_file")
 
@@ -1192,6 +1196,9 @@ get_mist_list() {
         writelog "[get_mist_list] Beta versions included"
         mist_args+=("--include-betas")
     fi
+
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
 
     # run the command
     if ! "$mist_bin" "${mist_args[@]}" ; then
@@ -1539,7 +1546,7 @@ post_prep_work() {
             "$rebootdelay"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
         dialog_progress reboot-delay >/dev/null 2>&1 &
     fi
@@ -2374,7 +2381,7 @@ user_is_invalid() {
             "${(P)dialog_invalid_user}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
     fi
 }
 
@@ -2402,7 +2409,7 @@ password_is_invalid() {
             "${(P)dialog_invalid_password} $user"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
     fi
 }
 
@@ -2431,7 +2438,7 @@ user_not_volume_owner() {
             "$account_shortname ${(P)dialog_not_volume_owner}: ${enabled_users}"
         )
         # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}"
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
     fi
 }
 
@@ -3068,7 +3075,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "100"
             )
             # run the dialog command
-            "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+            "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
         fi
 
         if [[ $ffi ]]; then
@@ -3249,7 +3256,7 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "100"
     )
     # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
     dialog_progress startosinstall >/dev/null 2>&1 &
 
@@ -3269,7 +3276,7 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "100"
     )
     # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" & sleep 0.1
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
     dialog_progress startosinstall >/dev/null 2>&1 &
 fi
@@ -3331,6 +3338,9 @@ if [[ "$arch" == "arm64" ]]; then
     fi
 fi
 
+# fix for a bug in mist-cli to correct the installer app permissions
+/bin/chmod -R 755 "$working_macos_app"
+
 # now actually run startosinstall
 launch_startosinstall
 
@@ -3350,5 +3360,5 @@ fi
 wait $pipePID
 
 # we are not supposed to end up here due to USR1 signalling, so something went wrong.
-writelog "[$script_name] Reached end of script unexpectedly. This probably means startosinstall failed to complete within $(sleep_time/60) minutes."
+writelog "[$script_name] Reached end of script unexpectedly. This probably means startosinstall failed to complete within $((sleep_time/60)) minutes."
 exit 42

@@ -4,6 +4,15 @@
 
 No date
 
+## [30.1]
+
+28.07.2023
+
+- (Hopefully temporary) fix for a bug in mist-cli where it isn't setting the permissions of the Install application properly.
+- Remove ANSI formatting from mist-cli output when listing installers.
+- Output stderr from swiftDialog to dev/null to avoid occasional Xfont error warnings in logs
+- Minor fixes.
+
 ## [30.0]
 
 18.07.2023
