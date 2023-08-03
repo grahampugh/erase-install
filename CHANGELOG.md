@@ -4,6 +4,15 @@
 
 No date
 
+## [30.1]
+
+28.07.2023
+
+- (Hopefully temporary) fix for a bug in mist-cli where it isn't setting the permissions of the Install application properly.
+- Remove ANSI formatting from mist-cli output when listing installers.
+- Output stderr from swiftDialog to dev/null to avoid occasional Xfont error warnings in logs
+- Minor fixes.
+
 ## [30.0]
 
 18.07.2023
@@ -557,7 +566,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v30.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v30.1...HEAD
+[30.1]: https://github.com/grahampugh/erase-install/compare/v30.0...v30.1
 [30.0]: https://github.com/grahampugh/erase-install/compare/v29.1...v30.0
 [29.1]: https://github.com/grahampugh/erase-install/compare/v29.0...v29.1
 [29.0]: https://github.com/grahampugh/erase-install/compare/v28.1...v29.0
