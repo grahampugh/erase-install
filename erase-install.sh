@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="30.1"
+version="30.2"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -477,6 +477,13 @@ check_newer_available() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         get_catalog
         writelog "[check_newer_available] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    elif [[ $beta != "yes" ]]; then
+        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
+        darwin_version=$(get_darwin_from_os_version "$system_version_major")
+        get_catalog
+        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
     fi
@@ -1189,9 +1196,16 @@ get_mist_list() {
         writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
+    elif [[ $beta != "yes" ]]; then
+        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
+        darwin_version=$(get_darwin_from_os_version "$system_version_major")
+        get_catalog
+        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
     fi
 
-    # include betas if selected
+    # include betas if selected (which can use all the seed catalogs, which is the mist-cli default)
     if [[ $beta == "yes" ]]; then
         writelog "[get_mist_list] Beta versions included"
         mist_args+=("--include-betas")
@@ -1825,6 +1839,13 @@ run_mist() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         get_catalog
         writelog "[run_mist] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    elif [[ $beta != "yes" ]]; then
+        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
+        darwin_version=$(get_darwin_from_os_version "$system_version_major")
+        get_catalog
+        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
     fi
