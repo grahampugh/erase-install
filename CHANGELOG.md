@@ -4,6 +4,12 @@
 
 No date
 
+## [30.2]
+
+24.08.2023
+
+- Emergency release to fix the listing of 13.6 RC in the regular lists. This is caused due to the mist-cli default catalogs including the seed catalogs. Now the production catalog is specified unless using the `--beta` option.
+
 ## [30.1]
 
 28.07.2023
