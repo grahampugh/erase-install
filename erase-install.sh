@@ -1928,6 +1928,8 @@ set_localisations() {
         user_language="fr"
     elif [[ $language = es* ]]; then
         user_language="es"
+    elif [[ $language = pt* ]]; then
+        user_language="pt"
     else
         user_language="en"
     fi
@@ -1937,7 +1939,8 @@ set_localisations() {
     dialog_dl_title_de="macOS wird heruntergeladen"
     dialog_dl_title_nl="macOS downloaden"
     dialog_dl_title_fr="Téléchargement de macOS"
-    dialog_dl_title_es="Descarga de macOS"
+    dialog_dl_title_es="Descargando macOS"
+    dialog_dl_title_pt="Baixando o macOS"
     dialog_dl_title=dialog_dl_title_${user_language}
 
     # Dialogue localizations - download window - description
@@ -1945,7 +1948,8 @@ set_localisations() {
     dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen.  \n\nDies kann einige Minuten dauern, je nach Ihrer Internetverbindung."
     dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden.  \n\nDit kan enkele minuten duren, afhankelijk van uw internetverbinding."
     dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur.  \n\nCela peut prendre plusieurs minutes, en fonction de votre connexion Internet."
-    dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu ordenador.  \n\nEsto puede tardar varios minutos, dependiendo de su conexión a Internet."
+    dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu Mac.  \n\nEsto puede tardar varios minutos, dependiendo de tu conexión a Internet."
+    dialog_dl_desc_pt="Precisamos baixar o instalador do macOS para o seu computador. \n\nIsso pode levar vários minutos, dependendo da sua conexão com a Internet."
     dialog_dl_desc=dialog_dl_desc_${user_language}
 
     # Dialogue localizations - erase lock screen - title
@@ -1954,6 +1958,7 @@ set_localisations() {
     dialog_erase_title_nl="macOS herinstalleren"
     dialog_erase_title_fr="Effacement de macOS"
     dialog_erase_title_es="Borrado de macOS"
+    dialog_erase_title_pt="Apagado de macOS"
     dialog_erase_title=dialog_erase_title_${user_language}
 
     # Dialogue localizations - erase lock screen - description
@@ -1961,7 +1966,8 @@ set_localisations() {
     dialog_erase_desc_de="### Das Vorbereiten des Installationsprogramms kann bis zu 30 Minuten dauern.  \n\nNach Abschluss des Vorgangs wird Ihr Computer neu gestartet und die Neuinstallation fortgesetzt."
     dialog_erase_desc_nl="### Het voorbereiden van het installatieprogramma kan tot 30 minuten duren.  \n\nNa voltooiing zal uw computer opnieuw opstarten en de herinstallatie voortzetten."
     dialog_erase_desc_fr="### La préparation du programme d'installation peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarre et poursuit la réinstallation."
-    dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y continuará la reinstalación."
+    dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y continuará la reinstalación."
+    dialog_erase_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a reinstalação continuará."
     dialog_erase_desc=dialog_erase_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - title
@@ -1969,7 +1975,8 @@ set_localisations() {
     dialog_reinstall_title_de="macOS aktualisieren"
     dialog_reinstall_title_nl="macOS upgraden"
     dialog_reinstall_title_fr="Mise à niveau de macOS"
-    dialog_reinstall_title_es="Actualización de macOS"
+    dialog_reinstall_title_es="Actualizando de macOS"
+    dialog_reinstall_title_pt="Atualizando o macOS"
     dialog_reinstall_title=dialog_reinstall_title_${user_language}
 
     # Dialogue localizations - reinstall lock screen - heading
@@ -1977,7 +1984,8 @@ set_localisations() {
     dialog_reinstall_heading_de="Bitte warten Sie, während Ihren Computer für das Upgrade von macOS vorbereitet wird."
     dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
     dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
-    dialog_reinstall_heading_es="Por favor, espere mientras preparamos su ordenador para la actualización de macOS."
+    dialog_reinstall_heading_es="Por favor, espera mientras preparamos tu mac para la actualización de macOS."
+    dialog_reinstall_heading_pt="Aguarde enquanto preparamos seu computador para atualizar o macOS."
     dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
     # Dialogue localizations - reinstall lock screen - description
@@ -1985,7 +1993,8 @@ set_localisations() {
     dialog_reinstall_desc_de="### Dieser Prozess kann bis zu 30 Minuten benötigen.  \n\nDer Computer startet anschliessend neu und beginnt mit der Aktualisierung."
     dialog_reinstall_desc_nl="### Dit proces duurt ongeveer 30 minuten.  \n\nZodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
     dialog_reinstall_desc_fr="### Ce processus peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
-    dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y comenzará la actualización."
+    dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y comenzará la actualización."
+    dialog_reinstall_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a atualização começará."
     dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - status message
@@ -1994,6 +2003,7 @@ set_localisations() {
     dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
     dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
     dialog_reinstall_status_es="Preparación de macOS para la instalación"
+    dialog_reinstall_status_pt="Preparando o macOS para instalação"
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
@@ -2001,7 +2011,8 @@ set_localisations() {
     dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit.  \n\n### Speichern Sie jetzt alle offenen Arbeiten ab!"
     dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie.  \n\n### Bewaar nu al het open werk!"
     dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée.  \n\n### Sauvegardez les travaux en cours maintenant!"
-    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarde ahora los trabajos pendientes!"
+    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarda ahora los trabajos pendientes!"
+    dialog_rebooting_heading_pt="A atualização agora está pronta para instalação. \n\n### Salve qualquer trabalho aberto agora!"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -2009,7 +2020,8 @@ set_localisations() {
     dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
     dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
     dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
-    dialog_erase_confirmation_desc_es="Por favor, confirme que desea BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
+    dialog_erase_confirmation_desc_es="Por favor, confirma que deseas BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
+    dialog_erase_confirmation_desc_pt="Confirme que deseja APAGAR TODOS OS DADOS DESTE DISPOSITIVO e reinstalar o macOS"
     dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 
     # Dialogue localizations - reinstall confirmation window - description
@@ -2017,7 +2029,8 @@ set_localisations() {
     dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
     dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
     dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
-    dialog_reinstall_confirmation_desc_es="Por favor, confirme que desea actualizar macOS en este sistema ahora"
+    dialog_reinstall_confirmation_desc_es="Por favor, confirma que deseas actualizar macOS en este sistema ahora"
+    dialog_reinstall_confirmation_desc_pt="Confirme que deseja atualizar o macOS neste sistema agora"
     dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
 
     # Dialogue localizations - free space check - description
@@ -2026,6 +2039,7 @@ set_localisations() {
     dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
     dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
     dialog_check_desc_es="La actualización de macOS no se puede instalar porque no queda espacio suficiente en la unidad."
+    dialog_check_desc_pt="A atualização do macOS não pode ser instalada porque não há espaço suficiente na unidade."
     dialog_check_desc=dialog_check_desc_${user_language}
 
     # Dialogue localizations - power check - title
@@ -2034,6 +2048,7 @@ set_localisations() {
     dialog_power_title_nl="Wachten op stroomadapter"
     dialog_power_title_fr="En attente de l'alimentation secteur"
     dialog_power_title_es="A la espera de la conexión a la red eléctrica"
+    dialog_power_title_pt="Aguardando conexão de alimentação CA"
     dialog_power_title=dialog_power_title_${user_language}
 
     # Dialogue localizations - power check - description
@@ -2041,7 +2056,8 @@ set_localisations() {
     dialog_power_desc_de="Bitte verbinden Sie Ihren Computer mit einem Netzteil.  \n\nDieser Prozess wird fortgesetzt, wenn eine Stromversorgung innerhalb der folgenden Zeit erkannt wird:"
     dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter.  \n\nZodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
     dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur.  \n\nCe processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
-    dialog_power_desc_es="Conecte su ordenador a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
+    dialog_power_desc_es="Conecta tu Mac a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
+    dialog_power_desc_pt="Conecte seu computador à energia usando um adaptador de energia CA. \in\Este processo continuará se a alimentação CA for detectada dentro do tempo especificado."
     dialog_power_desc=dialog_power_desc_${user_language}
 
     # Dialogue localizations - no power detected - description
@@ -2049,7 +2065,8 @@ set_localisations() {
     dialog_nopower_desc_de="### Die Netzspannung wurde nicht in der angegebenen Zeit angeschlossen.  \n\nZum Beenden OK drücken."
     dialog_nopower_desc_nl="### De netspanning was niet binnen de opgegeven tijd aangesloten.  \n\nDruk op OK om af te sluiten."
     dialog_nopower_desc_fr="### Le courant alternatif n'a pas été branché dans le délai spécifié.  \n\nAppuyez sur OK pour quitter."
-    dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulse OK para salir."
+    dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulsa OK para salir."
+    dialog_nopower_desc_pt="### A alimentação CA não foi conectada no tempo especificado. \n\nPressione OK para sair."
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
     # Dialogue localizations - Find My check - title
@@ -2057,7 +2074,8 @@ set_localisations() {
     dialog_fmm_title_de="Warte auf die Deaktivierung von «Meinen Mac suchen»"
     dialog_fmm_title_nl="Wachten op Vind mijn Mac"
     dialog_fmm_title_fr="En attente de Localiser mon Mac"
-    dialog_fmm_title_es="A la espera de la Buscar mi Mac"
+    dialog_fmm_title_es="A la espera de la desactivacion de Buscar mi Mac"
+    dialog_fmm_title_pt="Aguardando que o Buscar no Mac seja desativado"
     dialog_fmm_title=dialog_fmm_title_${user_language}
 
     # Dialogue localizations - Find My check - description
@@ -2066,6 +2084,7 @@ set_localisations() {
     dialog_fmm_desc_nl="Schakel **Vind mijn Mac** uit in uw iCloud-instellingen.  \n\nDeze instelling vindt u in **Systeemvoorkeuren** > **Apple ID** > **iCloud**.  \n\nDit proces wordt voortgezet als **Vind mijn Mac** binnen de opgegeven tijd is uitgeschakeld."
     dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
     dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
+    dialog_fmm_desc_pt="Desative **Buscar no Mac** nas configurações do iCloud. \n\nEssa configuração pode ser encontrada em **Preferências do Sistema** > **ID Apple** > **iCloud**. \n\nEsse processo continuará se o Buscar no Mac tiver sido desativado dentro do tempo especificado."
     dialog_fmm_desc=dialog_fmm_desc_${user_language}
 
     # Dialogue localizations - Find My check failed - description
@@ -2073,7 +2092,8 @@ set_localisations() {
     dialog_fmmenabled_desc_de="### «Meinem Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
     dialog_fmmenabled_desc_nl="### Vind mijn Mac was niet uitgeschakeld in de opgegeven tijd.  \n\nDruk op OK om af te sluiten."
     dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
-    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulse OK para salir."
+    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulsa OK para salir."
+    dialog_fmmenabled_desc_pt="### Buscar no Mac não foi desativado no tempo especificado. \n\nPressione OK para sair."
     dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
@@ -2081,7 +2101,8 @@ set_localisations() {
     dialog_erase_credentials_de="Das Löschen von macOS erfordert eine Authentifizierung mit den Anmeldedaten des lokalen Kontos.  \n\nBitte geben Sie Ihren Kontonamen und Ihr Passwort ein, um den Löschvorgang zu starten."
     dialog_erase_credentials_nl="Voor het wissen van macOS is verificatie met behulp van lokale accountgegevens vereist.  \n\nVoer uw accountnaam en wachtwoord in om het wisproces te starten."
     dialog_erase_credentials_fr="L'effacement de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus d'effacement."
-    dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta local.  \n\nIntroduce tu nombre de cuenta y contraseña para iniciar el proceso de borrado."
+    dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce tu nombre de usuario y contraseña para iniciar el proceso de borrado."
+    dialog_erase_credentials_pt="Apagar o macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de exclusão."
     dialog_erase_credentials=dialog_erase_credentials_${user_language}
 
     # Dialogue localizations - ask for credentials - reinstall
@@ -2089,7 +2110,8 @@ set_localisations() {
     dialog_reinstall_credentials_de="Das Upgrade von macOS erfordert eine Authentifizierung mit den Anmeldedaten des lokalen Kontos.  \n\nBitte geben Sie Ihren Kontonamen und Ihr Passwort ein, um den Upgrade-Prozess zu starten."
     dialog_reinstall_credentials_nl="Voor het upgraden van macOS is verificatie met behulp van lokale accountgegevens vereist.  \n\nVoer uw accountnaam en wachtwoord in om het upgradeproces te starten."
     dialog_reinstall_credentials_fr="La mise à niveau de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus de mise à niveau."
-    dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta local.  \n\nIntroduce el nombre de tu cuenta y la contraseña para iniciar el proceso de actualización."
+    dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce el nombre de tu usuario y la contraseña para iniciar el proceso de actualización."
+    dialog_reinstall_credentials_pt="A atualização do macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de atualização."
     dialog_reinstall_credentials=dialog_reinstall_credentials_${user_language}
 
     # Dialogue localizations - not a volume owner
@@ -2098,6 +2120,7 @@ set_localisations() {
     dialog_not_volume_owner_nl="### Account is geen volume-eigenaar  \n\nLog in met een van de volgende accounts en probeer het opnieuw."
     dialog_not_volume_owner_fr="### Le compte n'est pas propriétaire du volume  \n\nVeuillez vous connecter en utilisant l'un des comptes suivants et réessayer."
     dialog_not_volume_owner_es="### La cuenta de usuario no es un Volume Owner   \n\nPor favor, inicie sesión con una de las siguientes cuentas de usuario e inténtelo de nuevo."
+    dialog_not_volume_owner_pt="### A conta não é um Volume Owner \n\nFaça login usando uma das contas a seguir e tente novamente."
     dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
     # Dialogue localizations - invalid user
@@ -2106,6 +2129,7 @@ set_localisations() {
     dialog_invalid_user_nl="### Incorrecte account  \n\nDit account kan niet worden gebruikt om de herinstallatie uit te voeren"
     dialog_invalid_user_fr="### Mauvais utilisateur  \n\nCe compte ne peut pas être utilisé pour effectuer la réinstallation"
     dialog_invalid_user_es="### Usuario incorrecto  \n\nEsta cuenta de usuario no puede ser utilizada para realizar la reinstalación"
+    dialog_invalid_user_pt="### Usuário incorreto \n\nEsta conta não pode ser usada para realizar a reinstalação"
     dialog_invalid_user=dialog_invalid_user_${user_language}
 
     # Dialogue localizations - invalid password
@@ -2114,6 +2138,7 @@ set_localisations() {
     dialog_invalid_password_nl="### Incorrect wachtwoord  \n\nHet ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
     dialog_invalid_password_fr="### Mot de passe erroné  \n\nLe mot de passe entré n'est PAS le mot de passe de connexion pour"
     dialog_invalid_password_es="### Contraseña incorrecta  \n\nLa contraseña introducida NO es la contraseña de acceso a"
+    dialog_invalid_password_pt="### Senha incorreta \n\nA senha digitada NÃO é a senha de login para"
     dialog_invalid_password=dialog_invalid_password_${user_language}
 
     # Dialogue localizations - buttons - confirm
@@ -2122,6 +2147,7 @@ set_localisations() {
     dialog_confirmation_button_nl="Bevestig"
     dialog_confirmation_button_fr="Confirmer"
     dialog_confirmation_button_es="Confirmar"
+    dialog_confirmation_button_pt="Confirmar"
     dialog_confirmation_button=dialog_confirmation_button_${user_language}
 
     # Dialogue localizations - buttons - cancel
@@ -2130,6 +2156,7 @@ set_localisations() {
     dialog_cancel_button_nl="Annuleren"
     dialog_cancel_button_fr="Annuler"
     dialog_cancel_button_es="Cancelar"
+    dialog_cancel_button_pt="Cancelar"
     dialog_cancel_button=dialog_cancel_button_${user_language}
 
     # Dialogue localizations - buttons - enter
@@ -2138,7 +2165,10 @@ set_localisations() {
     dialog_enter_button_nl="Enter"
     dialog_enter_button_fr="Entrer"
     dialog_enter_button_es="Entrar"
+    dialog_enter_button_pt="Digitar"
     dialog_enter_button=dialog_enter_button_${user_language}
+
+    
 }
 
 # -----------------------------------------------------------------------------
