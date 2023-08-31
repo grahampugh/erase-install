@@ -13,11 +13,18 @@ You can simply add this script to the "Scripts" section of a Jamf Pro policy,
 which will in turn launch erase-install.sh with all supplied parameters and
 return its output and return code back to Jamf Pro.
 
-You can use Jamf Pro parameters 1-10 to supply arguments to erase-install,
+You can use Jamf Pro parameters 4-10 to supply arguments to erase-install,
 and you can supply multiple arguments in one Jamf Pro parameter.
 
 The last parameter can be used to specify the location of erase-install.sh, if
 you have deployed a custom version of erase-install at a different location.
+
+KNOWN LIMITATION
+
+Don't add a parameter after a parameter with a value in a single Parameter field in Jamf.
+e.g. don't add something like "--os 13 --erase" in the same box.
+Parameters without values are ok to put in a single Parameter field in Jamf.
+e.g. this is OK: "--erase --reinstall --confirm"
 DOC
 
 script_name="erase-install-launcher"
@@ -41,9 +48,11 @@ echo "[$script_name] Launching ${eraseinstall_path} using the following argument
 arguments=()
 count=1
 for i in {4..10}; do
+    # first of all we replace all spaces with a § symbol
     eval_string="${(P)i}"
     parsed_parameter="$(escape_args "$eval_string")"
 
+    # now we have split up the parameter we can put the spaces back
     for p in $parsed_parameter; do
         arguments+=("${p//§/ }")
     done
