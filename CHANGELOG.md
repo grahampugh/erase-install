@@ -4,6 +4,8 @@
 
 No date
 
+- Added localisation for Brazilian Portuguese (#432, thanks to @hooleahn).
+
 ## [30.2]
 
 24.08.2023
