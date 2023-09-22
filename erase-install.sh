@@ -67,9 +67,9 @@ dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/downloa
 
 # URL for downloading swiftDialog on macOS 11 (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
-bigsur_swiftdialog_version_required="2.2.1-4591"
-bigsur_swiftdialog_tag_required=$(cut -d"-" -f1 <<< "$bigsur_swiftdialog_version_required")
-bigsur_dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${bigsur_swiftdialog_tag_required}/dialog-${bigsur_swiftdialog_version_required}.pkg"
+swiftdialog_bigsur_version_required="2.2.1-4591"
+swiftdialog_bigsur_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_bigsur_version_required")
+dialog_bigsur_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_bigsur_tag_required}/dialog-${swiftdialog_bigsur_version_required}.pkg"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -268,7 +268,7 @@ check_for_swiftdialog_app() {
             writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
             if [[ $(echo "$system_version_major < 12" | bc) ]]; then
                 # we need to get the older version of swiftDialog that is compaible with Big Sur
-                dialog_download_url="$bigsur_dialog_download_url"
+                dialog_download_url="$dialog_bigsur_download_url"
             fi
             if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
                 if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
