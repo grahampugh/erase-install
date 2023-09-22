@@ -4,7 +4,17 @@
 
 No date
 
+## [31.0]
+
+22.09.2023
+
+- Bump mist-cli version to 1.15.
+- Bump swiftDialog version to 2.3.2 except for systems running macOS 11 which still get 2.2.1.
 - Added localisation for Brazilian Portuguese (#432, thanks to @hooleahn).
+- `--os` searches will search for the relevant version name rather than number, to avoid a bug in mist-cli that may result in download an inappropriate installer if the chosen major OS is not available.
+- Use icons in the GitHub repo instead of using teh InstallAssistant icon which occasionally doesn't render.
+- Stop trying to use `seedutil` on 13.4 or newer when using the `--ffi` option as it doesn't work any more.
+- Moved up the log rotation so that we get all output of the current run, and made it less verbose.
 
 ## [30.2]
 
