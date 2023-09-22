@@ -15,6 +15,7 @@ No date
 - Use icons in the GitHub repo instead of using teh InstallAssistant icon which occasionally doesn't render.
 - Stop trying to use `seedutil` on 13.4 or newer when using the `--ffi` option as it doesn't work any more.
 - Moved up the log rotation so that we get all output of the current run, and made it less verbose.
+- Add macOS Sonoma catalog.
 
 ## [30.2]
 
