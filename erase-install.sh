@@ -786,7 +786,7 @@ convert_os_to_name () {
             ;;
         "13") os_name="Ventura"
             ;;
-        "10.14") os_name="Sonoma"
+        "14") os_name="Sonoma"
             ;;
         *) os_name="$1"
             ;;
