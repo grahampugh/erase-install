@@ -14,6 +14,13 @@ build:
 	mkdir -p "$(PKG_ROOT)/Library/Management/erase-install"
 	cp "$(CURDIR)/erase-install.sh" "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
 	chmod 755 "$(PKG_ROOT)/Library/Management/erase-install/erase-install.sh"
+
+	@echo
+	@echo "## Copying icons folder into /Library/Management/erase-install"
+	cp -r "$(CURDIR)/icons" "$(PKG_ROOT)/Library/Management/erase-install/"
+	chmod 755 "$(PKG_ROOT)/Library/Management/erase-install/icons"
+	chmod 644 "$(PKG_ROOT)/Library/Management/erase-install/icons/"*
+
 	mkdir -p "$(PKG_SCRIPTS)"
 
 	@echo
