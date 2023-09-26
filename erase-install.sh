@@ -3317,11 +3317,11 @@ fi
 
 # icon for dialogs
 # macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-macos_app_name=$(basename "$working_macos_app" | cut -d. -f2)
+macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
 
 # look for the image in the workdir
 icon_path="$workdir/icons/$macos_app_name.png"
-if ! file -b "$icon_path" | grep "PNG image data"; then
+if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
     if [[ ! $no_curl == "yes" ]]; then
         # download the image from github
         macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/$macos_app_name.png?raw=true"
