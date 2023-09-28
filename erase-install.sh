@@ -56,7 +56,7 @@ mist_bin="/usr/local/bin/mist"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible mist version is used if not using the package installer
-mist_version_required="1.15"
+mist_version_required="2.0"
 mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
 
 # URL for downloading swiftDialog (with tag version)
@@ -466,12 +466,12 @@ check_newer_available() {
         writelog "[check_newer_available] Checking that selected version '$prechosen_version' is available"
         mist_args+=("$prechosen_version")
     elif [[ $prechosen_os ]]; then
-        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$prechosen_os")
         writelog "[check_newer_available] Restricting to selected OS '$prechosen_os'"
         mist_args+=("$prechosen_os_name")
     elif [[ $sameos ]]; then
-        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$system_version_major")
         writelog "[run_mist] Restricting to selected OS '$system_version_major'"
         mist_args+=("$prechosen_os_name")
@@ -491,13 +491,6 @@ check_newer_available() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         get_catalog
         writelog "[check_newer_available] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    elif [[ $beta != "yes" ]]; then
-        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
-        darwin_version=$(get_darwin_from_os_version "$system_version_major")
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
     fi
@@ -1801,7 +1794,7 @@ run_mist() {
             echo
             exit 1
         fi
-        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$prechosen_os")
         writelog "[run_mist] Restricting to selected OS '$prechosen_os'"
         mist_args+=("$prechosen_os_name")
@@ -3441,9 +3434,6 @@ if [[ "$arch" == "arm64" ]]; then
         fi
     fi
 fi
-
-# fix for a bug in mist-cli to correct the installer app permissions
-# /bin/chmod -R 755 "$working_macos_app"
 
 # now actually run startosinstall
 launch_startosinstall
