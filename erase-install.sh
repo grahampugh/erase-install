@@ -510,8 +510,13 @@ check_newer_available() {
         if [[ -f "$mist_export_file" ]]; then
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
-                echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
-                compare_build_versions "$available_build" "$installer_build"
+                if [[ $pkg_installer ]]; then
+                    echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
+                    compare_build_versions "$available_build" "$installer_pkg_build"
+                else
+                    echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
+                    compare_build_versions "$available_build" "$installer_build"
+                fi
                 if [[ "$first_build_newer" == "yes" ]]; then
                     newer_build_found="yes"
                 fi
