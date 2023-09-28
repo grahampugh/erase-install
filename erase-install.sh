@@ -510,7 +510,7 @@ check_newer_available() {
         if [[ -f "$mist_export_file" ]]; then
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
-                if [[ $pkg_installer ]]; then
+                if [[ $installer_pkg_build ]]; then
                     echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
                     compare_build_versions "$available_build" "$installer_pkg_build"
                 else
@@ -3079,7 +3079,7 @@ elif [[ $update_installer == "yes" ]]; then
             kill_process "caffeinate"
             exit
         fi
-    elif [[ $pkg_installer && -f "$working_installer_pkg" ]]; then
+    elif [[ -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer package"
         check_newer_available
         if [[ $newer_build_found == "yes" ]]; then
