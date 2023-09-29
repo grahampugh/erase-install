@@ -1586,6 +1586,7 @@ overwrite_existing_installer() {
         writelog "[overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
         exit
     fi
+    installer_overwritten="yes"
 }
 
 # -----------------------------------------------------------------------------
@@ -3065,8 +3066,25 @@ elif [[ "$prechosen_os" != "" ]]; then
         overwrite_existing_installer
     fi
 
-elif [[ $update_installer == "yes" ]]; then
-    # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
+elif [[ $invalid_installer_found == "yes" ]]; then 
+    # --replace-invalid option: replace an existing installer if it is invalid
+    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
+        overwrite_existing_installer
+    elif [[ $pkg_installer && -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
+        writelog "[$script_name] Deleting invalid installer package"
+        rm -f "$working_installer_pkg"
+    elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
+        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+        # kill caffeinate
+        kill_process "caffeinate"
+        exit 1
+    else
+        writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
+    fi
+fi
+
+# --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
+if [[ $update_installer == "yes" && $installer_overwritten != "yes" ]]; then
     if [[ -d "$working_macos_app" ]]; then
         writelog "[$script_name] Checking for newer installer"
         check_newer_available
@@ -3092,22 +3110,6 @@ elif [[ $update_installer == "yes" ]]; then
             kill_process "caffeinate"
             exit
         fi
-    fi
-
-elif [[ $invalid_installer_found == "yes" ]]; then 
-    # --replace-invalid option: replace an existing installer if it is invalid
-    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
-        overwrite_existing_installer
-    elif [[ $pkg_installer && -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
-        writelog "[$script_name] Deleting invalid installer package"
-        rm -f "$working_installer_pkg"
-    elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
-        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit 1
-    else
-        writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
     fi
 fi
 
