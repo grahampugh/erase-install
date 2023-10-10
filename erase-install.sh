@@ -40,7 +40,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="30.2"
+version="31.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -56,14 +56,20 @@ mist_bin="/usr/local/bin/mist"
 
 # URL for downloading dialog (with tag version)
 # This ensures a compatible mist version is used if not using the package installer
-mist_version_required="1.14"
+mist_version_required="2.0"
 mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
 
 # URL for downloading swiftDialog (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_version_required="2.2.1-4591"
+swiftdialog_version_required="2.3.2-4726"
 swiftdialog_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_version_required")
 dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_tag_required}/dialog-${swiftdialog_version_required}.pkg"
+
+# URL for downloading swiftDialog on macOS 11 (with tag version)
+# This ensures a compatible swiftDialog version is used if not using the package installer
+swiftdialog_bigsur_version_required="2.2.1-4591"
+swiftdialog_bigsur_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_bigsur_version_required")
+dialog_bigsur_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_bigsur_tag_required}/dialog-${swiftdialog_bigsur_version_required}.pkg"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -205,7 +211,7 @@ check_fmm() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
-        writelog "[wait_for_power] ERROR - Finy My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        writelog "[wait_for_power] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -242,11 +248,11 @@ check_for_mist() {
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
-    if [[ $(echo "$system_version_major < 12" | bc) == 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        dialog_string=$("$dialog_bin" --version)
+    if [[ $(echo "$system_version_major < 12" | bc) -eq 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        dialog_string=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Library/Application\ Support/Dialog/Dialog.app/Contents/Info.plist)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog 2.3 or above is not compatible with macOS 11. Removing 2.3..."
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version_major. Removing v$dialog_string..."
             app_directory="/Library/Application Support/Dialog"
             bin_shortcut="/usr/local/bin/dialog"
             /bin/rm -rf "$app_directory" 
@@ -256,13 +262,25 @@ check_for_swiftdialog_app() {
 
     # now check for any version of swiftDialog and download if not present
     if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        writelog "[check_for_swiftdialog_app] swiftDialog is installed ($dialog_app)"
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_app)"
     else
         if [[ ! $no_curl ]]; then
-            writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
+            if [[ $(echo "$system_version_major < 12" | bc) -eq 1 ]]; then
+                # we need to get the older version of swiftDialog that is compatible with Big Sur
+                dialog_download_url="$dialog_bigsur_download_url"
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version_major..."
+            else
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
+            fi
             if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
+                if installer -pkg "$workdir/dialog.pkg" -target / ; then
+                    dialog_string=$("$dialog_bin" --version)
+                    dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+                else
                     writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                    exit 1
                 fi
             else
                 writelog "[check_for_swiftdialog_app] swiftDialog download failed"
@@ -271,7 +289,7 @@ check_for_swiftdialog_app() {
         fi
         # check it did actually get downloaded
         if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog is installed"
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed"
         else
             writelog "[check_for_swiftdialog_app] Could not download swiftDialog."
             exit 1
@@ -453,14 +471,18 @@ check_newer_available() {
     
     # set the search restriction based on --os, --version or --sameos
     if [[ $prechosen_version ]]; then
-        writelog "[check_newer_available] Checking that selected version $prechosen_version is available"
+        writelog "[check_newer_available] Checking that selected version '$prechosen_version' is available"
         mist_args+=("$prechosen_version")
     elif [[ $prechosen_os ]]; then
-        writelog "[check_newer_available] Restricting to selected OS $prechosen_os"
-        mist_args+=("$prechosen_os")
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
+        prechosen_os_name=$(convert_os_to_name "$prechosen_os")
+        writelog "[check_newer_available] Restricting to selected OS '$prechosen_os'"
+        mist_args+=("$prechosen_os_name")
     elif [[ $sameos ]]; then
-        writelog "[run_mist] Restricting to selected OS $system_version_major"
-        mist_args+=("$system_version_major")
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
+        prechosen_os_name=$(convert_os_to_name "$system_version_major")
+        writelog "[run_mist] Restricting to selected OS '$system_version_major'"
+        mist_args+=("$prechosen_os_name")
     fi
 
     if [[ "$skip_validation" != "yes" ]]; then
@@ -477,13 +499,6 @@ check_newer_available() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         get_catalog
         writelog "[check_newer_available] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    elif [[ $beta != "yes" ]]; then
-        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
-        darwin_version=$(get_darwin_from_os_version "$system_version_major")
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
     fi
@@ -503,8 +518,13 @@ check_newer_available() {
         if [[ -f "$mist_export_file" ]]; then
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
-                echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
-                compare_build_versions "$available_build" "$installer_build"
+                if [[ $installer_pkg_build ]]; then
+                    echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
+                    compare_build_versions "$available_build" "$installer_pkg_build"
+                else
+                    echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
+                    compare_build_versions "$available_build" "$installer_build"
+                fi
                 if [[ "$first_build_newer" == "yes" ]]; then
                     newer_build_found="yes"
                 fi
@@ -758,6 +778,26 @@ confirm() {
         writelog "[$script_name] User FAILED to confirm erase-install or reinstall"
         exit 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# convert OS major version to name
+# -----------------------------------------------------------------------------
+convert_os_to_name () {
+    local os_name
+    case "$1" in
+        "11") os_name="Big Sur"
+            ;;
+        "12") os_name="Monterey"
+            ;;
+        "13") os_name="Ventura"
+            ;;
+        "14") os_name="Sonoma"
+            ;;
+        *) os_name="$1"
+            ;;
+    esac
+    echo "$os_name"
 }
 
 # -----------------------------------------------------------------------------
@@ -1022,15 +1062,6 @@ find_extra_packages() {
 }
 
 # -----------------------------------------------------------------------------
-# Return code 143 and finish the script when TERMinated or INTerrupted
-# -----------------------------------------------------------------------------
-# shellcheck disable=SC2317
-terminate() {
-    writelog "[terminate] Script was interrupted (last exit code was $?)"
-    exit 143
-}
-
-# -----------------------------------------------------------------------------
 # Things to carry out when the script exits
 # -----------------------------------------------------------------------------
 # shellcheck disable=SC2317
@@ -1104,12 +1135,11 @@ read_from_keychain() {
 # systems.
 # -----------------------------------------------------------------------------
 get_catalog() {
-    catalogs[17]="https://swscan.apple.com/content/catalogs/others/index-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[18]="https://swscan.apple.com/content/catalogs/others/index-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
 
 # -----------------------------------------------------------------------------
@@ -1255,6 +1285,12 @@ get_user_details() {
                 writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
                 exit 1
             fi
+        elif ! pgrep -q Finder ; then
+            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
+            echo
+            # kill caffeinate
+            kill_process "caffeinate"
+            exit 1
         elif [[ ! $silent ]]; then
             ask_for_credentials
             if [[ $? -eq 2 ]]; then
@@ -1506,18 +1542,61 @@ move_to_applications_folder() {
 }
 
 # -----------------------------------------------------------------------------
+# Rotate existing log files up to a maximum of 9 log files
+# Older files will be overwritten
+# -----------------------------------------------------------------------------
+log_rotate() {
+    # logs probably cannot be rotated when running as root
+    if [[ $EUID -ne 0 ]]; then
+        writelog "[log_rotate] Not running as root so cannot rotate logs"
+        return
+    fi
+
+    # writelog "[log_rotate] Start rotating logs in $logdir"
+    max_log_keep=9
+
+    # move all logs up one file
+    i="$max_log_keep"
+    while [[ "$i" -gt 0 ]];do
+        current_filename="$LOG_FILE.$((i-1))"
+        new_filename="$LOG_FILE.$i"
+        if [[ -f "$current_filename" ]];then
+            # writelog "[log_rotate] moving $current_filename to $new_filename"
+            mv "$current_filename" "$new_filename"
+        fi
+        ((i--))
+    done
+
+    if [[ -f "$LOG_FILE" ]];then
+        # writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
+        mv "$LOG_FILE" "$LOG_FILE.1"
+    fi
+
+    # now create the new log file
+    echo "" > "$LOG_FILE"
+    exec > >(tee "${LOG_FILE}") 2>&1
+
+    writelog "[log_rotate] Finished rotating logs in $logdir"
+}
+
+# -----------------------------------------------------------------------------
 # Overwrite an existing installer.
 # This is called with the --overwrite option.
 # Note that multiple installers left around on the device can cause unexpected
 # results.  
 # -----------------------------------------------------------------------------
 overwrite_existing_installer() {
-    writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-    if [[ -d "$cached_installer" ]]; then
-        writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
-        existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
-        diskutil unmount force "$existing_installer_mount_point"
+    if [[ -f "$working_installer_pkg" ]]; then
+        writelog "[$script_name] Deleting existing installer package"
+        rm -f "$working_installer_pkg"
+    else
+        writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
+        cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+        if [[ -d "$cached_installer" ]]; then
+            writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
+            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
+            diskutil unmount force "$existing_installer_mount_point"
+        fi
     fi
     rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg" 
     rm -rf "$cached_installer_app"
@@ -1680,6 +1759,42 @@ run_fetch_full_installer() {
 }
 
 # -----------------------------------------------------------------------------
+# Run softwareupdate --list-full-installers and output to a file
+# Includes some fallbacks, because this function might not be available in some 
+# versions of Catalina
+# -----------------------------------------------------------------------------
+run_list_full_installers() {
+    if [[ $system_version_major -lt 13 || ($system_version_major -eq 13 && $system_version_minor -lt 4) ]]; then
+        # include betas if selected
+        if [[ $beta == "yes" ]]; then
+            writelog "[run_list_full_installers] Beta versions included"
+            if [[ ! $seedprogram ]]; then
+                seedprogram="PublicSeed"
+            fi
+        fi
+        set_seedprogram
+        echo
+        # try up to 3 times to workaround bug when changing seed programs
+        try=3
+        while [[ $try -gt 0 ]]; do
+            if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
+                if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+                    break
+                fi
+            fi
+            ((try--))
+        done
+        if [[ $try -eq 0 ]]; then
+            writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
+            exit 1
+        fi
+    elif [[ $beta == "yes" ]]; then
+        echo "Seed program cannot be set on macOS 13.4 or greater."
+    fi
+
+}
+
+# -----------------------------------------------------------------------------
 # Run mist with chosen options.
 # This requires mist, so we first check if it is on the system and download them if not.
 # -----------------------------------------------------------------------------
@@ -1703,8 +1818,10 @@ run_mist() {
             echo
             exit 1
         fi
-        writelog "[run_mist] Restricting to selected OS $prechosen_os"
-        mist_args+=("$prechosen_os")
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
+        prechosen_os_name=$(convert_os_to_name "$prechosen_os")
+        writelog "[run_mist] Restricting to selected OS '$prechosen_os'"
+        mist_args+=("$prechosen_os_name")
 
     # restrict to a particular version if selected
     elif [[ $prechosen_version ]]; then
@@ -1928,6 +2045,8 @@ set_localisations() {
         user_language="fr"
     elif [[ $language = es* ]]; then
         user_language="es"
+    elif [[ $language = pt* ]]; then
+        user_language="pt"
     else
         user_language="en"
     fi
@@ -1937,7 +2056,8 @@ set_localisations() {
     dialog_dl_title_de="macOS wird heruntergeladen"
     dialog_dl_title_nl="macOS downloaden"
     dialog_dl_title_fr="Téléchargement de macOS"
-    dialog_dl_title_es="Descarga de macOS"
+    dialog_dl_title_es="Descargando macOS"
+    dialog_dl_title_pt="Baixando o macOS"
     dialog_dl_title=dialog_dl_title_${user_language}
 
     # Dialogue localizations - download window - description
@@ -1945,7 +2065,8 @@ set_localisations() {
     dialog_dl_desc_de="Das macOS-Installationsprogramm wird heruntergeladen.  \n\nDies kann einige Minuten dauern, je nach Ihrer Internetverbindung."
     dialog_dl_desc_nl="We moeten het macOS besturingssysteem downloaden.  \n\nDit kan enkele minuten duren, afhankelijk van uw internetverbinding."
     dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur.  \n\nCela peut prendre plusieurs minutes, en fonction de votre connexion Internet."
-    dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu ordenador.  \n\nEsto puede tardar varios minutos, dependiendo de su conexión a Internet."
+    dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu Mac.  \n\nEsto puede tardar varios minutos, dependiendo de tu conexión a Internet."
+    dialog_dl_desc_pt="Precisamos baixar o instalador do macOS para o seu computador. \n\nIsso pode levar vários minutos, dependendo da sua conexão com a Internet."
     dialog_dl_desc=dialog_dl_desc_${user_language}
 
     # Dialogue localizations - erase lock screen - title
@@ -1954,6 +2075,7 @@ set_localisations() {
     dialog_erase_title_nl="macOS herinstalleren"
     dialog_erase_title_fr="Effacement de macOS"
     dialog_erase_title_es="Borrado de macOS"
+    dialog_erase_title_pt="Apagado de macOS"
     dialog_erase_title=dialog_erase_title_${user_language}
 
     # Dialogue localizations - erase lock screen - description
@@ -1961,7 +2083,8 @@ set_localisations() {
     dialog_erase_desc_de="### Das Vorbereiten des Installationsprogramms kann bis zu 30 Minuten dauern.  \n\nNach Abschluss des Vorgangs wird Ihr Computer neu gestartet und die Neuinstallation fortgesetzt."
     dialog_erase_desc_nl="### Het voorbereiden van het installatieprogramma kan tot 30 minuten duren.  \n\nNa voltooiing zal uw computer opnieuw opstarten en de herinstallatie voortzetten."
     dialog_erase_desc_fr="### La préparation du programme d'installation peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarre et poursuit la réinstallation."
-    dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y continuará la reinstalación."
+    dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y continuará la reinstalación."
+    dialog_erase_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a reinstalação continuará."
     dialog_erase_desc=dialog_erase_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - title
@@ -1969,7 +2092,8 @@ set_localisations() {
     dialog_reinstall_title_de="macOS aktualisieren"
     dialog_reinstall_title_nl="macOS upgraden"
     dialog_reinstall_title_fr="Mise à niveau de macOS"
-    dialog_reinstall_title_es="Actualización de macOS"
+    dialog_reinstall_title_es="Actualizando de macOS"
+    dialog_reinstall_title_pt="Atualizando o macOS"
     dialog_reinstall_title=dialog_reinstall_title_${user_language}
 
     # Dialogue localizations - reinstall lock screen - heading
@@ -1977,7 +2101,8 @@ set_localisations() {
     dialog_reinstall_heading_de="Bitte warten Sie, während Ihren Computer für das Upgrade von macOS vorbereitet wird."
     dialog_reinstall_heading_nl="Even geduld terwijl we uw computer voorbereiden voor de upgrade van macOS."
     dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
-    dialog_reinstall_heading_es="Por favor, espere mientras preparamos su ordenador para la actualización de macOS."
+    dialog_reinstall_heading_es="Por favor, espera mientras preparamos tu mac para la actualización de macOS."
+    dialog_reinstall_heading_pt="Aguarde enquanto preparamos seu computador para atualizar o macOS."
     dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
     # Dialogue localizations - reinstall lock screen - description
@@ -1985,7 +2110,8 @@ set_localisations() {
     dialog_reinstall_desc_de="### Dieser Prozess kann bis zu 30 Minuten benötigen.  \n\nDer Computer startet anschliessend neu und beginnt mit der Aktualisierung."
     dialog_reinstall_desc_nl="### Dit proces duurt ongeveer 30 minuten.  \n\nZodra dit is voltooid, wordt uw computer opnieuw opgestart en begint de upgrade."
     dialog_reinstall_desc_fr="### Ce processus peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
-    dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, su ordenador se reiniciará y comenzará la actualización."
+    dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y comenzará la actualización."
+    dialog_reinstall_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a atualização começará."
     dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - status message
@@ -1994,6 +2120,7 @@ set_localisations() {
     dialog_reinstall_status_nl="MacOS voorbereiden voor installatie"
     dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
     dialog_reinstall_status_es="Preparación de macOS para la instalación"
+    dialog_reinstall_status_pt="Preparando o macOS para instalação"
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
@@ -2001,7 +2128,8 @@ set_localisations() {
     dialog_rebooting_heading_de="Die macOS-Aktualisierung steht nun zur Installation bereit.  \n\n### Speichern Sie jetzt alle offenen Arbeiten ab!"
     dialog_rebooting_heading_nl="De upgrade is nu klaar voor installatie.  \n\n### Bewaar nu al het open werk!"
     dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée.  \n\n### Sauvegardez les travaux en cours maintenant!"
-    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarde ahora los trabajos pendientes!"
+    dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarda ahora los trabajos pendientes!"
+    dialog_rebooting_heading_pt="A atualização agora está pronta para instalação. \n\n### Salve qualquer trabalho aberto agora!"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -2009,7 +2137,8 @@ set_localisations() {
     dialog_erase_confirmation_desc_de="Bitte bestätigen Sie, dass Sie ALLE DATEN VON DIESEM GERÄT LÖSCHEN und macOS neu installieren wollen!"
     dialog_erase_confirmation_desc_nl="Weet je zeker dat je ALLE GEGEVENS VAN DIT APPARAAT WILT WISSEN en macOS opnieuw installeert?"
     dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
-    dialog_erase_confirmation_desc_es="Por favor, confirme que desea BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
+    dialog_erase_confirmation_desc_es="Por favor, confirma que deseas BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
+    dialog_erase_confirmation_desc_pt="Confirme que deseja APAGAR TODOS OS DADOS DESTE DISPOSITIVO e reinstalar o macOS"
     dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 
     # Dialogue localizations - reinstall confirmation window - description
@@ -2017,7 +2146,8 @@ set_localisations() {
     dialog_reinstall_confirmation_desc_de="Bitte bestätigen Sie, dass Sie macOS auf diesem System jetzt aktualisieren möchten."
     dialog_reinstall_confirmation_desc_nl="Bevestig dat u macOS op dit systeem nu wilt updaten"
     dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
-    dialog_reinstall_confirmation_desc_es="Por favor, confirme que desea actualizar macOS en este sistema ahora"
+    dialog_reinstall_confirmation_desc_es="Por favor, confirma que deseas actualizar macOS en este sistema ahora"
+    dialog_reinstall_confirmation_desc_pt="Confirme que deseja atualizar o macOS neste sistema agora"
     dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
 
     # Dialogue localizations - free space check - description
@@ -2026,6 +2156,7 @@ set_localisations() {
     dialog_check_desc_nl="De upgrade van macOS kan niet worden geïnstalleerd omdat er niet genoeg ruimte is op de schijf."
     dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
     dialog_check_desc_es="La actualización de macOS no se puede instalar porque no queda espacio suficiente en la unidad."
+    dialog_check_desc_pt="A atualização do macOS não pode ser instalada porque não há espaço suficiente na unidade."
     dialog_check_desc=dialog_check_desc_${user_language}
 
     # Dialogue localizations - power check - title
@@ -2034,6 +2165,7 @@ set_localisations() {
     dialog_power_title_nl="Wachten op stroomadapter"
     dialog_power_title_fr="En attente de l'alimentation secteur"
     dialog_power_title_es="A la espera de la conexión a la red eléctrica"
+    dialog_power_title_pt="Aguardando conexão de alimentação CA"
     dialog_power_title=dialog_power_title_${user_language}
 
     # Dialogue localizations - power check - description
@@ -2041,7 +2173,8 @@ set_localisations() {
     dialog_power_desc_de="Bitte verbinden Sie Ihren Computer mit einem Netzteil.  \n\nDieser Prozess wird fortgesetzt, wenn eine Stromversorgung innerhalb der folgenden Zeit erkannt wird:"
     dialog_power_desc_nl="Sluit uw computer aan met de stroomadapter.  \n\nZodra deze is gedetecteerd gaat het proces verder binnen de volgende:"
     dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur.  \n\nCe processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
-    dialog_power_desc_es="Conecte su ordenador a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
+    dialog_power_desc_es="Conecta tu Mac a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
+    dialog_power_desc_pt="Conecte seu computador à energia usando um adaptador de energia CA. \in\Este processo continuará se a alimentação CA for detectada dentro do tempo especificado."
     dialog_power_desc=dialog_power_desc_${user_language}
 
     # Dialogue localizations - no power detected - description
@@ -2049,7 +2182,8 @@ set_localisations() {
     dialog_nopower_desc_de="### Die Netzspannung wurde nicht in der angegebenen Zeit angeschlossen.  \n\nZum Beenden OK drücken."
     dialog_nopower_desc_nl="### De netspanning was niet binnen de opgegeven tijd aangesloten.  \n\nDruk op OK om af te sluiten."
     dialog_nopower_desc_fr="### Le courant alternatif n'a pas été branché dans le délai spécifié.  \n\nAppuyez sur OK pour quitter."
-    dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulse OK para salir."
+    dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulsa OK para salir."
+    dialog_nopower_desc_pt="### A alimentação CA não foi conectada no tempo especificado. \n\nPressione OK para sair."
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
     # Dialogue localizations - Find My check - title
@@ -2057,7 +2191,8 @@ set_localisations() {
     dialog_fmm_title_de="Warte auf die Deaktivierung von «Meinen Mac suchen»"
     dialog_fmm_title_nl="Wachten op Vind mijn Mac"
     dialog_fmm_title_fr="En attente de Localiser mon Mac"
-    dialog_fmm_title_es="A la espera de la Buscar mi Mac"
+    dialog_fmm_title_es="A la espera de la desactivacion de Buscar mi Mac"
+    dialog_fmm_title_pt="Aguardando que o Buscar no Mac seja desativado"
     dialog_fmm_title=dialog_fmm_title_${user_language}
 
     # Dialogue localizations - Find My check - description
@@ -2066,6 +2201,7 @@ set_localisations() {
     dialog_fmm_desc_nl="Schakel **Vind mijn Mac** uit in uw iCloud-instellingen.  \n\nDeze instelling vindt u in **Systeemvoorkeuren** > **Apple ID** > **iCloud**.  \n\nDit proces wordt voortgezet als **Vind mijn Mac** binnen de opgegeven tijd is uitgeschakeld."
     dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
     dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
+    dialog_fmm_desc_pt="Desative **Buscar no Mac** nas configurações do iCloud. \n\nEssa configuração pode ser encontrada em **Preferências do Sistema** > **ID Apple** > **iCloud**. \n\nEsse processo continuará se o Buscar no Mac tiver sido desativado dentro do tempo especificado."
     dialog_fmm_desc=dialog_fmm_desc_${user_language}
 
     # Dialogue localizations - Find My check failed - description
@@ -2073,7 +2209,8 @@ set_localisations() {
     dialog_fmmenabled_desc_de="### «Meinem Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
     dialog_fmmenabled_desc_nl="### Vind mijn Mac was niet uitgeschakeld in de opgegeven tijd.  \n\nDruk op OK om af te sluiten."
     dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
-    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulse OK para salir."
+    dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulsa OK para salir."
+    dialog_fmmenabled_desc_pt="### Buscar no Mac não foi desativado no tempo especificado. \n\nPressione OK para sair."
     dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
@@ -2081,7 +2218,8 @@ set_localisations() {
     dialog_erase_credentials_de="Das Löschen von macOS erfordert eine Authentifizierung mit den Anmeldedaten des lokalen Kontos.  \n\nBitte geben Sie Ihren Kontonamen und Ihr Passwort ein, um den Löschvorgang zu starten."
     dialog_erase_credentials_nl="Voor het wissen van macOS is verificatie met behulp van lokale accountgegevens vereist.  \n\nVoer uw accountnaam en wachtwoord in om het wisproces te starten."
     dialog_erase_credentials_fr="L'effacement de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus d'effacement."
-    dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta local.  \n\nIntroduce tu nombre de cuenta y contraseña para iniciar el proceso de borrado."
+    dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce tu nombre de usuario y contraseña para iniciar el proceso de borrado."
+    dialog_erase_credentials_pt="Apagar o macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de exclusão."
     dialog_erase_credentials=dialog_erase_credentials_${user_language}
 
     # Dialogue localizations - ask for credentials - reinstall
@@ -2089,7 +2227,8 @@ set_localisations() {
     dialog_reinstall_credentials_de="Das Upgrade von macOS erfordert eine Authentifizierung mit den Anmeldedaten des lokalen Kontos.  \n\nBitte geben Sie Ihren Kontonamen und Ihr Passwort ein, um den Upgrade-Prozess zu starten."
     dialog_reinstall_credentials_nl="Voor het upgraden van macOS is verificatie met behulp van lokale accountgegevens vereist.  \n\nVoer uw accountnaam en wachtwoord in om het upgradeproces te starten."
     dialog_reinstall_credentials_fr="La mise à niveau de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus de mise à niveau."
-    dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta local.  \n\nIntroduce el nombre de tu cuenta y la contraseña para iniciar el proceso de actualización."
+    dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce el nombre de tu usuario y la contraseña para iniciar el proceso de actualización."
+    dialog_reinstall_credentials_pt="A atualização do macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de atualização."
     dialog_reinstall_credentials=dialog_reinstall_credentials_${user_language}
 
     # Dialogue localizations - not a volume owner
@@ -2098,6 +2237,7 @@ set_localisations() {
     dialog_not_volume_owner_nl="### Account is geen volume-eigenaar  \n\nLog in met een van de volgende accounts en probeer het opnieuw."
     dialog_not_volume_owner_fr="### Le compte n'est pas propriétaire du volume  \n\nVeuillez vous connecter en utilisant l'un des comptes suivants et réessayer."
     dialog_not_volume_owner_es="### La cuenta de usuario no es un Volume Owner   \n\nPor favor, inicie sesión con una de las siguientes cuentas de usuario e inténtelo de nuevo."
+    dialog_not_volume_owner_pt="### A conta não é um Volume Owner \n\nFaça login usando uma das contas a seguir e tente novamente."
     dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
     # Dialogue localizations - invalid user
@@ -2106,6 +2246,7 @@ set_localisations() {
     dialog_invalid_user_nl="### Incorrecte account  \n\nDit account kan niet worden gebruikt om de herinstallatie uit te voeren"
     dialog_invalid_user_fr="### Mauvais utilisateur  \n\nCe compte ne peut pas être utilisé pour effectuer la réinstallation"
     dialog_invalid_user_es="### Usuario incorrecto  \n\nEsta cuenta de usuario no puede ser utilizada para realizar la reinstalación"
+    dialog_invalid_user_pt="### Usuário incorreto \n\nEsta conta não pode ser usada para realizar a reinstalação"
     dialog_invalid_user=dialog_invalid_user_${user_language}
 
     # Dialogue localizations - invalid password
@@ -2114,6 +2255,7 @@ set_localisations() {
     dialog_invalid_password_nl="### Incorrect wachtwoord  \n\nHet ingevoerde wachtwoord is NIET het inlogwachtwoord voor"
     dialog_invalid_password_fr="### Mot de passe erroné  \n\nLe mot de passe entré n'est PAS le mot de passe de connexion pour"
     dialog_invalid_password_es="### Contraseña incorrecta  \n\nLa contraseña introducida NO es la contraseña de acceso a"
+    dialog_invalid_password_pt="### Senha incorreta \n\nA senha digitada NÃO é a senha de login para"
     dialog_invalid_password=dialog_invalid_password_${user_language}
 
     # Dialogue localizations - buttons - confirm
@@ -2122,6 +2264,7 @@ set_localisations() {
     dialog_confirmation_button_nl="Bevestig"
     dialog_confirmation_button_fr="Confirmer"
     dialog_confirmation_button_es="Confirmar"
+    dialog_confirmation_button_pt="Confirmar"
     dialog_confirmation_button=dialog_confirmation_button_${user_language}
 
     # Dialogue localizations - buttons - cancel
@@ -2130,6 +2273,7 @@ set_localisations() {
     dialog_cancel_button_nl="Annuleren"
     dialog_cancel_button_fr="Annuler"
     dialog_cancel_button_es="Cancelar"
+    dialog_cancel_button_pt="Cancelar"
     dialog_cancel_button=dialog_cancel_button_${user_language}
 
     # Dialogue localizations - buttons - enter
@@ -2138,7 +2282,10 @@ set_localisations() {
     dialog_enter_button_nl="Enter"
     dialog_enter_button_fr="Entrer"
     dialog_enter_button_es="Entrar"
+    dialog_enter_button_pt="Digitar"
     dialog_enter_button=dialog_enter_button_${user_language}
+
+    
 }
 
 # -----------------------------------------------------------------------------
@@ -2185,6 +2332,13 @@ show_help() {
     /bin/cat << HELP
     $script_name v$version, a script by @GrahamRPugh
 
+    Please note that network access is required to Apple's software catalogs at ALL stages of this
+    script's workflow - that includes BOTH download AND preparation stages. Please check that you are not
+    running any kind of security / firewall software that may prevent this traffic.
+
+    You must also not be restricting the execution of a macOS installer application in any way 
+    (e.g. Jamf Software Restriction, Santa etc.).
+
     Common usage:
     [sudo] ./$script_name.sh [options]
 
@@ -2206,12 +2360,16 @@ show_help() {
     --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
     --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
                         --check-fmm is set. Default is 300.
+    --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
+                        in conjunction with the --reinstall option.
 
     Options for filtering which installer to download/use:
 
-    --os X.Y            Finds a specific inputted OS version of macOS if available
+    --os NN | Name      Finds a specific inputted major macOS version if available
                         and downloads it if so. Will choose the latest matching build.
-    --version X.Y.Z     Finds a specific inputted minor version of macOS if available
+                        The name of the OS can be alternatively supplied, e.g. Sonoma
+                        or "macOS Sonoma"
+    --version NN.Y.Z    Finds a specific inputted minor version of macOS if available
                         and downloads it if so. Will choose the latest matching build.
     --build XYZ         Finds a specific inputted build of macOS if available
                         and downloads it if so.
@@ -2226,15 +2384,13 @@ show_help() {
                         and downloads the current installer within the limits set by --os or --version.
     --overwrite         Delete any existing macOS installer found in $installer_directory and download
                         the current installer within the limits set by --os or --version.
-    --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
-                        the existing installer is removed but not replaced. This is useful
-                        for running the script after an upgrade to clear the working files.
-    --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
-                        in conjunction with the --reinstall option.
 
 
     Advanced options:
 
+    --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
+                        the existing installer is removed but not replaced. This is useful
+                        for running the script after an upgrade to clear the working files.
     --newvolumename     If using the --erase option, lets you customize the name of the
                         clean volume. Default is 'Macintosh HD'.
     --preinstall-command 'some arbitrary command'
@@ -2257,17 +2413,17 @@ show_help() {
     --keep-pkg          Retains a cached package if --move is used to extract an installer from it.
     --fs                Uses full-screen windows for all stages, not just the
                         preparation phase.
-    --no-fs             Replaces the full-screen dialog window with a smaller dialog,
-                        so you can still access the desktop while the script runs.
+    --no-fs             Replaces the full-screen dialog window with a smaller dialog during the preparation
+                        phase, so you can still access the desktop while the script runs.
     --beta              Include beta versions in the search. Works with the no-flag
                         (i.e. automatic), --os and --version arguments.
     --path /path/to     Overrides the destination of --move to a specified directory
     --min-drive-space   Override the default minimum space required for startosinstall
                         to run (45 GB).
-    --no-curl           Prevents the download of swiftDialog or mist in case your
+    --no-curl           Prevents the download of swiftDialog, mist and icons in case your
                         security team don't like it.
     --no-timeout        The script will normally timeout if the installer has not successfully
-                        prepared after 1 hour. This extends that time limit to 1 day.
+                        prepared after 1 hour. This extends that time limit to 24 hours.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2278,19 +2434,25 @@ show_help() {
     Parameters for use with Apple Silicon Mac:
         Note that startosinstall requires user authentication on AS Mac. The user
         must have a Secure Token. This script checks for the Secure Token of the
-        supplied user. A dialog is used to supply the password, so
-        this script cannot be run at the login window or from remote terminal.
+        current user, but the user can be overridden via the dialog. 
+        A dialog is used to supply the password, so this script cannot be run at the 
+        login window or from remote terminal.
 
     --max-password-attempts NN | infinite
                         Overrides the default of 5 attempts to ask for the user's password. Using
                         'infinite' will disable the Cancel button and asking until the password is
                         successfully verified.
+    --user              Override the user (the default is the current user).
+    --very-insecure-mode
+                        Invokes passwordless upgrades, for use with lab machines. NOT RECOMMENDED UNLESS
+                        YOU CAN GUARANTEE PHYSICAL AND REMOTE SECURITY ON THE COMPUTER IN QUESTION.
+    --credentials       A base64 credential set. Only works in conjunction with --very-insecure-mode
 
     Experimental features:
 
     --fetch-full-installer | --ffi | -f
                         Obtain the installer using 'softwareupdate --fetch-full-installer' method instead of
-                        using mist
+                        using mist-cli. 
     --list              List installers using 'softwareupdate --list-full-installers' when
                         called with --fetch-full-installer
     --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
@@ -2300,10 +2462,8 @@ show_help() {
     --kc                Keychain containing a user password (do not use the login keychain!!)
     --kc-pass           Password to open the keychain
     --kc-service        The name of the key containing the account and password
-    --credentials       A base64 credential set. Only works in conjunction with
-    --i-know-the-security-risks-and-i-still-want-to-supply-a-password-in-plain-text
-    --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
-                        to provide a password, or the --credentials mode.
+    --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
+                        to provide a password, or the --credentials/--very-insecure-mode mode.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -2325,35 +2485,12 @@ HELP
 }
 
 # -----------------------------------------------------------------------------
-# Run softwareupdate --list-full-installers and output to a file
-# Includes some fallbacks, because this function might not be available in some 
-# versions of Catalina
+# Return code 143 and finish the script when TERMinated or INTerrupted
 # -----------------------------------------------------------------------------
-run_list_full_installers() {
-    # include betas if selected
-    if [[ $beta == "yes" ]]; then
-        writelog "[run_list_full_installers] Beta versions included"
-        if [[ ! $seedprogram ]]; then
-            seedprogram="PublicSeed"
-        fi
-    fi
-    set_seedprogram
-
-    echo
-    # try up to 3 times to workaround bug when changing seed programs
-    try=3
-    while [[ $try -gt 0 ]]; do
-        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
-            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
-                break
-            fi
-        fi
-        ((try--))
-    done
-    if [[ $try -eq 0 ]]; then
-        writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
-        exit 1
-    fi
+# shellcheck disable=SC2317
+terminate() {
+    writelog "[terminate] Script was interrupted (last exit code was $?)"
+    exit 143
 }
 
 # -----------------------------------------------------------------------------
@@ -2461,44 +2598,6 @@ user_not_volume_owner() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
     fi
-}
-
-# -----------------------------------------------------------------------------
-# Rotate existing log files up to a maximum of 9 log files
-# Older files will be overwritten
-# -----------------------------------------------------------------------------
-log_rotate() {
-    # logs probably cannot be rotated when running as root
-    if [[ $EUID -ne 0 ]]; then
-        writelog "[log_rotate] Not running as root so cannot rotate logs"
-        return
-    fi
-
-    writelog "[log_rotate] Start rotating logs in $logdir"
-    max_log_keep=9
-
-    # move all logs up one file
-    i="$max_log_keep"
-    while [[ "$i" -gt 0 ]];do
-        current_filename="$LOG_FILE.$((i-1))"
-        new_filename="$LOG_FILE.$i"
-        if [[ -f "$current_filename" ]];then
-            writelog "[log_rotate] moving $current_filename to $new_filename"
-            mv "$current_filename" "$new_filename"
-        fi
-        ((i--))
-    done
-
-    if [[ -f "$LOG_FILE" ]];then
-        writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
-        mv "$LOG_FILE" "$LOG_FILE.1"
-    fi
-
-    # now create the new log file
-    echo "" > "$LOG_FILE"
-    exec > >(tee "${LOG_FILE}") 2>&1
-
-    writelog "[log_rotate] Finished rotating logs in $logdir"
 }
 
 # -----------------------------------------------------------------------------
@@ -2784,33 +2883,32 @@ while test $# -gt 0 ; do
     shift
 done
 
+# create tmp working and log directories if not running as root
+if [[ $EUID -ne 0 && "$list" == "yes" ]]; then
+    workdir=$(/usr/bin/mktemp -d /var/tmp/erase-install.XXX)
+    writelog "[$script_name] Not running as root so will write output and logs to $workdir."
+    logdir="$workdir"
+fi
+
+# ensure logdir and workdir exist
+if [[ ! -d "$workdir" ]]; then
+    writelog "[$script_name] Making working directory at $workdir"
+    /bin/mkdir -p "$workdir"
+fi
+if [[ ! -d "$logdir" ]]; then
+    writelog "[$script_name] Making log directory at $logdir"
+    /bin/mkdir -p "$logdir"
+fi
+
+# all output from now on is written also to a log file
+LOG_FILE="$logdir/erase-install.log"
+log_rotate
+
 # output that the script has started running
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
 echo
 writelog "[$script_name] Arguments provided: $all_args"
-
-# exit out or correct for incompatible options
-if [[ $erase == "yes" && $reinstall == "yes" ]]; then
-    writelog "[$script_name] ERROR: Choose either --erase or --reinstall options, but not both!"
-    exit 1
-elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_os) || ($sameos && $prechosen_build) ]]; then
-    writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"
-    exit 1
-elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then
-    writelog "[$script_name] ERROR: Choose a maximum of one of the --overwrite, --update, or --replace-invalid options at the same time!"
-    exit 1
-fi
-
-# account for when people mistakenly put a version string instead of a major OS
-if [[ "$prechosen_os" ]]; then
-    prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
-    if [[ $prechosen_os_check = 10 ]]; then
-        prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
-    else
-        prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
-    fi
-fi
 
 # announce if the Test Run mode is implemented
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
@@ -2822,6 +2920,16 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         writelog "* Remove the --test-run argument to perform the erase or reinstall."
         writelog "**********************"
         echo
+    fi
+fi
+
+# account for when people mistakenly put a version string instead of a major OS
+if [[ "$prechosen_os" ]]; then
+    prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
+    if [[ $prechosen_os_check = 10 ]]; then
+        prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
+    else
+        prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
     fi
 fi
 
@@ -2854,23 +2962,6 @@ if [[ $(echo "$system_version_major < 10.15" | bc) == 1 ]]; then
     exit 1
 fi
 
-# create tmp working and log directories if not running as root
-if [[ $EUID -ne 0 && "$list" == "yes" ]]; then
-    workdir=$(/usr/bin/mktemp -d /var/tmp/erase-install.XXX)
-    writelog "[$script_name] Not running as root so will write output and logs to $workdir."
-    logdir="$workdir"
-fi
-
-# ensure logdir and workdir exist
-if [[ ! -d "$workdir" ]]; then
-    writelog "[$script_name] Making working directory at $workdir"
-    /bin/mkdir -p "$workdir"
-fi
-if [[ ! -d "$logdir" ]]; then
-    writelog "[$script_name] Making log directory at $logdir"
-    /bin/mkdir -p "$logdir"
-fi
-
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
     if [[ $(echo "$system_version_major < 11" | bc) == 1 ]]; then
@@ -2880,6 +2971,18 @@ if [[ ! $silent ]]; then
     fi
     # get dialog app if not silent mode
     check_for_swiftdialog_app
+fi
+
+# exit out or correct for incompatible options
+if [[ $erase == "yes" && $reinstall == "yes" ]]; then
+    writelog "[$script_name] ERROR: Choose either --erase or --reinstall options, but not both!"
+    exit 1
+elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_os) || ($sameos && $prechosen_build) ]]; then
+    writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"
+    exit 1
+elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then
+    writelog "[$script_name] ERROR: Choose a maximum of one of the --overwrite, --update, or --replace-invalid options at the same time!"
+    exit 1
 fi
 
 # different dialog icon for OS older than macOS 13
@@ -2900,10 +3003,6 @@ if [[ ! -d "$installer_directory" ]]; then
     writelog "[$script_name] Making installer directory at $installer_directory"
     /bin/mkdir -p "$installer_directory"
 fi
-
-# all output from now on is written also to a log file
-LOG_FILE="$logdir/erase-install.log"
-log_rotate
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
 if [[ $list == "yes" && ! $ffi ]]; then
@@ -2950,40 +3049,16 @@ fi
 writelog "[$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
+
 # Work through various options to decide whether to replace an existing installer
-if [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
+do_overwrite_existing_installer=0
+
+if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "$working_installer_pkg")) && ! $list ]]; then
     # --overwrite option
-    overwrite_existing_installer
+    do_overwrite_existing_installer=1
+fi
 
-elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") && ! $list ]]; then
-    # --overwrite option and --pkg option
-    writelog "[$script_name] Deleting invalid installer package"
-    rm -f "$working_installer_pkg"
-    if [[ $clear_cache == "yes" ]]; then
-        writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit
-    fi
-
-elif [[ $invalid_installer_found == "yes" ]]; then 
-    # --replace-invalid option: replace an existing installer if it is invalid
-    if [[ -d "$working_macos_app" && ($replace_invalid_installer == "yes" || $update_installer == "yes") ]]; then
-        overwrite_existing_installer
-    elif [[ ($pkg_installer && ! -f "$working_installer_pkg") && $replace_invalid_installer == "yes" ]]; then
-        writelog "[$script_name] Deleting invalid installer package"
-        rm -f "$working_installer_pkg"
-        overwrite_existing_installer
-    elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
-        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit 1
-    else
-        writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
-    fi
-
-elif [[ "$prechosen_build" != "" ]]; then
+if [[ "$prechosen_build" != "" ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
     if [[ "$installer_build" ]]; then
@@ -2991,15 +3066,16 @@ elif [[ "$prechosen_build" != "" ]]; then
     elif [[ "$installer_pkg_build" ]]; then
         installer_darwin_version=${installer_pkg_build:0:2}
     fi
-    compare_build_versions "$prechosen_build" "$installer_build"
+    compare_build_versions "$prechosen_build" "$prechosen_build"
     if [[ "$builds_match" != "yes" ]]; then
-        writelog "[$script_name] Existing installer does not match requested build, so replacing..."
-        overwrite_existing_installer
+        writelog "[$script_name] Existing installer build $prechosen_build does not match requested build $prechosen_build."
+        do_overwrite_existing_installer=1
     else
         writelog "[$script_name] Existing installer matches requested build."
     fi
+fi
 
-elif [[ "$prechosen_os" != "" ]]; then
+if [[ "$prechosen_os" != "" ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
     if [[ "$installer_build" ]]; then
@@ -3009,54 +3085,53 @@ elif [[ "$prechosen_os" != "" ]]; then
     fi
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version -ne $prechosen_darwin_version ]]; then
-        writelog "[$script_name] Existing installer does not match requested OS ($prechosen_os), so replacing..."
-        overwrite_existing_installer
+        writelog "[$script_name] Existing installer OS version does not match requested OS ($prechosen_os)."
+        do_overwrite_existing_installer=1
     fi
+fi
 
-elif [[ $update_installer == "yes" ]]; then
+if [[ $update_installer == "yes" ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
-    if [[ -d "$working_macos_app" ]]; then
+    if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
         check_newer_available
         if [[ $newer_build_found == "yes" ]]; then
-            writelog "[$script_name] Newer installer found so overwriting existing installer"
-            overwrite_existing_installer
-        elif [[ $clear_cache == "yes" ]]; then
-            writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit
-        fi
-    elif [[ $pkg_installer && -f "$working_installer_pkg" ]]; then
-        writelog "[$script_name] Checking for newer installer package"
-        check_newer_available
-        if [[ $newer_build_found == "yes" ]]; then
-            writelog "[$script_name] Newer installer found so deleting existing installer package"
-            rm -f "$working_installer_pkg"
-        fi
-        if [[ $clear_cache == "yes" ]]; then
-            writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit
+            writelog "[$script_name] Newer installer found."
+            do_overwrite_existing_installer=1
         fi
     fi
 fi
 
+if [[ $invalid_installer_found == "yes" ]]; then 
+    # --replace-invalid option: replace an existing installer if it is invalid
+    if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
+        do_overwrite_existing_installer=1
+    elif [[ -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
+        do_overwrite_existing_installer=1
+    elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
+        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite, --update or --replace-invalid option to ensure that a valid installer is obtained."
+        # kill caffeinate
+        kill_process "caffeinate"
+        exit 1
+    elif [[ $skip_validation != "yes" ]]; then
+        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite, --update or --replace-invalid option to ensure that a valid installer is obtained."
+    else
+        writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
+    fi
+fi
+
+# now go ahead and remove the existing installer if any conditions were met to do so
+if [[ $do_overwrite_existing_installer == 1 ]]; then
+    overwrite_existing_installer
+fi
+
 # Silicon Macs require a username and password to run startosinstall
-# We therefore need to be logged in to proceed, if we are going to erase or reinstall
+# We therefore need credentials to proceed, if we are going to erase or reinstall
 # This goes before the download so users aren't waiting for the prompt for username
 # Check for Apple Silicon using sysctl, because arch will not report arm64 if running under Rosetta.
 [[ $(/usr/sbin/sysctl -q -n "hw.optional.arm64") -eq 1 ]] && arch="arm64" || arch=$(/usr/bin/arch)
 writelog "[$script_name] Running on architecture $arch"
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
-    if ! pgrep -q Finder ; then
-        writelog "[$script_name] ERROR! The startosinstall binary requires a user to be logged in."
-        echo
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit 1
-    fi
     get_user_details
 fi
 
@@ -3245,9 +3320,22 @@ if [[ $erase == "yes" && $newvolumename ]]; then
 fi
 
 # icon for dialogs
-macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-if [[ -f "$macos_installer_icon" ]]; then
-    dialog_install_icon="$macos_installer_icon"
+# macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
+macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
+
+# look for the image in the workdir
+icon_path="$workdir/icons/$macos_app_name.png"
+if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
+    if [[ ! $no_curl == "yes" ]]; then
+        # download the image from github
+        macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/$macos_app_name.png?raw=true"
+        curl -L "$macos_installer_icon_url" -o "$icon_path"
+    fi
+fi
+
+# check again whether we have the image now, if not, display a generic image
+if file -b "$icon_path" | grep "PNG image data"; then
+    dialog_install_icon="$icon_path"
 else
     dialog_install_icon="warning"
 fi
@@ -3358,9 +3446,6 @@ if [[ "$arch" == "arm64" ]]; then
         fi
     fi
 fi
-
-# fix for a bug in mist-cli to correct the installer app permissions
-/bin/chmod -R 755 "$working_macos_app"
 
 # now actually run startosinstall
 launch_startosinstall
