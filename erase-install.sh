@@ -248,11 +248,11 @@ check_for_mist() {
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
-    if [[ $(echo "$system_version_major < 12" | bc) == 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
+    if [[ $(echo "$system_version_major < 12" | bc) -eq 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog 2.3 or above is not compatible with macOS 11. Removing 2.3..."
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version_major. Removing v$dialog_string..."
             app_directory="/Library/Application Support/Dialog"
             bin_shortcut="/usr/local/bin/dialog"
             /bin/rm -rf "$app_directory" 
@@ -262,17 +262,25 @@ check_for_swiftdialog_app() {
 
     # now check for any version of swiftDialog and download if not present
     if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        writelog "[check_for_swiftdialog_app] swiftDialog is installed ($dialog_app)"
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_app)"
     else
         if [[ ! $no_curl ]]; then
-            writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
-            if [[ $(echo "$system_version_major < 12" | bc) ]]; then
-                # we need to get the older version of swiftDialog that is compaible with Big Sur
+            if [[ $(echo "$system_version_major < 12" | bc) -eq 1 ]]; then
+                # we need to get the older version of swiftDialog that is compatible with Big Sur
                 dialog_download_url="$dialog_bigsur_download_url"
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version_major..."
+            else
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
             fi
             if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                if ! installer -pkg "$workdir/dialog.pkg" -target / ; then
+                if installer -pkg "$workdir/dialog.pkg" -target / ; then
+                    dialog_string=$("$dialog_bin" --version)
+                    dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+                else
                     writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                    exit 1
                 fi
             else
                 writelog "[check_for_swiftdialog_app] swiftDialog download failed"
@@ -281,7 +289,7 @@ check_for_swiftdialog_app() {
         fi
         # check it did actually get downloaded
         if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog is installed"
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed"
         else
             writelog "[check_for_swiftdialog_app] Could not download swiftDialog."
             exit 1
@@ -2313,6 +2321,13 @@ show_help() {
     /bin/cat << HELP
     $script_name v$version, a script by @GrahamRPugh
 
+    Please note that network access is required to Apple's software catalogs at ALL stages of this
+    script's workflow - that includes BOTH download AND preparation stages. Please check that you are not
+    running any kind of security / firewall software that may prevent this traffic.
+
+    You must also not be restricting the execution of a macOS installer application in any way 
+    (e.g. Jamf Software Restriction, Santa etc.).
+
     Common usage:
     [sudo] ./$script_name.sh [options]
 
@@ -2334,6 +2349,8 @@ show_help() {
     --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
     --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
                         --check-fmm is set. Default is 300.
+    --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
+                        in conjunction with the --reinstall option.
 
     Options for filtering which installer to download/use:
 
@@ -2356,15 +2373,13 @@ show_help() {
                         and downloads the current installer within the limits set by --os or --version.
     --overwrite         Delete any existing macOS installer found in $installer_directory and download
                         the current installer within the limits set by --os or --version.
-    --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
-                        the existing installer is removed but not replaced. This is useful
-                        for running the script after an upgrade to clear the working files.
-    --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
-                        in conjunction with the --reinstall option.
 
 
     Advanced options:
 
+    --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
+                        the existing installer is removed but not replaced. This is useful
+                        for running the script after an upgrade to clear the working files.
     --newvolumename     If using the --erase option, lets you customize the name of the
                         clean volume. Default is 'Macintosh HD'.
     --preinstall-command 'some arbitrary command'
@@ -2387,17 +2402,17 @@ show_help() {
     --keep-pkg          Retains a cached package if --move is used to extract an installer from it.
     --fs                Uses full-screen windows for all stages, not just the
                         preparation phase.
-    --no-fs             Replaces the full-screen dialog window with a smaller dialog,
-                        so you can still access the desktop while the script runs.
+    --no-fs             Replaces the full-screen dialog window with a smaller dialog during the preparation
+                        phase, so you can still access the desktop while the script runs.
     --beta              Include beta versions in the search. Works with the no-flag
                         (i.e. automatic), --os and --version arguments.
     --path /path/to     Overrides the destination of --move to a specified directory
     --min-drive-space   Override the default minimum space required for startosinstall
                         to run (45 GB).
-    --no-curl           Prevents the download of swiftDialog or mist in case your
+    --no-curl           Prevents the download of swiftDialog, mist and icons in case your
                         security team don't like it.
     --no-timeout        The script will normally timeout if the installer has not successfully
-                        prepared after 1 hour. This extends that time limit to 1 day.
+                        prepared after 1 hour. This extends that time limit to 24 hours.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2408,19 +2423,25 @@ show_help() {
     Parameters for use with Apple Silicon Mac:
         Note that startosinstall requires user authentication on AS Mac. The user
         must have a Secure Token. This script checks for the Secure Token of the
-        supplied user. A dialog is used to supply the password, so
-        this script cannot be run at the login window or from remote terminal.
+        current user, but the user can be overridden via the dialog. 
+        A dialog is used to supply the password, so this script cannot be run at the 
+        login window or from remote terminal.
 
     --max-password-attempts NN | infinite
                         Overrides the default of 5 attempts to ask for the user's password. Using
                         'infinite' will disable the Cancel button and asking until the password is
                         successfully verified.
+    --user              Override the user (the default is the current user).
+    --very-insecure-mode
+                        Invokes passwordless upgrades, for use with lab machines. NOT RECOMMENDED UNLESS
+                        YOU CAN GUARANTEE PHYSICAL AND REMOTE SECURITY ON THE COMPUTER IN QUESTION.
+    --credentials       A base64 credential set. Only works in conjunction with --very-insecure-mode
 
     Experimental features:
 
     --fetch-full-installer | --ffi | -f
                         Obtain the installer using 'softwareupdate --fetch-full-installer' method instead of
-                        using mist
+                        using mist-cli. 
     --list              List installers using 'softwareupdate --list-full-installers' when
                         called with --fetch-full-installer
     --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
@@ -2430,10 +2451,8 @@ show_help() {
     --kc                Keychain containing a user password (do not use the login keychain!!)
     --kc-pass           Password to open the keychain
     --kc-service        The name of the key containing the account and password
-    --credentials       A base64 credential set. Only works in conjunction with
-    --i-know-the-security-risks-and-i-still-want-to-supply-a-password-in-plain-text
-    --silent            Silent mode. No dialogs. Requires use of keychain for Apple Silicon 
-                        to provide a password, or the --credentials mode.
+    --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
+                        to provide a password, or the --credentials/--very-insecure-mode mode.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -3098,14 +3117,16 @@ elif [[ $invalid_installer_found == "yes" ]]; then
     # --replace-invalid option: replace an existing installer if it is invalid
     if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
         overwrite_existing_installer
-    elif [[ $pkg_installer && -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
+    elif [[ -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
         writelog "[$script_name] Deleting invalid installer package"
         rm -f "$working_installer_pkg"
     elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
-        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite option to ensure that a valid installer is obtained."
+        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite, --update or --replace-invalid option to ensure that a valid installer is obtained."
         # kill caffeinate
         kill_process "caffeinate"
         exit 1
+    elif [[ $skip_validation != "yes" ]]; then
+        writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite, --update or --replace-invalid option to ensure that a valid installer is obtained."
     else
         writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
     fi
