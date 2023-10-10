@@ -249,7 +249,7 @@ check_for_mist() {
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
     if [[ $(echo "$system_version_major < 12" | bc) -eq 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        dialog_string=$("$dialog_bin" --version)
+        dialog_string=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Library/Application\ Support/Dialog/Dialog.app/Contents/Info.plist)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
             writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version_major. Removing v$dialog_string..."
@@ -1586,12 +1586,17 @@ log_rotate() {
 # results.  
 # -----------------------------------------------------------------------------
 overwrite_existing_installer() {
-    writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-    if [[ -d "$cached_installer" ]]; then
-        writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
-        existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
-        diskutil unmount force "$existing_installer_mount_point"
+    if [[ -f "$working_installer_pkg" ]]; then
+        writelog "[$script_name] Deleting existing installer package"
+        rm -f "$working_installer_pkg"
+    else
+        writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
+        cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
+        if [[ -d "$cached_installer" ]]; then
+            writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
+            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
+            diskutil unmount force "$existing_installer_mount_point"
+        fi
     fi
     rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg" 
     rm -rf "$cached_installer_app"
@@ -3044,23 +3049,16 @@ fi
 writelog "[$script_name] Looking for existing installer app or pkg"
 find_existing_installer
 
+
 # Work through various options to decide whether to replace an existing installer
-if [[ $overwrite == "yes" && -d "$working_macos_app" && ! $list ]]; then
+do_overwrite_existing_installer=0
+
+if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "$working_installer_pkg")) && ! $list ]]; then
     # --overwrite option
-    overwrite_existing_installer
+    do_overwrite_existing_installer=1
+fi
 
-elif [[ $overwrite == "yes" && ($pkg_installer && -f "$working_installer_pkg") && ! $list ]]; then
-    # --overwrite option and --pkg option
-    writelog "[$script_name] Deleting existing installer package"
-    rm -f "$working_installer_pkg"
-    if [[ $clear_cache == "yes" ]]; then
-        writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit
-    fi
-
-elif [[ "$prechosen_build" != "" ]]; then
+if [[ "$prechosen_build" != "" ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
     if [[ "$installer_build" ]]; then
@@ -3068,15 +3066,16 @@ elif [[ "$prechosen_build" != "" ]]; then
     elif [[ "$installer_pkg_build" ]]; then
         installer_darwin_version=${installer_pkg_build:0:2}
     fi
-    compare_build_versions "$prechosen_build" "$installer_build"
+    compare_build_versions "$prechosen_build" "$prechosen_build"
     if [[ "$builds_match" != "yes" ]]; then
-        writelog "[$script_name] Existing installer does not match requested build, so replacing..."
-        overwrite_existing_installer
+        writelog "[$script_name] Existing installer build $prechosen_build does not match requested build $prechosen_build."
+        do_overwrite_existing_installer=1
     else
         writelog "[$script_name] Existing installer matches requested build."
     fi
+fi
 
-elif [[ "$prechosen_os" != "" ]]; then
+if [[ "$prechosen_os" != "" ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
     if [[ "$installer_build" ]]; then
@@ -3086,46 +3085,29 @@ elif [[ "$prechosen_os" != "" ]]; then
     fi
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version -ne $prechosen_darwin_version ]]; then
-        writelog "[$script_name] Existing installer does not match requested OS ($prechosen_os), so replacing..."
-        overwrite_existing_installer
+        writelog "[$script_name] Existing installer OS version does not match requested OS ($prechosen_os)."
+        do_overwrite_existing_installer=1
     fi
+fi
 
-elif [[ $update_installer == "yes" ]]; then
+if [[ $update_installer == "yes" ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
-    if [[ -d "$working_macos_app" ]]; then
+    if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
         check_newer_available
         if [[ $newer_build_found == "yes" ]]; then
-            writelog "[$script_name] Newer installer found so overwriting existing installer"
-            overwrite_existing_installer
-        elif [[ $clear_cache == "yes" ]]; then
-            writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit
-        fi
-    elif [[ -f "$working_installer_pkg" ]]; then
-        writelog "[$script_name] Checking for newer installer package"
-        check_newer_available
-        if [[ $newer_build_found == "yes" ]]; then
-            writelog "[$script_name] Newer installer found so deleting existing installer package"
-            rm -f "$working_installer_pkg"
-        fi
-        if [[ $clear_cache == "yes" ]]; then
-            writelog "[$script_name] Quitting script as --clear-cache-only option was selected."
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit
+            writelog "[$script_name] Newer installer found."
+            do_overwrite_existing_installer=1
         fi
     fi
+fi
 
-elif [[ $invalid_installer_found == "yes" ]]; then 
+if [[ $invalid_installer_found == "yes" ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid
     if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
-        overwrite_existing_installer
+        do_overwrite_existing_installer=1
     elif [[ -f "$working_installer_pkg" && $replace_invalid_installer == "yes" ]]; then
-        writelog "[$script_name] Deleting invalid installer package"
-        rm -f "$working_installer_pkg"
+        do_overwrite_existing_installer=1
     elif [[ ($erase == "yes" || $reinstall == "yes") && $skip_validation != "yes" ]]; then
         writelog "[$script_name] ERROR: Invalid installer is present. Run with --overwrite, --update or --replace-invalid option to ensure that a valid installer is obtained."
         # kill caffeinate
@@ -3136,6 +3118,11 @@ elif [[ $invalid_installer_found == "yes" ]]; then
     else
         writelog "[$script_name] ERROR: Invalid installer is present. --skip-validation was set so we will continue, but failure is highly likely!"
     fi
+fi
+
+# now go ahead and remove the existing installer if any conditions were met to do so
+if [[ $do_overwrite_existing_installer == 1 ]]; then
+    overwrite_existing_installer
 fi
 
 # Silicon Macs require a username and password to run startosinstall
