@@ -1285,6 +1285,12 @@ get_user_details() {
                 writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
                 exit 1
             fi
+        elif ! pgrep -q Finder ; then
+            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
+            echo
+            # kill caffeinate
+            kill_process "caffeinate"
+            exit 1
         elif [[ ! $silent ]]; then
             ask_for_credentials
             if [[ $? -eq 2 ]]; then
@@ -3133,19 +3139,12 @@ elif [[ $invalid_installer_found == "yes" ]]; then
 fi
 
 # Silicon Macs require a username and password to run startosinstall
-# We therefore need to be logged in to proceed, if we are going to erase or reinstall
+# We therefore need credentials to proceed, if we are going to erase or reinstall
 # This goes before the download so users aren't waiting for the prompt for username
 # Check for Apple Silicon using sysctl, because arch will not report arm64 if running under Rosetta.
 [[ $(/usr/sbin/sysctl -q -n "hw.optional.arm64") -eq 1 ]] && arch="arm64" || arch=$(/usr/bin/arch)
 writelog "[$script_name] Running on architecture $arch"
 if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
-    if ! pgrep -q Finder ; then
-        writelog "[$script_name] ERROR! The startosinstall binary requires a user to be logged in."
-        echo
-        # kill caffeinate
-        kill_process "caffeinate"
-        exit 1
-    fi
     get_user_details
 fi
 
