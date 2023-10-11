@@ -1715,8 +1715,9 @@ run_fetch_full_installer() {
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
                 latest_ffi_major=$(cut -d. -f1 <<< "$latest_ffi")
-                latest_ffi_minor=$(cut -d. -f2,3 <<< "$latest_ffi")
-                if [[ $latest_ffi_major -lt $system_version_major || "$latest_ffi_major" == "$system_version_major" && $(echo "$latest_ffi_minor < $system_version_minor" | bc) == 1 ]]; then
+                latest_ffi_minor=$(cut -d. -f2 <<< "$latest_ffi")
+                latest_ffi_patch=$(cut -d. -f3 <<< "$latest_ffi")
+                if [[ $latest_ffi_major -lt $system_version_major || ("$latest_ffi_major" == "$system_version_major" && $(echo "$latest_ffi_minor < $system_version_minor" | bc) == 1) || ("$latest_ffi_major" == "$system_version_major" && "$latest_ffi_minor" == "$system_version_minor" && $(echo "$latest_ffi_patch < $system_version_patch" | bc) == 1) ]]; then
                     writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
                     echo
                     exit 1
@@ -1829,12 +1830,14 @@ run_mist() {
         if [[ $prechosen_version_check -eq 10 ]]; then
             prechosen_version_major=$(cut -d. -f1,2 <<< "$prechosen_version")
             prechosen_version_minor=$(cut -d. -f3 <<< "$prechosen_version")
+            prechosen_version_patch=0
         else
             prechosen_version_major=$(cut -d. -f1 <<< "$prechosen_version")
-            prechosen_version_minor=$(cut -d. -f2,3 <<< "$prechosen_version")
+            prechosen_version_minor=$(cut -d. -f2 <<< "$prechosen_version")
+            prechosen_version_patch=$(cut -d. -f3 <<< "$prechosen_version")
         fi
         # check for an older version
-        if [[ $(echo "$prechosen_version_major < $system_version_major " | bc) == 1 || "$prechosen_version_major" == "$system_version_major" && $(echo "$prechosen_version_minor < $system_version_minor" | bc) == 1 ]]; then
+        if [[ $(echo "$prechosen_version_major < $system_version_major " | bc) == 1 || ("$prechosen_version_major" == "$system_version_major" && $(echo "$prechosen_version_minor < $system_version_minor" | bc) == 1) || ("$prechosen_version_major" == "$system_version_major" && "$prechosen_version_minor" == "$system_version_minor" && $(echo "$prechosen_version_patch < $system_version_patch" | bc) == 1) ]]; then
             writelog "[run_mist] ERROR: cannot select an older version than the system"
             echo
             exit 1
@@ -1881,13 +1884,15 @@ run_mist() {
         if [[ $latest_version_check -eq 10 ]]; then
             latest_version_major=$(cut -d. -f1,2 <<< "$latest_version")
             latest_version_minor=$(cut -d. -f3 <<< "$latest_version")
+            latest_version_patch=0
         else
             latest_version_major=$(cut -d. -f1 <<< "$latest_version")
-            latest_version_minor=$(cut -d. -f2,3 <<< "$latest_version")
+            latest_version_minor=$(cut -d. -f2 <<< "$latest_version")
+            latest_version_patch=$(cut -d. -f3 <<< "$latest_version")
         fi
         if [[ $latest_version ]]; then
-            if [[ $(echo "$latest_version_major < $system_version_major" | bc) == 1 || ("$latest_version_major" == "$system_version_major" && $(echo "$latest_version_minor < $system_version_minor" | bc) == 1) ]]; then
-                writelog "[run_mist] ERROR: latest version in catalog $latest_version is older OS than the system version $system_version"
+            if [[ $(echo "$latest_version_major < $system_version_major" | bc) == 1 || ("$latest_version_major" == "$system_version_major" && $(echo "$latest_version_minor < $system_version_minor" | bc) == 1) || ("$latest_version_major" == "$system_version_major" && "$latest_version_minor" == "$system_version_minor" && $(echo "$latest_version_patch < $system_version_patch" | bc) == 1) ]]; then
+                writelog "[run_mist] ERROR: latest version in catalog ($latest_version) is older OS than the system version ($system_version)"
                 echo
                 exit 1
             fi
@@ -2940,9 +2945,11 @@ system_os=$(cut -d. -f 1 <<< "$system_version")
 if [[ $system_os -eq 10 ]]; then
     system_version_major=$(cut -d. -f1,2 <<< "$system_version")
     system_version_minor=$(cut -d. -f3 <<< "$system_version")
+    system_version_patch=0
 else
     system_version_major=$(cut -d. -f1 <<< "$system_version")
-    system_version_minor=$(cut -d. -f2,3 <<< "$system_version")
+    system_version_minor=$(cut -d. -f2 <<< "$system_version")
+    system_version_patch=$(cut -d. -f3 <<< "$system_version")
 fi
 
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
