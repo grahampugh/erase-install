@@ -82,6 +82,7 @@ dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versi
 dialog_confirmation_icon="/System/Applications/System Settings.app"
 dialog_warning_icon="SF=xmark.circle,colour=red"
 dialog_fmm_icon="/System/Library/PrivateFrameworks/AOSUI.framework/Versions/A/Resources/findmy.icns"
+dialog_icon_size="128"
 
 # default app and package names for mist
 default_downloaded_app_name="Install %NAME%.app"
@@ -109,7 +110,7 @@ ask_for_credentials() {
         "--overlayicon"
         "SF=person.badge.key.fill,colour=grey"
         "--iconsize"
-        "128"
+        "${dialog_icon_size}"
         "--textfield"
         "Username,prompt=$current_user"
         "--textfield"
@@ -167,7 +168,7 @@ check_fmm() {
             "--overlayicon"
             "${dialog_fmm_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--message"
             "${(P)dialog_fmm_desc}"
             "--timer"
@@ -202,7 +203,7 @@ check_fmm() {
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
             "--message"
@@ -337,7 +338,7 @@ check_free_space() {
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=externaldrive.fill.badge.exclamationmark,colour=red"
             "--message"
@@ -593,7 +594,7 @@ check_power_status() {
             "--overlayicon"
             "SF=powerplug.fill,colour=red"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--message"
             "${(P)dialog_power_desc}"
             "--timer"
@@ -628,7 +629,7 @@ check_power_status() {
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=powerplug.fill,colour=red"
             "--message"
@@ -755,7 +756,7 @@ confirm() {
         "--icon"
         "${dialog_confirmation_icon}"
         "--iconsize"
-        "128"
+        "${dialog_icon_size}"
         "--overlayicon"
         "SF=person.fill.checkmark,colour=red"
         "--message"
@@ -1620,7 +1621,7 @@ post_prep_work() {
         writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
 
         window_type="utility"
-        iconsize=100
+        iconsize=$dialog_icon_size
 
         # set the dialog command arguments
         get_default_dialog_args "$window_type"
@@ -2390,6 +2391,11 @@ show_help() {
     --overwrite         Delete any existing macOS installer found in $installer_directory and download
                         the current installer within the limits set by --os or --version.
 
+    Options for dialogs:
+
+    --force             Removes the "Ok" button (button1) from dialogs
+    --confirmation-icon Set a custom confirmation icon
+    --icon-size         Set the icon size in dialogs
 
     Advanced options:
 
@@ -2537,7 +2543,7 @@ user_is_invalid() {
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
@@ -2565,7 +2571,7 @@ password_is_invalid() {
             "--icon"
             "${dialog_confirmation_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
@@ -2594,7 +2600,7 @@ user_not_volume_owner() {
             "--icon"
             "${dialog_warning_icon}"
             "--iconsize"
-            "128"
+            "${dialog_icon_size}"
             "--overlayicon"
             "SF=person.fill.xmark,colour=red"
             "--message"
@@ -2678,6 +2684,8 @@ while test $# -gt 0 ; do
         -l|--list) list="yes"
             ;;
         --silent) silent="yes"
+            ;;
+        --force) force="yes"
             ;;
         --pkg) pkg_installer="yes"
             ;;
@@ -2801,6 +2809,15 @@ while test $# -gt 0 ; do
         --credentials)
             shift
             credentials="$1"
+            ;;
+        --confirmation-icon)
+            shift
+            custom_icon="yes"
+            dialog_confirmation_icon="$1"
+            ;;
+        --icon-size)
+            shift
+            dialog_icon_size="$1"
             ;;
         --kc)
             shift
@@ -3158,7 +3175,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 iconsize=200
             else
                 window_type="utility"
-                iconsize=100
+                iconsize=$dialog_icon_size
             fi
             # set the dialog command arguments
             get_default_dialog_args "$window_type"
@@ -3177,6 +3194,13 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "--progress"
                 "100"
             )
+            # if --force is set, remove button1
+            if [[ "$force" == "yes" ]]; then
+                dialog_args+=(
+                    "--button1text"
+                    "none"
+                )
+            fi
             # run the dialog command
             "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
         fi
@@ -3340,9 +3364,11 @@ if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
     fi
 fi
 
-# check again whether we have the image now, if not, display a generic image
+# check again whether we have the image now or a confirmation icon set, if not, display a generic image
 if file -b "$icon_path" | grep "PNG image data"; then
     dialog_install_icon="$icon_path"
+elif [[ "$custom_icon" == "yes" ]]; then
+    dialog_install_icon="$dialog_confirmation_icon"
 else
     dialog_install_icon="warning"
 fi
@@ -3353,7 +3379,7 @@ if [[ $fs == "yes" || ($erase == "yes" && $no_fs != "yes") || ($reinstall == "ye
     iconsize=200
 else
     window_type="utility"
-    iconsize=100
+    iconsize=$dialog_icon_size
 fi
 
 # dialogs for erase
@@ -3371,6 +3397,13 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
+    # if --force is set, remove button1
+    if [[ "$force" == "yes" ]]; then
+        dialog_args+=(
+            "--button1text"
+            "none"
+        )
+    fi
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
@@ -3391,6 +3424,13 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
+    # if --force is set, remove button1
+    if [[ "$force" == "yes" ]]; then
+        dialog_args+=(
+            "--button1text"
+            "none"
+        )
+    fi
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
