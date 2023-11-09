@@ -2393,7 +2393,6 @@ show_help() {
 
     Options for dialogs:
 
-    --enforce-dialogs   Removes the "Ok" button (button1) from the download and update dialogs
     --confirmation-icon Set a custom confirmation icon
     --icon-size         Set the icon size in dialogs
 
@@ -2684,8 +2683,6 @@ while test $# -gt 0 ; do
         -l|--list) list="yes"
             ;;
         --silent) silent="yes"
-            ;;
-        --enforce-dialogs) force="yes"
             ;;
         --pkg) pkg_installer="yes"
             ;;
@@ -3194,13 +3191,6 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "--progress"
                 "100"
             )
-            # if --enforce is set, remove button1
-            if [[ "$enforce_dialogs" == "yes" ]]; then
-                dialog_args+=(
-                    "--button1text"
-                    "none"
-                )
-            fi
             # run the dialog command
             "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
         fi
@@ -3397,13 +3387,6 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
-    # if --enforce is set, remove button1
-    if [[ "$enforce_dialogs" == "yes" ]]; then
-        dialog_args+=(
-            "--button1text"
-            "none"
-        )
-    fi
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
@@ -3424,13 +3407,6 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
-    # if --enforce is set, remove button1
-    if [[ "$enforce_dialogs" == "yes" ]]; then
-        dialog_args+=(
-            "--button1text"
-            "none"
-        )
-    fi
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
