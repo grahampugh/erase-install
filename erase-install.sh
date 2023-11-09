@@ -3194,7 +3194,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 "--progress"
                 "100"
             )
-            # if --force is set, remove button1
+            # if --enforce is set, remove button1
             if [[ "$enforce_dialogs" == "yes" ]]; then
                 dialog_args+=(
                     "--button1text"
@@ -3397,7 +3397,7 @@ if [[ $erase == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
-    # if --force is set, remove button1
+    # if --enforce is set, remove button1
     if [[ "$enforce_dialogs" == "yes" ]]; then
         dialog_args+=(
             "--button1text"
@@ -3424,7 +3424,7 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         "--progress"
         "100"
     )
-    # if --force is set, remove button1
+    # if --enforce is set, remove button1
     if [[ "$enforce_dialogs" == "yes" ]]; then
         dialog_args+=(
             "--button1text"
