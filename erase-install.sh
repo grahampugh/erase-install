@@ -24,10 +24,7 @@ It will also download mist if it is not found.
 Suppress the downloads with the --no-curl option.
 
 Requirements:
-- macOS 12.4+
-- macOS 10.13.4+ (for --erase option)
-- macOS 10.15+ (for --fetch-full-installer option, and for mist)
-- macOS 11+ (for dialogs)
+- macOS 11+ (for use on older versions of macOS, download version 27.3 of erase-install.sh)
 - Device file system is APFS
 DOC
 
@@ -40,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="31.0"
+version="32.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -61,7 +58,7 @@ mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mis
 
 # URL for downloading swiftDialog (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_version_required="2.3.2-4726"
+swiftdialog_version_required="2.3.3-4734"
 swiftdialog_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_version_required")
 dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_tag_required}/dialog-${swiftdialog_version_required}.pkg"
 
@@ -107,7 +104,7 @@ ask_for_credentials() {
         "--icon"
         "${dialog_confirmation_icon}"
         "--overlayicon"
-        "SF=person.badge.key.fill,colour=grey"
+        "SF=key.fill,colour=grey"
         "--iconsize"
         "128"
         "--textfield"
@@ -204,7 +201,7 @@ check_fmm() {
             "--iconsize"
             "128"
             "--overlayicon"
-            "SF=laptopcomputer.trianglebadge.exclamationmark,colour=red"
+            "${dialog_fmm_icon}"
             "--message"
             "${(P)dialog_fmmenabled_desc}"
         )
@@ -339,7 +336,7 @@ check_free_space() {
             "--iconsize"
             "128"
             "--overlayicon"
-            "SF=externaldrive.fill.badge.exclamationmark,colour=red"
+            "SF=externaldrive.fill.badge.xmark,colour=red"
             "--message"
             "${(P)dialog_check_desc}"
             "--button1text"
@@ -378,11 +375,25 @@ check_installer_is_valid() {
             if [[ -f "$build_xml" ]]; then
                 writelog "[check_installer_is_valid] Using Build value from com_apple_MobileAsset_MacSoftwareUpdate.xml"
                 installer_build=$(/usr/libexec/PlistBuddy -c "Print :Assets:0:Build" "$build_xml")
-                sleep 1
-                diskutil unmount force "/Volumes/Shared Support"
+
+                # Also get the compatible device/board IDs of the installer and compare with the system device/board ID
+                # 1. Grab device/board ID
+                get_device_id
+                # 2. Grab compatible device/board IDs from com_apple_MobileAsset_MacSoftwareUpdate
+                compatible_device_ids=$(grep -A2 "SupportedDeviceModels" "$build_xml" | grep string | awk -F '<string>|</string>' '{ print $2 }')
+                # 3. Check that 1 is in 2. 
+                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id") ]]; then
+                    writelog "[check_installer_is_valid] Installer is compatible with system"
+                else
+                    writelog "[check_installer_is_valid] ERROR: Installer is incompatible with system"
+                    invalid_installer_found="yes"
+                fi
             else
                 writelog "[check_installer_is_valid] ERROR: com_apple_MobileAsset_MacSoftwareUpdate.xml not found. Check the mount point at /Volumes/Shared Support"
             fi
+            # now we can unmount the dmg
+            sleep 1
+            diskutil unmount force "/Volumes/Shared Support"
         else
             writelog "[check_installer_is_valid] Mounting SharedSupport.dmg failed"
         fi
@@ -454,7 +465,6 @@ check_installer_pkg_is_valid() {
 # options for different catalogs and seeds, and whether to include betas or 
 # not.
 # -----------------------------------------------------------------------------
-
 check_newer_available() {
     # Download mist if not present
     check_for_mist
@@ -481,7 +491,7 @@ check_newer_available() {
     elif [[ $sameos ]]; then
         # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$system_version_major")
-        writelog "[run_mist] Restricting to selected OS '$system_version_major'"
+        writelog "[check_newer_available] Restricting to selected OS '$system_version_major'"
         mist_args+=("$prechosen_os_name")
     fi
 
@@ -591,7 +601,7 @@ check_power_status() {
             "--icon"
             "${dialog_confirmation_icon}"
             "--overlayicon"
-            "SF=powerplug.fill,colour=red"
+            "SF=bolt.slash.fill,colour=red"
             "--iconsize"
             "128"
             "--message"
@@ -659,6 +669,7 @@ check_power_status() {
 # - macOS 11    - Darwin no. 20
 # - macOS 12    - Darwin no. 21
 # - macOS 13    - Darwin no. 22
+# - macOS 14    - Darwin no. 23
 # 
 # This function determines if the OS, minor version or patch versions match.
 # -----------------------------------------------------------------------------
@@ -1192,6 +1203,15 @@ get_default_dialog_args() {
             "left"
         )
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Get the system's device ID (Apple Silicon) or board ID (Intel)
+# -----------------------------------------------------------------------------
+get_device_id() {
+    device_info=$(/usr/sbin/ioreg -c IOPlatformExpertDevice -d 2)
+    board_id=$(grep board-id <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
+    device_id=$(grep target-sub-type <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
 }
 
 # -----------------------------------------------------------------------------
@@ -1978,6 +1998,7 @@ run_mist() {
         mist_args+=("--include-betas")
     fi
 
+    # now run mist
     echo
     writelog "[run_mist] This command is now being run:"
     echo
@@ -3055,7 +3076,6 @@ fi
 # Look for the installer
 writelog "[$script_name] Looking for existing installer app or pkg"
 find_existing_installer
-
 
 # Work through various options to decide whether to replace an existing installer
 do_overwrite_existing_installer=0

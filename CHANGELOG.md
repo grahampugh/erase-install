@@ -4,6 +4,14 @@
 
 No date
 
+## [32.0]
+
+No date
+
+- Include a compatibility check for cached installers, utilising data from the `com_apple_MobileAsset_MacSoftwareUpdate.xml` file within the `Shared Support.dmg`. This should prevent installers that were not obtained using erase-install from running if they are not compatible with the system.
+- Bump swiftDialog version to 2.3.3 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes version 2.3.3. If running on Big Sur, this will be deleted and an internet connection is required to download version 2.2.1.
+- Replaced some SF Symbol icons in dialogs for compatibility with macOS 11 (fixes #470, thanks to @BigMacAdmin).
+
 ## [31.0]
 
 27.09.2023
