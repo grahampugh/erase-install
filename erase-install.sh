@@ -60,13 +60,13 @@ mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mis
 # This ensures a compatible swiftDialog version is used if not using the package installer
 swiftdialog_version_required="2.3.3-4734"
 swiftdialog_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_version_required")
-dialog_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_tag_required}/dialog-${swiftdialog_version_required}.pkg"
+dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_tag_required}/dialog-${swiftdialog_version_required}.pkg"
 
 # URL for downloading swiftDialog on macOS 11 (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
 swiftdialog_bigsur_version_required="2.2.1-4591"
 swiftdialog_bigsur_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_bigsur_version_required")
-dialog_bigsur_download_url="https://github.com/bartreardon/swiftDialog/releases/download/v${swiftdialog_bigsur_tag_required}/dialog-${swiftdialog_bigsur_version_required}.pkg"
+dialog_bigsur_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_bigsur_tag_required}/dialog-${swiftdialog_bigsur_version_required}.pkg"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
