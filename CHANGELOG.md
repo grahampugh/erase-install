@@ -6,7 +6,7 @@ No date
 
 ## [32.0]
 
-No date
+10.01.2024
 
 - Include a compatibility check for cached installers, utilising data from the `com_apple_MobileAsset_MacSoftwareUpdate.xml` file within the `Shared Support.dmg`. This should prevent installers that were not obtained using erase-install from running if they are not compatible with the system.
 - Add the ability to change the default icon size in dialogs, and to supply an alternative icon for confirmation dialogs (#462, addressed in #463, thanks to @popaprozac).
@@ -596,7 +596,10 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v30.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v32.0...HEAD
+[32.0]: https://github.com/grahampugh/erase-install/compare/v31.0...v32.0
+[31.0]: https://github.com/grahampugh/erase-install/compare/v30.2...v31.0
+[30.2]: https://github.com/grahampugh/erase-install/compare/v30.1...v30.2
 [30.1]: https://github.com/grahampugh/erase-install/compare/v30.0...v30.1
 [30.0]: https://github.com/grahampugh/erase-install/compare/v29.1...v30.0
 [29.1]: https://github.com/grahampugh/erase-install/compare/v29.0...v29.1
