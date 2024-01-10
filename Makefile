@@ -25,9 +25,8 @@ build:
 
 	@echo
 	swiftdialog_version=$$(awk -F '=' '/swiftdialog_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	swiftdialog_tag=$$( awk -F '-' '{print $$1}' <<< "$$swiftdialog_version") ;\
 	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
-	swiftdialog_url="https://github.com/bartreardon/swiftDialog/releases/download/v$$swiftdialog_tag/dialog-$$swiftdialog_version.pkg" ;\
+	swiftdialog_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_version/dialog-$$swiftdialog_version.pkg" ;\
 	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg"
 
 	@echo
