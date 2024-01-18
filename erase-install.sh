@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="32.0"
+version="32.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -2849,72 +2849,75 @@ while test $# -gt 0 ; do
             kc_service="$1"
             ;;
         --kc=*)
-            kc=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            kc=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --kc-pass*)
-            kc_pass=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            kc_pass=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --kc-service*)
-            kc_service=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            kc_service=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --power-wait-limit*)
-            power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --min-drive-space*)
-            min_drive_space=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            min_drive_space=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --seedprogram*)
-            seedprogram=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            seedprogram=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --catalogurl*)
-            catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --catalog*)
-            catalog=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            catalog=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --caching-server*)
-            caching_server=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            caching_server=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --path*)
-            installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            installer_directory=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --extras*)
-            extras_directory=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            extras_directory=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --os*)
-            prechosen_os=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            prechosen_os=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --user*)
-            account_shortname=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            account_shortname=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --max-password-attempts*)
-            new_max_password_attempts=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            new_max_password_attempts=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             if [[ ( $new_max_password_attempts == "infinite" ) || ( $new_max_password_attempts -gt 0 ) ]]; then
                 max_password_attempts="$new_max_password_attempts"
             fi
             ;;
         --rebootdelay*)
-            rebootdelay=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            rebootdelay=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             if [[ $rebootdelay -gt 300 ]]; then
                 rebootdelay=300
             fi
             ;;
         --version*)
-            prechosen_version=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            prechosen_version=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --build*)
-            prechosen_build=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            prechosen_build=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --workdir*)
-            workdir=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            workdir=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --preinstall-command*)
-            command=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            command=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             preinstall_command+=("$command")
             ;;
         --postinstall-command*)
-            command=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            command=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             postinstall_command+=("$command")
+            ;;
+        --credentials*)
+            credentials=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         -h|--help) show_help
             ;;

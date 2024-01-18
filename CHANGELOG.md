@@ -4,6 +4,13 @@
 
 No date
 
+## [32.1]
+
+No date
+
+- Add missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
+- Remove quotes from the value obtained from any inputted `--parameter="value"` option.
+
 ## [32.0]
 
 10.01.2024
