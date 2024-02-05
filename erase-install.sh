@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="32.1"
+version="33.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -1010,9 +1010,8 @@ dialog_progress() {
 
 # -----------------------------------------------------------------------------
 # Search for an existing downloaded installer.
-# This checks first for a DMG or sparseimage in the working directory, then
-# for an Install macOS X.app in the /Applications folder, and then for an 
-# InstallAssistant.pkg in the working directory.
+# This checks first for an Install macOS X.app in the /Applications folder, 
+# and then for an InstallAssistant.pkg in the working directory.
 # Note that multiple installers left around on the device can cause unexpected
 # results.  
 # -----------------------------------------------------------------------------
@@ -1021,8 +1020,6 @@ find_existing_installer() {
     cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
     cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
     cached_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
-    cached_dmg=$( find "$workdir" -maxdepth 1 -name "*.dmg" -type f -print -quit 2>/dev/null )
-    cached_sparseimage=$( find "$workdir" -maxdepth 1 -name "*.sparseimage" -type f -print -quit 2>/dev/null )
 
     if [[ -d "$cached_installer_app" ]]; then
         writelog "[find_existing_installer] Installer found at $cached_installer_app."
@@ -1030,21 +1027,11 @@ find_existing_installer() {
         check_installer_is_valid
     elif [[ -d "$cached_installer_app_in_workdir" ]]; then
         cached_installer_app="$cached_installer_app_in_workdir"
-        writelog "[find_existing_installer] Installer found at $cached_installer_app."
+        writelog "[find_existing_installer] Installer found at $cached_installer_app_in_workdir."
         check_installer_is_valid
     elif [[ -f "$cached_installer_pkg" ]]; then
         writelog "[find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
         check_installer_pkg_is_valid
-    elif [[ -f "$cached_dmg" ]]; then
-        writelog "[find_existing_installer] Installer image found at $cached_dmg."
-        hdiutil attach -quiet -noverify -nobrowse "$cached_dmg"
-        cached_installer_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
-    elif [[ -f "$cached_sparseimage" ]]; then
-        writelog "[find_existing_installer] Installer sparse image found at $cached_sparseimage."
-        hdiutil attach -quiet -noverify -nobrowse "$cached_sparseimage"
-        cached_installer_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        check_installer_is_valid
     else
         writelog "[find_existing_installer] No valid installer found."
         if [[ $clear_cache == "yes" ]]; then
@@ -1536,8 +1523,7 @@ EOT
 )
 
 # -----------------------------------------------------------------------------
-# Copy the installer to the /Applications folder if not already there, and 
-# delete the dmg or sparseimage that encloses it.
+# Move the installer to the /Applications folder if not already there.
 # This is called with the --move option.
 # -----------------------------------------------------------------------------
 move_to_applications_folder() {
@@ -1545,17 +1531,7 @@ move_to_applications_folder() {
         writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
     else
         writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
-        # we are actually copying it, not moving it, because we are in a mounted image
-        cp -R "$working_macos_app" "$installer_directory/"
-        cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-        # unmount the image
-        if [[ -d "$cached_installer" ]]; then
-            writelog "[move_to_applications_folder] Mounted installer will be unmounted: $cached_installer"
-            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
-            diskutil unmount force "$existing_installer_mount_point"
-        fi
-        # remove the dmg or sparseimage
-        rm -f "$cached_dmg" "$cached_sparseimage"
+        mv "$working_macos_app" "$installer_directory/"
         working_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
         writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
     fi
@@ -1611,14 +1587,8 @@ overwrite_existing_installer() {
         rm -f "$working_installer_pkg"
     else
         writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-        cached_installer=$( find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-        if [[ -d "$cached_installer" ]]; then
-            writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
-            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
-            diskutil unmount force "$existing_installer_mount_point"
-        fi
     fi
-    rm -f "$cached_dmg" "$cached_sparseimage" "$cached_installer_pkg" 
+    rm -f "$cached_installer_pkg" 
     rm -rf "$cached_installer_app"
     app_is_in_applications_folder=""
     if [[ $clear_cache == "yes" ]]; then
@@ -2014,10 +1984,6 @@ run_mist() {
     downloaded_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS *.app" -type d -print -quit )
     downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant-*-*.pkg" -type f -print -quit 2>/dev/null )
 
-    # Identify the installer dmg
-    cached_dmg=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.dmg' -type f -print -quit )
-    cached_sparseimage=$( find "$workdir" -maxdepth 1 -name 'Install_macOS*.sparseimage' -type f -print -quit )
-
     if [[ -d "$downloaded_app" ]]; then
         downloaded_app_name=$(basename "$downloaded_app")
         writelog "[run_mist] $downloaded_app_name downloaded to $installer_directory."
@@ -2026,22 +1992,6 @@ run_mist() {
         downloaded_installer_pkg_name=$(basename "$downloaded_installer_pkg")
         writelog "[run_mist] $downloaded_installer_pkg_name downloaded to $workdir."
         working_installer_pkg="$downloaded_installer_pkg"
-    elif [[ -f "$cached_dmg" ]]; then
-        writelog "[run_mist] Mounting disk image to identify installer app."
-        if hdiutil attach -quiet -noverify -nobrowse "$cached_dmg" ; then
-            working_macos_app=$( find '/Volumes/'*macOS*/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        else
-            writelog "[run_mist] ERROR: could not mount $cached_dmg"
-            exit 1
-        fi
-    elif [[ -f "$cached_sparseimage" ]]; then
-        writelog "[run_mist] Mounting sparse disk image to identify installer app."
-        if hdiutil attach -quiet -noverify -nobrowse "$cached_sparseimage" ; then
-            working_macos_app=$( find '/Volumes/'*macOS*/Applications/*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        else
-            writelog "[run_mist] ERROR: could not mount $cached_sparseimage"
-            exit 1
-        fi
     else
         writelog "[run_mist] No installer found. I guess nothing got downloaded."
         exit 1
@@ -3237,7 +3187,7 @@ fi
 
 # Move to $installer_directory if move_to_applications_folder flag is included
 # Not relevant for fetch_full_installer option
-if [[ $move == "yes" && ("$cached_installer_pkg" || "$cached_installer_app" || "$cached_sparseimage" || "$cached_dmg" ) ]]; then
+if [[ $move == "yes" && ("$cached_installer_pkg" || "$cached_installer_app" ) ]]; then
     writelog "[$script_name] Invoking --move option"
     echo "progresstext: Moving installer to Applications folder" >> "$dialog_log"
     if [[ -f "$working_installer_pkg" ]]; then
@@ -3254,15 +3204,6 @@ if [[ $erase != "yes" && $reinstall != "yes" ]]; then
         echo "quit:" >> "$dialog_log" & sleep 0.1
     fi
 
-    # Unmount the dmg
-    if [[ ! $ffi ]]; then
-        cached_installer=$(find /Volumes/*macOS* -maxdepth 2 -type d -name "Install*.app" -print -quit 2>/dev/null )
-        if [[ -d "$cached_installer" ]]; then
-            writelog "[$script_name] Mounted installer will be unmounted: $cached_installer"
-            existing_installer_mount_point=$(echo "$cached_installer" | cut -d/ -f 1-3)
-            diskutil unmount force "$existing_installer_mount_point"
-        fi
-    fi
     # Clear the working directory
     writelog "[$script_name] Cleaning working directory '$workdir/content'"
     rm -rf "$workdir/content"

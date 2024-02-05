@@ -4,10 +4,11 @@
 
 No date
 
-## [32.1]
+## [33.0]
 
 No date
 
+- Remove searches for cached DMG and sparseimages.
 - Add missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Remove quotes from the value obtained from any inputted `--parameter="value"` option.
 
