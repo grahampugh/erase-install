@@ -11,6 +11,7 @@ No date
 - Remove searches for cached DMG and sparseimages.
 - Add missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Remove quotes from the value obtained from any inputted `--parameter="value"` option.
+- Bump swiftDialog version to 2.4.0 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes version 2.4.0. If running on Big Sur, this will be deleted and an internet connection is required to download version 2.2.1.
 
 ## [32.0]
 
