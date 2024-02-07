@@ -2696,6 +2696,7 @@ while test $# -gt 0 ; do
         -c|--confirm) confirm="yes"
             ;;
         --check-zoom) check_zoom="yes"
+            ;;
         --beta) beta="yes"
             ;;
         --preservecontainer) preservecontainer="yes"
