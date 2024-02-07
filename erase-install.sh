@@ -2494,6 +2494,7 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
                         to provide a password, or the --credentials/--very-insecure-mode mode.
+    --check-zoom        If active Zoom meetings are detected, the script will exit. No user dialogs are shown.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -2694,6 +2695,7 @@ while test $# -gt 0 ; do
             ;;
         -c|--confirm) confirm="yes"
             ;;
+        --check-zoom) check_zoom="yes"
         --beta) beta="yes"
             ;;
         --preservecontainer) preservecontainer="yes"
@@ -2826,6 +2828,9 @@ while test $# -gt 0 ; do
         --credentials)
             shift
             credentials="$1"
+            ;;
+        --check_zoom)
+            shift
             ;;
         --confirmation-icon)
             shift
@@ -3027,6 +3032,27 @@ elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_bu
 elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then
     writelog "[$script_name] ERROR: Choose a maximum of one of the --overwrite, --update, or --replace-invalid options at the same time!"
     exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# Check if the device is in a Zoom meeting.
+# Exits out if Zoom is in a meeting.
+# Called when --check-zoom option is used.
+# Does not run if --silent is used.
+# -----------------------------------------------------------------------------
+check_zoom() {
+    zoomInMeeting=$(lsof -i 4UDP | grep zoom | awk 'END{print NR}')
+    if [ "$zoomInMeeting" -gt 1 ]; then
+        writelog "[$script_name] Active Zoom meeting detected. Exiting."
+        exit 0
+    else
+        writelog "[$script_name] No active Zoom meetings detected. Continuing."
+    fi
+}
+
+# check for zoom active meetings
+if [[ $check_zoom == "yes"  && ! $silent ]]; then
+    check_zoom
 fi
 
 # different dialog icon for OS older than macOS 13
