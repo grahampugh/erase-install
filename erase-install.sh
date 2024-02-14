@@ -3065,6 +3065,11 @@ fi
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     # check for drive space if invoking erase or reinstall options
     check_free_space
+    
+    # check for user activity - will quit here if a meeting is open
+    if [[ $check_for_activity == "yes" ]]; then
+        check_for_presentation_activity
+    fi
 fi
 
 # Look for the installer
@@ -3248,11 +3253,6 @@ check_free_space
 # -----------------------------------------------------------------------------
 # Steps beyond here are to run startosinstall
 # -----------------------------------------------------------------------------
-
-# check for user activity - will quit here if a meeting is open
-if [[ $check_for_activity == "yes" ]]; then
-    check_for_presentation_activity
-fi
 
 echo
 # if we still have a packege we need to move it before we can install it
