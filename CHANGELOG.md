@@ -9,10 +9,11 @@ No date
 No date
 
 - Remove searches for cached DMG and sparseimages.
+- Add experimental `--check-activity` option. This checks for an active Zoom meeting or Slack huddle when using `--reinstall` or `--erase` options, and quits silently if so.
 - Add missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Remove quotes from the value obtained from any inputted `--parameter="value"` option.
 - Bump swiftDialog version to 2.4.0 except for systems running macOS 11 which still get 2.2.1.
-- The installer package now includes both swiftDialog 2.4.0 and 2.2.1, and the postinstall script determines which version to install on the system based on the system OS. 
+- The installer package now includes both swiftDialog 2.4.0 and 2.2.1, and the postinstall script determines which version to install on the system based on the system OS.
   - NOTE: This also limits the package installation to macOS 11 and newer. If you wish to use erase-install on macOS 10.15 or older, it is recommended to use v27.3.
 
 ## [32.0]
@@ -123,7 +124,7 @@ No date
 28.01.2023
 
 - `--cache-downloads` option. In 28.0, `mist` cached downloads into `/private/tmp/com.ninxsoft.mist`. This is now optional.
-- New experimental `--set-securebootlevel` option (in `--erase` mode only) uses the command `bputil -f -u $current_user -p $account_password` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught). 
+- New experimental `--set-securebootlevel` option (in `--erase` mode only) uses the command `bputil -f -u $current_user -p $account_password` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught).
 - New experimental `--clear-firmware` option (in `--erase` mode only) uses the command `nvram -c` to ensure that the OS is reset to a high secure boot level after reinstallation (thanks to @mvught).
 - `erase-install` now reports a non-zero exit code (143 to be exact) when it is being abnormally terminated (e.g. by pressing CTRL+C or getting terminated by SIGTERM). Previously it would return the exit code of the last command being executed at time of termination, which could be non-zero or zero depending on the specific circumstances, which then could have been reported as successful execution in a Jamf policy. This change will make it easier to discover such errors. The exit code of the last executed command will be logged in addition to returning 143 to facilitate debugging (#318, thanks @cvgs).
 
@@ -163,7 +164,7 @@ No date
 
 14.12.2022
 
-- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. This also fixes `--overwrite` where an existing sparseimage is present. 
+- Better handling of replacing broken sparseimage files. If `--overwrite`, `--update`, or `--replace-invalid` are used and the version cannot be obtained from the sparseimage, the installer should be downloaded again. This also fixes `--overwrite` where an existing sparseimage is present.
 - Add `--no-timeout` option which extends the timeout period to 24h.
 
 ## [27.1]

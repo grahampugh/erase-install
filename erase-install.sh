@@ -215,17 +215,26 @@ check_fmm() {
 }
 
 # -----------------------------------------------------------------------------
-# Checks for certain activities, currently only supports Zoom meetings.
+# Checks for certain activities, currently only supports Zoom meetings and 
+# Slack huddles.
 # Exits out if activity is detected.
 # Called when --check-activty option is used.
 # -----------------------------------------------------------------------------
-check_for_activity() {
-    zoomInMeeting=$(lsof -i 4UDP | grep zoom | awk 'END{print NR}')
-    if [ "$zoomInMeeting" -gt 1 ]; then
-        writelog "[$script_name] Active Zoom meeting detected. Exiting."
+check_for_presentation_activity() {
+    # zoom
+    zoom_meeting_active=$(/usr/sbin/lsof -i 4UDP | /usr/bin/grep zoom | /usr/bin/awk 'END{print NR}')
+    # slack
+    if /bin/ps -ax | /usr/bin/grep "Slack Helper (Plugin)" | /usr/bin/grep -v grep >/dev/null; then
+        slack_meeting_active=1
+    else
+        slack_meeting_active=0
+    fi
+
+    if [[ $zoom_meeting_active -gt 1 || $slack_meeting_active -eq 1 ]]; then
+        writelog "[$script_name] Active meeting detected. Exiting."
         exit 0
     else
-        writelog "[$script_name] No active Zoom meetings detected. Continuing."
+        writelog "[$script_name] No active meetings detected. Continuing."
     fi
 }
 
@@ -327,7 +336,7 @@ check_free_space() {
     free_disk_space=$(osascript -l 'JavaScript' -e "ObjC.import('Foundation'); var freeSpaceBytesRef=Ref(); $.NSURL.fileURLWithPath('/').getResourceValueForKeyError(freeSpaceBytesRef, 'NSURLVolumeAvailableCapacityForImportantUsageKey', null); Math.round(ObjC.unwrap(freeSpaceBytesRef[0]) / 1000000000)")
 
     if [[ ! "$free_disk_space" ]] || [[ "$free_disk_space" == 0 ]]; then
-        # fall back to df -h if the above fails
+        # fall back to df if the above fails
         free_disk_space=$(df -Pk . | column -t | sed 1d | awk '{print $4}' | xargs -I{} expr {} / 1000000)
     fi
 
@@ -2459,7 +2468,8 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
                         to provide a password, or the --credentials/--very-insecure-mode mode.
-    --check-activty     If certain activity is detected, the script exits. Currently only supports Zoom meetings.
+    --check-activity    If certain activity is detected, the script exits. Currently only supports 
+                        Zoom meetings and Slack huddles.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -2795,9 +2805,6 @@ while test $# -gt 0 ; do
             shift
             credentials="$1"
             ;;
-        --check-activity)
-            shift
-            ;;
         --confirmation-icon)
             shift
             custom_icon="yes"
@@ -3000,11 +3007,6 @@ elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid
     exit 1
 fi
 
-# check for user activity
-if [[ $check_for_activity == "yes" ]]; then
-    check_for_activity
-fi
-
 # different dialog icon for OS older than macOS 13
 if [[ $(echo "$system_version_major < 13" | bc) == 1 ]]; then
     dialog_confirmation_icon="/System/Applications/System Preferences.app"
@@ -3163,7 +3165,7 @@ fi
 if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     if [[ ! $silent ]]; then
         # if erasing or reinstalling, open a dialog to state that the download is taking place.
-        if [[ $erase == "yes" || $reinstall == "yes" || $dl_dialog == "yes" ]]; then
+        if [[ $erase == "yes" || $reinstall == "yes" || ($dl_dialog == "yes" && $check_for_activity != "yes") ]]; then
             # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
             if [[ $fs == "yes" ]]; then
                 window_type="fullscreen"
@@ -3246,6 +3248,11 @@ check_free_space
 # -----------------------------------------------------------------------------
 # Steps beyond here are to run startosinstall
 # -----------------------------------------------------------------------------
+
+# check for user activity - will quit here if a meeting is open
+if [[ $check_for_activity == "yes" ]]; then
+    check_for_presentation_activity
+fi
 
 echo
 # if we still have a packege we need to move it before we can install it
