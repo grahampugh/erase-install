@@ -231,10 +231,10 @@ check_for_presentation_activity() {
     fi
 
     if [[ $zoom_meeting_active -gt 1 || $slack_meeting_active -eq 1 ]]; then
-        writelog "[$script_name] Active meeting detected. Exiting."
+        writelog "[check_for_presentation_activity] Active meeting detected. Exiting."
         exit 0
     else
-        writelog "[$script_name] No active meetings detected. Continuing."
+        writelog "[check_for_presentation_activity] No active meetings detected. Continuing."
     fi
 }
 
@@ -3065,7 +3065,7 @@ fi
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     # check for drive space if invoking erase or reinstall options
     check_free_space
-    
+
     # check for user activity - will quit here if a meeting is open
     if [[ $check_for_activity == "yes" ]]; then
         check_for_presentation_activity
