@@ -9,7 +9,7 @@ No date
 No date
 
 - Remove searches for cached DMG and sparseimages.
-- Add experimental `--check-activity` option. This checks for an active Zoom meeting or Slack huddle when using `--reinstall` or `--erase` options, and quits silently if so.
+- Add experimental `--check-activity` option. This checks for an active Zoom meeting or Slack huddle when using `--reinstall` or `--erase` options, and quits silently if so (#483, thanks @amadotejada).
 - Add missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Remove quotes from the value obtained from any inputted `--parameter="value"` option.
 - Bump swiftDialog version to 2.4.0 except for systems running macOS 11 which still get 2.2.1.
