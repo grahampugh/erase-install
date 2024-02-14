@@ -215,6 +215,21 @@ check_fmm() {
 }
 
 # -----------------------------------------------------------------------------
+# Checks for certain activities, currently only supports Zoom meetings.
+# Exits out if activity is detected.
+# Called when --check-activty option is used.
+# -----------------------------------------------------------------------------
+check_for_activity() {
+    zoomInMeeting=$(lsof -i 4UDP | grep zoom | awk 'END{print NR}')
+    if [ "$zoomInMeeting" -gt 1 ]; then
+        writelog "[$script_name] Active Zoom meeting detected. Exiting."
+        exit 0
+    else
+        writelog "[$script_name] No active Zoom meetings detected. Continuing."
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Download mist if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_mist() {
@@ -2444,6 +2459,7 @@ show_help() {
     --kc-service        The name of the key containing the account and password
     --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
                         to provide a password, or the --credentials/--very-insecure-mode mode.
+    --check-activty     If certain activity is detected, the script exits. Currently only supports Zoom meetings.
     --quiet             Remove output from mist during installer download. Note that no progress 
                         is shown.
     --preservecontainer Preserves other volumes in your APFS container when using --erase
@@ -2644,6 +2660,8 @@ while test $# -gt 0 ; do
             ;;
         -c|--confirm) confirm="yes"
             ;;
+        --check-activity) check_for_activity="yes"
+            ;;
         --beta) beta="yes"
             ;;
         --preservecontainer) preservecontainer="yes"
@@ -2776,6 +2794,9 @@ while test $# -gt 0 ; do
         --credentials)
             shift
             credentials="$1"
+            ;;
+        --check-activity)
+            shift
             ;;
         --confirmation-icon)
             shift
@@ -2977,6 +2998,11 @@ elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_bu
 elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then
     writelog "[$script_name] ERROR: Choose a maximum of one of the --overwrite, --update, or --replace-invalid options at the same time!"
     exit 1
+fi
+
+# check for user activity
+if [[ $check_for_activity == "yes" ]]; then
+    check_for_activity
 fi
 
 # different dialog icon for OS older than macOS 13
