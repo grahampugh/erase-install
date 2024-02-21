@@ -486,7 +486,7 @@ check_installer_pkg_is_valid() {
 # This requires mist, so we first check if this is on the system and download 
 # if not.
 # We are using mist to list all available installers, with
-# options for different catalogs and seeds, and whether to include betas or 
+# options for different catalogs, and whether to include betas or 
 # not.
 # -----------------------------------------------------------------------------
 check_newer_available() {
@@ -1266,7 +1266,7 @@ get_mist_list() {
         mist_args+=("${catalogs[$darwin_version]}")
     fi
 
-    # include betas if selected (which can use all the seed catalogs, which is the mist-cli default)
+    # include betas if selected
     if [[ $beta == "yes" ]]; then
         writelog "[get_mist_list] Beta versions included"
         mist_args+=("--include-betas")
@@ -1447,7 +1447,7 @@ kill_process() {
     process="$1"
     echo
     if process_pid=$(/usr/bin/pgrep -a "$process" 2>/dev/null) ; then
-        writelog "[$script_name] attempting to terminate the '$process' process - Termination message indicates success"
+        writelog "[$script_name] terminating the process '$process' process"
         kill "$process_pid" 2> /dev/null
         if /usr/bin/pgrep -a "$process" >/dev/null ; then
             writelog "[$script_name] ERROR: '$process' could not be killed"
@@ -1720,11 +1720,7 @@ run_fetch_full_installer() {
         else
             # if no version is selected, we want to obtain the latest. The list obtained from
             # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
-            if [[ "$beta" == "yes" ]]; then
-                latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-            else
-                latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-            fi
+            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
 
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
@@ -1775,38 +1771,23 @@ run_fetch_full_installer() {
 
 # -----------------------------------------------------------------------------
 # Run softwareupdate --list-full-installers and output to a file
-# Includes some fallbacks, because this function might not be available in some 
-# versions of Catalina
 # -----------------------------------------------------------------------------
 run_list_full_installers() {
-    if [[ $system_version_major -lt 13 || ($system_version_major -eq 13 && $system_version_minor -lt 4) ]]; then
-        # include betas if selected
-        if [[ $beta == "yes" ]]; then
-            writelog "[run_list_full_installers] Beta versions included"
-            if [[ ! $seedprogram ]]; then
-                seedprogram="PublicSeed"
+    if [[ $beta == "yes" ]]; then
+        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
+                exit 1
             fi
         fi
-        set_seedprogram
-        echo
-        # try up to 3 times to workaround bug when changing seed programs
-        try=3
-        while [[ $try -gt 0 ]]; do
-            if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
-                if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
-                    break
-                fi
+    else
+        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" | grep -v "Beta," > "$workdir/ffi-list-full-installers.txt"; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
+                exit 1
             fi
-            ((try--))
-        done
-        if [[ $try -eq 0 ]]; then
-            writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
-            exit 1
         fi
-    elif [[ $beta == "yes" ]]; then
-        echo "Seed program cannot be set on macOS 13.4 or greater."
     fi
-
 }
 
 # -----------------------------------------------------------------------------
@@ -2289,42 +2270,6 @@ set_localisations() {
 }
 
 # -----------------------------------------------------------------------------
-# Set the Seed Program using seedutil - this is required when using 
-# softwareupdate --fetch-full-installer
-# -----------------------------------------------------------------------------
-set_seedprogram() {
-    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
-    if [[ $seedprogram ]]; then
-        writelog "[set_seedprogram] $seedprogram seed program selected"
-        if [[ "$current_seed" == "$seedprogram" ]]; then
-            writelog "[set_seedprogram] already enrolled in $seedprogram"
-        else
-            seedutilresult=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil enroll "$seedprogram")
-            if [[ "$seedutilresult" == *"*NOT*"* ]]; then
-                writelog "[set_seedprogram] ERROR: Unable to change to the $seedprogram seed program. You might get unexpected results."
-                echo "progresstext: ERROR: Unable to change to the $seedprogram seed program." >> "$dialog_log"
-                sleep 5
-            fi
-        fi
-    else
-        writelog "[set_seedprogram] Standard seed program selected"
-        if [[ "$current_seed" == "(null)" ]]; then
-            writelog "[set_seedprogram] already unenrolled"
-        else
-            seedutilresult=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil unenroll)
-            if [[ ! "$seedutilresult" == *"Program: (null)"* ]]; then
-                writelog "[set_seedprogram] ERROR: Unable to unenroll seed program. You might get unexpected results."
-                echo "progresstext: ERROR: Unable to unenroll seed program.." >> "$dialog_log"
-                sleep 5
-           fi
-        fi
-    fi
-    sleep 5
-    current_seed=$(/System/Library/PrivateFrameworks/Seeding.framework/Versions/A/Resources/seedutil current | grep "Currently enrolled in:" | sed 's|Currently enrolled in: ||')
-    writelog "[set_seedprogram] Currently enrolled in $current_seed seed program."
-}
-
-# -----------------------------------------------------------------------------
 # Usage message
 # -----------------------------------------------------------------------------
 show_help() {
@@ -2406,9 +2351,8 @@ show_help() {
                         completes preparation, but before reboot.
                         An example might be 'jamf recon -department Spare'.
                         Ensure that the command is in quotes.
-    --catalog ...       Override the default catalog with one from a different OS 
-                        (overrides --seed/--seedprogram).
-    --catalogurl ...    Select a non-standard catalog URL (overrides --seed/--seedprogram).
+    --catalog ...       Override the default catalog with one from a different OS.
+    --catalogurl ...    Select a non-standard catalog URL.
     --caching-server ...
                         Set mist-cli to use a Caching Server, specifying the URL to the server.
     --pkg               Creates a package from the installer. Ignored if --move, --erase or --reinstall is selected.
@@ -2751,10 +2695,6 @@ while test $# -gt 0 ; do
             shift
             min_drive_space="$1"
             ;;
-        --seed|--seedprogram)
-            shift
-            seedprogram="$1"
-            ;;
         --catalogurl)
             shift
             catalogurl="$1"
@@ -2840,9 +2780,6 @@ while test $# -gt 0 ; do
             ;;
         --min-drive-space*)
             min_drive_space=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
-            ;;
-        --seedprogram*)
-            seedprogram=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --catalogurl*)
             catalogurl=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
