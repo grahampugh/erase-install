@@ -512,11 +512,6 @@ check_newer_available() {
         prechosen_os_name=$(convert_os_to_name "$prechosen_os")
         writelog "[check_newer_available] Restricting to selected OS '$prechosen_os'"
         mist_args+=("$prechosen_os_name")
-    elif [[ $sameos ]]; then
-        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
-        prechosen_os_name=$(convert_os_to_name "$system_version_major")
-        writelog "[check_newer_available] Restricting to selected OS '$system_version_major'"
-        mist_args+=("$prechosen_os_name")
     fi
 
     if [[ "$skip_validation" != "yes" ]]; then
@@ -1867,11 +1862,6 @@ run_mist() {
         writelog "[run_mist] Checking that current version $system_version is available"
         mist_args+=("$system_version")
 
-    # restrict to the same major OS as the system if selected
-    elif [[ $sameos == "yes" ]]; then
-        writelog "[run_mist] Checking that current OS $system_version_major is available"
-        mist_args+=("$system_version_major")
-
     else
         # if no version was selected, we want the latest available, which is the first in the mist-list
         latest_version=$(ljt '0.version' < "$mist_export_file")
@@ -2880,16 +2870,6 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
     fi
 fi
 
-# account for when people mistakenly put a version string instead of a major OS
-if [[ "$prechosen_os" ]]; then
-    prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
-    if [[ $prechosen_os_check = 10 ]]; then
-        prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
-    else
-        prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
-    fi
-fi
-
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
 system_build=$( /usr/bin/sw_vers -buildVersion )
@@ -2930,6 +2910,21 @@ if [[ ! $silent ]]; then
     fi
     # get dialog app if not silent mode
     check_for_swiftdialog_app
+fi
+
+# account for when people mistakenly put a version string instead of a major OS
+if [[ "$prechosen_os" ]]; then
+    prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
+    if [[ $prechosen_os_check = 10 ]]; then
+        prechosen_os=$(cut -d. -f1,2 <<< "$prechosen_os")
+    else
+        prechosen_os=$(cut -d. -f1 <<< "$prechosen_os")
+    fi
+fi
+
+# set prechosen_os to sameos if selected
+if [[ "$sameos" ]]; then
+    prechosen_os="$system_version_major"
 fi
 
 # exit out or correct for incompatible options
@@ -3021,7 +3016,7 @@ if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "
     do_overwrite_existing_installer=1
 fi
 
-if [[ "$prechosen_build" != "" ]]; then
+if [[ "$prechosen_build" ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
     if [[ "$installer_build" ]]; then
@@ -3038,7 +3033,7 @@ if [[ "$prechosen_build" != "" ]]; then
     fi
 fi
 
-if [[ "$prechosen_os" != "" ]]; then
+if [[ "$prechosen_os" ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
     if [[ "$installer_build" ]]; then
