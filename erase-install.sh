@@ -2820,7 +2820,7 @@ fi
 if [[ $erase == "yes" && $reinstall == "yes" ]]; then
     writelog "[$script_name] ERROR: Choose either --erase or --reinstall options, but not both!"
     exit 1
-elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_os) || ($sameos && $prechosen_build) ]]; then
+elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_build) ]]; then
     writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"
     exit 1
 elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid_installer == "yes" && $overwrite == "yes") || ($replace_invalid_installer == "yes" && $update_installer == "yes") ]]; then

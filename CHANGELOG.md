@@ -27,6 +27,7 @@ No date
 - Removed quotes from the value obtained from any inputted `--parameter="value"` option.
 - Added missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Fixed the `--fetch-full-installer` option from failing due to a bug in the code change made in v31.0 to remove `seedutil` options (addresses #479 and #488).
+- Fixed the simultaneous use of `--sameos` and `--update` options, so that an outdated installer of the same OS as the system will be replaced when using both these optipons together (addresses #485).
 - Removed the previous bugfix that was introduced in version 30.2 to workaround a bug in mist-cli at the time that would list RCs as regular builds.
 
 ## [32.0]
