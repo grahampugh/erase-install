@@ -290,7 +290,7 @@ check_for_swiftdialog_app() {
 
     # now check for any version of swiftDialog and download if not present
     if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        dialog_string=$("$dialog_bin" --version)
+        dialog_string=$("$dialog_bin" --version 2>/dev/null)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_app)"
     else
@@ -2771,7 +2771,7 @@ writelog "[$script_name] System version: $system_version (Build: $system_build)"
 if [[ "$no_curl" != "yes" ]]; then
     if is-at-least "13" "$system_version"; then 
         latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
-        if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
+        if ! is-at-least "$version" "$latest_erase_install_vers"; then
             writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
         fi
     fi
