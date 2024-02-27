@@ -215,27 +215,32 @@ check_fmm() {
 }
 
 # -----------------------------------------------------------------------------
-# Checks for certain activities, currently only supports Zoom meetings and 
-# Slack huddles.
-# Exits out if activity is detected.
+# Checks for active meetings.
+# Function taken from installomator, function hasDisplaySleepAssertion
 # Called when --check-activty option is used.
 # -----------------------------------------------------------------------------
 check_for_presentation_activity() {
-    # zoom
-    zoom_meeting_active=$(/usr/sbin/lsof -i 4UDP | /usr/bin/grep zoom | /usr/bin/awk 'END{print NR}')
-    # slack
-    if /bin/ps -ax | /usr/bin/grep "Slack Helper (Plugin)" | /usr/bin/grep -v grep >/dev/null; then
-        slack_meeting_active=1
-    else
-        slack_meeting_active=0
+    # Get the names of all apps with active display sleep assertions
+    local apps
+    apps="$(/usr/bin/pmset -g assertions | /usr/bin/awk '/NoDisplaySleepAssertion | PreventUserIdleDisplaySleep/ && match($0,/\(.+\)/) && ! /coreaudiod/ {gsub(/^.*\(/,"",$0); gsub(/\).*$/,"",$0); print};')"
+
+    if [[ ! "$apps" ]]; then
+        # No display sleep assertions detected
+        writelog "[check_for_presentation_activity] No active meetings detected. Continuing."
+        return
     fi
 
-    if [[ $zoom_meeting_active -gt 1 || $slack_meeting_active -eq 1 ]]; then
-        writelog "[check_for_presentation_activity] Active meeting detected. Exiting."
-        exit 0
-    else
-        writelog "[check_for_presentation_activity] No active meetings detected. Continuing."
-    fi
+    # Create an array of apps that need to be ignored
+    IGNORE_DND_APPS="caffeinate"
+    local ignore_array=("${(@s/,/)IGNORE_DND_APPS}")
+
+    for app in ${(f)apps}; do
+        if (( ! ${ignore_array[(Ie)${app}]} )); then
+            # Relevant app with display sleep assertion detected
+            writelog "[check_for_presentation_activity] Active meeting detected (${app}). Exiting."
+            exit 0
+        fi
+    done    
 }
 
 # -----------------------------------------------------------------------------
@@ -269,15 +274,17 @@ check_for_mist() {
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
-    if [[ $(echo "$system_version_major < 12" | bc) -eq 1 && -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        dialog_string=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Library/Application\ Support/Dialog/Dialog.app/Contents/Info.plist)
-        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version_major. Removing v$dialog_string..."
-            app_directory="/Library/Application Support/Dialog"
-            bin_shortcut="/usr/local/bin/dialog"
-            /bin/rm -rf "$app_directory" 
-            /bin/rm -f "$bin_shortcut" /var/tmp/dialog.*
+    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        if ! is-at-least "12" "$system_version"; then 
+            dialog_string=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Library/Application\ Support/Dialog/Dialog.app/Contents/Info.plist)
+            dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+            if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
+                writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
+                app_directory="/Library/Application Support/Dialog"
+                bin_shortcut="/usr/local/bin/dialog"
+                /bin/rm -rf "$app_directory" 
+                /bin/rm -f "$bin_shortcut" /var/tmp/dialog.*
+            fi
         fi
     fi
 
@@ -288,10 +295,10 @@ check_for_swiftdialog_app() {
         writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_app)"
     else
         if [[ ! $no_curl ]]; then
-            if [[ $(echo "$system_version_major < 12" | bc) -eq 1 ]]; then
+            if ! is-at-least "12" "$system_version"; then 
                 # we need to get the older version of swiftDialog that is compatible with Big Sur
                 dialog_download_url="$dialog_bigsur_download_url"
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version_major..."
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
             else
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
             fi
@@ -434,14 +441,9 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        compare_build_versions "$system_build" "$installer_build"
-        if [[ $first_build_major_newer == "yes" || $first_build_minor_newer == "yes" ]]; then
+        if ! is-at-least "$system_build" "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
-        elif [[ $first_build_patch_newer == "yes" ]]; then
-            writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : build might work but if it fails, please obtain a newer installer."
-            warning_issued="yes"
-            invalid_installer_found="no"
         else
             writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build : valid build."
             invalid_installer_found="no"
@@ -467,9 +469,7 @@ check_installer_pkg_is_valid() {
     installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f3 )
 
     # compare the local system's build number with that of InstallAssistant.pkg 
-    compare_build_versions "$system_build" "$installer_pkg_build"
-
-    if [[ $first_build_newer == "yes" ]]; then
+    if is-at-least ! "$system_build" "$installer_pkg_build"; then
         writelog "[check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
         working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="yes"
@@ -549,12 +549,10 @@ check_newer_available() {
             if [[ "$available_build" ]]; then
                 if [[ $installer_pkg_build ]]; then
                     echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
-                    compare_build_versions "$available_build" "$installer_pkg_build"
                 else
                     echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
-                    compare_build_versions "$available_build" "$installer_build"
                 fi
-                if [[ "$first_build_newer" == "yes" ]]; then
+                if ! is-at-least "$available_build" "$installer_build"; then
                     newer_build_found="yes"
                 fi
             fi
@@ -670,95 +668,6 @@ check_power_status() {
         echo
         exit 1
     fi
-}
-
-# -----------------------------------------------------------------------------
-# Compare build numbers.
-# This compares build numbers based on the convention of XXAY(YYY)b, where
-# - XX is the Darwin number
-# - A is the build letter, where A typically relates to XX.0, B to XX.1, etc.
-# - Y(YYY) is a minor build number which can be anything from 1 to a four-
-#   digit number. Typically any 4-digit number refers to a beta, or a forked
-#   build which sometimes occurs when new Mac models are relased.
-# - b is a lower-case letter reserved for beta builds.
-#
-# Darwin numbers are as follows:
-# - macOS 10.14 - Darwin no. 18
-# - macOS 10.15 - Darwin no. 19
-# - macOS 11    - Darwin no. 20
-# - macOS 12    - Darwin no. 21
-# - macOS 13    - Darwin no. 22
-# - macOS 14    - Darwin no. 23
-# 
-# This function determines if the OS, minor version or patch versions match.
-# -----------------------------------------------------------------------------
-compare_build_versions() {
-    first_build="$1"
-    second_build="$2"
-
-    first_build_darwin=${first_build:0:2}
-    second_build_darwin=${second_build:0:2}
-    first_build_letter=${first_build:2:1}
-    second_build_letter=${second_build:2:1}
-    first_build_minor=${first_build:3}
-    second_build_minor=${second_build:3}
-    first_build_minor_no=${first_build_minor//[!0-9]/}
-    second_build_minor_no=${second_build_minor//[!0-9]/}
-    first_build_minor_beta=${first_build_minor//[0-9]/}
-    second_build_minor_beta=${second_build_minor//[0-9]/}
-
-    builds_match="no"
-    versions_match="no"
-    os_matches="no"
-
-    writelog "[compare_build_versions] Comparing (1) $first_build with (2) $second_build"
-    if [[ "$first_build" == "$second_build" ]]; then
-        writelog "[compare_build_versions] $first_build = $second_build"
-        builds_match="yes"
-        versions_match="yes"
-        os_matches="yes"
-        return
-    elif [[ $first_build_darwin -gt $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build"
-        first_build_newer="yes"
-        first_build_major_newer="yes"
-        return
-    elif [[ $first_build_letter > $second_build_letter && $first_build_darwin -eq $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build"
-        first_build_newer="yes"
-        first_build_minor_newer="yes"
-        os_matches="yes"
-        return
-    elif [[ ! $first_build_minor_beta && $second_build_minor_beta && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build (production > beta)"
-        first_build_newer="yes"
-        first_build_patch_newer="yes"
-        versions_match="yes"
-        os_matches="yes"
-        return
-    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -lt 1000 && $second_build_minor_no -lt 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build"
-        first_build_newer="yes"
-        first_build_patch_newer="yes"
-        versions_match="yes"
-        os_matches="yes"
-        return
-    elif [[ ! $first_build_minor_beta && ! $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build (both betas)"
-        first_build_newer="yes"
-        first_build_patch_newer="yes"
-        versions_match="yes"
-        os_matches="yes"
-        return
-    elif [[ $first_build_minor_beta && $second_build_minor_beta && $first_build_minor_no -ge 1000 && $second_build_minor_no -ge 1000 && $first_build_minor_no -gt $second_build_minor_no && $first_build_letter == "$second_build_letter" && $first_build_darwin -eq $second_build_darwin ]]; then
-        writelog "[compare_build_versions] $first_build > $second_build (both betas)"
-        first_build_patch_newer="yes"
-        first_build_newer="yes"
-        versions_match="yes"
-        os_matches="yes"
-        return
-    fi
-
 }
 
 # -----------------------------------------------------------------------------
@@ -1252,13 +1161,6 @@ get_mist_list() {
         writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
-    elif [[ $beta != "yes" ]]; then
-        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
-        darwin_version=$(get_darwin_from_os_version "$system_version_major")
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
     fi
 
     # include betas if selected
@@ -1688,6 +1590,13 @@ run_fetch_full_installer() {
             # check that this version is available in the list
             ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
             if [[ $ffi_available -ge 1 ]]; then
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$prechosen_version"; then 
+                    writelog "[run_fetch_full_installer] ERROR: version in catalog $prechosen_version is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
                 # get the chosen version
                 writelog "[run_fetch_full_installer] Found version $prechosen_version"
                 softwareupdate_args+=("--full-installer-version")
@@ -1705,12 +1614,21 @@ run_fetch_full_installer() {
                 else
                     latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
                 fi
-                
+
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
                 writelog "[run_fetch_full_installer] Found version $latest_ffi"
                 softwareupdate_args+=("--full-installer-version")
                 softwareupdate_args+=("$latest_ffi")
             else
-                writelog "[run_fetch_full_installer] WARNING: No available version for macOS $prechosen_os found. Defaulting to latest available version."
+                writelog "[run_fetch_full_installer] ERROR: No available version for macOS $prechosen_os found."
+                echo
+                exit 1
             fi
         else
             # if no version is selected, we want to obtain the latest. The list obtained from
@@ -1719,11 +1637,9 @@ run_fetch_full_installer() {
 
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
-                latest_ffi_major=$(cut -d. -f1 <<< "$latest_ffi")
-                latest_ffi_minor=$(cut -d. -f2 <<< "$latest_ffi")
-                latest_ffi_patch=$(cut -d. -f3 <<< "$latest_ffi")
-                if [[ $latest_ffi_major -lt $system_version_major || ("$latest_ffi_major" == "$system_version_major" && $(echo "$latest_ffi_minor < $system_version_minor" | bc) == 1) || ("$latest_ffi_major" == "$system_version_major" && "$latest_ffi_minor" == "$system_version_minor" && $(echo "$latest_ffi_patch < $system_version_patch" | bc) == 1) ]]; then
-                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older OS than the system version $system_version"
+                writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
                     echo
                     exit 1
                 fi
@@ -1770,14 +1686,14 @@ run_fetch_full_installer() {
 run_list_full_installers() {
     if [[ $beta == "yes" ]]; then
         if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
-            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
                 writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
                 exit 1
             fi
         fi
     else
         if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" | grep -v "Beta," > "$workdir/ffi-list-full-installers.txt"; then
-            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -ge 1 ]]; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
                 writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
                 exit 1
             fi
@@ -1804,7 +1720,7 @@ run_mist() {
     # restrict to a particular major OS if selected
     if [[ $prechosen_os ]]; then
         # check whether chosen OS is older than the system
-        if [[ $prechosen_os < $system_version_major ]]; then
+        if ! is-at-least "$prechosen_os" "$system_version"; then
             writelog "[run_mist] ERROR: cannot select an older OS than the system"
             echo
             exit 1
@@ -1816,18 +1732,7 @@ run_mist() {
 
     # restrict to a particular version if selected
     elif [[ $prechosen_version ]]; then
-        prechosen_version_check=$(cut -d. -f1 <<< "$prechosen_version")
-        if [[ $prechosen_version_check -eq 10 ]]; then
-            prechosen_version_major=$(cut -d. -f1,2 <<< "$prechosen_version")
-            prechosen_version_minor=$(cut -d. -f3 <<< "$prechosen_version")
-            prechosen_version_patch=0
-        else
-            prechosen_version_major=$(cut -d. -f1 <<< "$prechosen_version")
-            prechosen_version_minor=$(cut -d. -f2 <<< "$prechosen_version")
-            prechosen_version_patch=$(cut -d. -f3 <<< "$prechosen_version")
-        fi
-        # check for an older version
-        if [[ $(echo "$prechosen_version_major < $system_version_major " | bc) == 1 || ("$prechosen_version_major" == "$system_version_major" && $(echo "$prechosen_version_minor < $system_version_minor" | bc) == 1) || ("$prechosen_version_major" == "$system_version_major" && "$prechosen_version_minor" == "$system_version_minor" && $(echo "$prechosen_version_patch < $system_version_patch" | bc) == 1) ]]; then
+        if ! is-at-least "$system_version" "$prechosen_version"; then 
             writelog "[run_mist] ERROR: cannot select an older version than the system"
             echo
             exit 1
@@ -1865,19 +1770,9 @@ run_mist() {
     else
         # if no version was selected, we want the latest available, which is the first in the mist-list
         latest_version=$(ljt '0.version' < "$mist_export_file")
-        latest_version_check=$(cut -d. -f1 <<< "$latest_version")
-        if [[ $latest_version_check -eq 10 ]]; then
-            latest_version_major=$(cut -d. -f1,2 <<< "$latest_version")
-            latest_version_minor=$(cut -d. -f3 <<< "$latest_version")
-            latest_version_patch=0
-        else
-            latest_version_major=$(cut -d. -f1 <<< "$latest_version")
-            latest_version_minor=$(cut -d. -f2 <<< "$latest_version")
-            latest_version_patch=$(cut -d. -f3 <<< "$latest_version")
-        fi
         if [[ $latest_version ]]; then
-            if [[ $(echo "$latest_version_major < $system_version_major" | bc) == 1 || ("$latest_version_major" == "$system_version_major" && $(echo "$latest_version_minor < $system_version_minor" | bc) == 1) || ("$latest_version_major" == "$system_version_major" && "$latest_version_minor" == "$system_version_minor" && $(echo "$latest_version_patch < $system_version_patch" | bc) == 1) ]]; then
-                writelog "[run_mist] ERROR: latest version in catalog ($latest_version) is older OS than the system version ($system_version)"
+            if ! is-at-least "$system_version" "$latest_version"; then
+                writelog "[run_mist] ERROR: latest version in catalog ($latest_version) is older than the system version ($system_version)"
                 echo
                 exit 1
             fi
@@ -1946,13 +1841,6 @@ run_mist() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         get_catalog
         writelog "[run_mist] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    elif [[ $beta != "yes" ]]; then
-        # we have to restrict the mist-cli search to the production catalog to avoid getting RCs
-        darwin_version=$(get_darwin_from_os_version "$system_version_major")
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
         mist_args+=("${catalogs[$darwin_version]}")
     fi
@@ -2552,6 +2440,9 @@ writelog() {
 # Main Body 
 # =============================================================================
 
+# autoload is-at-least module for version comparisons
+autoload is-at-least
+
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
 
@@ -2873,29 +2764,21 @@ fi
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
 system_build=$( /usr/bin/sw_vers -buildVersion )
-system_os=$(cut -d. -f 1 <<< "$system_version")
-if [[ $system_os -eq 10 ]]; then
-    system_version_major=$(cut -d. -f1,2 <<< "$system_version")
-    system_version_minor=$(cut -d. -f3 <<< "$system_version")
-    system_version_patch=0
-else
-    system_version_major=$(cut -d. -f1 <<< "$system_version")
-    system_version_minor=$(cut -d. -f2 <<< "$system_version")
-    system_version_patch=$(cut -d. -f3 <<< "$system_version")
-fi
 
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
 
 # check if this is the latest version of erase-install
-if [[ "$no_curl" != "yes" && $(echo "$system_version_major >= 13" | bc) == 1 ]]; then
-    latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
-    if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
-        writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
+if [[ "$no_curl" != "yes" ]]; then
+    if is-at-least "13" "$system_version"; then 
+        latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
+        if [[ $(echo "$latest_erase_install_vers > $version" | bc) -eq 1 ]]; then
+            writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
+        fi
     fi
 fi
 
 # bail if system is older than macOS 10.15
-if [[ $(echo "$system_version_major < 10.15" | bc) == 1 ]]; then
+if ! is-at-least "10.15" "$system_version"; then 
     writelog "[$script_name] This script requires macOS 10.15 or newer. Please use version 27.x of erase-install.sh on older systems."
     echo
     exit 1
@@ -2903,8 +2786,8 @@ fi
 
 if [[ ! $silent ]]; then
     # bail if system is older than macOS 11 and --silent mode is not selected
-    if [[ $(echo "$system_version_major < 11" | bc) == 1 ]]; then
-        writelog "[$script_name] This script requires macOS 11 or newer in interactive mode. Please use version 27.x of erase-install.sh on older systems."
+    if ! is-at-least "11" "$system_version"; then 
+        writelog "[$script_name] This script requires macOS 11 or newer in interactive mode. Please use version 27.3 of erase-install.sh on older systems."
         echo
         exit 1
     fi
@@ -2924,6 +2807,12 @@ fi
 
 # set prechosen_os to sameos if selected
 if [[ "$sameos" ]]; then
+    system_os=$(cut -d. -f 1 <<< "$system_version")
+    if [[ $system_os -eq 10 ]]; then
+        system_version_major=$(cut -d. -f1,2 <<< "$system_version")
+    else
+        system_version_major=$(cut -d. -f1 <<< "$system_version")
+    fi
     prechosen_os="$system_version_major"
 fi
 
@@ -2940,7 +2829,7 @@ elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid
 fi
 
 # different dialog icon for OS older than macOS 13
-if [[ $(echo "$system_version_major < 13" | bc) == 1 ]]; then
+if ! is-at-least "13" "$system_version"; then 
     dialog_confirmation_icon="/System/Applications/System Preferences.app"
 fi
 
@@ -3019,13 +2908,7 @@ fi
 if [[ "$prechosen_build" ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
-    if [[ "$installer_build" ]]; then
-        installer_darwin_version=${installer_build:0:2}
-    elif [[ "$installer_pkg_build" ]]; then
-        installer_darwin_version=${installer_pkg_build:0:2}
-    fi
-    compare_build_versions "$prechosen_build" "$prechosen_build"
-    if [[ "$builds_match" != "yes" ]]; then
+    if [[ "$installer_build" != "$prechosen_build" ]]; then
         writelog "[$script_name] Existing installer build $prechosen_build does not match requested build $prechosen_build."
         do_overwrite_existing_installer=1
     else
@@ -3042,7 +2925,7 @@ if [[ "$prechosen_os" ]]; then
         installer_darwin_version=${installer_pkg_build:0:2}
     fi
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
-    if [[ $installer_darwin_version -ne $prechosen_darwin_version ]]; then
+    if [[ $installer_darwin_version && ($installer_darwin_version -ne $prechosen_darwin_version) ]]; then
         writelog "[$script_name] Existing installer OS version does not match requested OS ($prechosen_os)."
         do_overwrite_existing_installer=1
     fi

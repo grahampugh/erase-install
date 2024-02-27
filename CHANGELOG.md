@@ -15,17 +15,19 @@ No date
 ### Updates in 33.0
 
 - Removed searches for cached DMG and sparseimages (addresses #480).
-- Added experimental `--check-activity` option. This checks for an active Zoom meeting or Slack huddle when using `--reinstall` or `--erase` options, and quits silently if so (#483, thanks @amadotejada).
+- Added experimental `--check-activity` option. This checks for an active meeting when using `--reinstall` or `--erase` options, and quits silently if so (#483, thanks @amadotejada for the idea, and thanks to the folks of `installomator` for the improved function, and to @BigMacAdmin for pointinf me in that direction).
 - Bumped swiftDialog version to 2.4.0 except for systems running macOS 11 which still get 2.2.1.
 - The installer package now includes both swiftDialog 2.4.0 and 2.2.1, and the postinstall script determines which version to install on the system based on the system OS.
   - NOTE: This also limits the package installation to macOS 11 and newer. If you wish to use erase-install on macOS 10.15 or older, it is recommended to use v27.3.
 - `--fetch-full-installer` no longer attempts to set a seed program using `seedutil` as this functionality has been removed since 13.4 and it's unlikely that betas for older major OSs will ever be listed again. Therefore, the `--seedprogram` option has been removed (it was already superfluous in the mist-cli workflows). To list/use beta versions in either normal (mist-cli) mode or with `--fetch-full-installer`, add the `--beta` option.
+- Switched to using the zsh function `is-at-least` for simpler version comparisons throughout the script (thanks to the folks of `installomator` for the inspiration).
 
 ### Bugfixes in 33.0
 
 - Removed quotes from the value obtained from any inputted `--parameter="value"` option.
 - Added missing `--credentials=XYZ` option (previously only `--credentials XYZ` worked) (thanks @allanp81).
 - Fixed the `--fetch-full-installer` option from failing due to a bug in the code change made in v31.0 to remove `seedutil` options (addresses #479 and #488).
+- Removed the previous bugfix that was introduced in version 30.2 to workaround a bug in mist-cli at the time that would list RCs as regular builds.
 
 ## [32.0]
 
