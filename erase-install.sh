@@ -58,7 +58,7 @@ mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mis
 
 # URL for downloading swiftDialog (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_version_required="2.4.0-4750"
+swiftdialog_version_required="2.4.2-4755"
 dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_version_required}/dialog-${swiftdialog_version_required}.pkg"
 
 # URL for downloading swiftDialog on macOS 11 (with tag version)
