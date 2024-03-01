@@ -16,8 +16,8 @@ No date
 
 - Removed searches for cached DMG and sparseimages (addresses #480).
 - Added experimental `--check-activity` option. This checks for an active meeting when using `--reinstall` or `--erase` options, and quits silently if so (#483, thanks @amadotejada for the idea, and thanks to the folks of `installomator` for the improved function, and to @BigMacAdmin for pointing me in that direction).
-- Bumped swiftDialog version to 2.4.0 except for systems running macOS 11 which still get 2.2.1.
-- The installer package now includes both swiftDialog 2.4.0 and 2.2.1, and the postinstall script determines which version to install on the system based on the system OS.
+- Bumped swiftDialog version to 2.4.2 except for systems running macOS 11 which still get 2.2.1.
+- The installer package now includes both swiftDialog 2.4.2 and 2.2.1, and the postinstall script determines which version to install on the system based on the system OS.
   - NOTE: This also limits the package installation to macOS 11 and newer. If you wish to use erase-install on macOS 10.15 or older, it is recommended to use v27.3.
 - `--fetch-full-installer` no longer attempts to set a seed program using `seedutil` as this functionality has been removed since 13.4 and it's unlikely that betas for older major OSs will ever be listed again. Therefore, the `--seedprogram` option has been removed (it was already superfluous in the mist-cli workflows). To list/use beta versions in either normal (mist-cli) mode or with `--fetch-full-installer`, add the `--beta` option.
 - Switched to using the zsh function `is-at-least` for simpler version comparisons throughout the script (thanks to the folks of `installomator` for the inspiration).
