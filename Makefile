@@ -25,9 +25,17 @@ build:
 
 	@echo
 	swiftdialog_version=$$(awk -F '=' '/swiftdialog_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	swiftdialog_tag=$$(cut -d"-" -f1 <<< "$$swiftdialog_version") ;\
 	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
-	swiftdialog_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_version/dialog-$$swiftdialog_version.pkg" ;\
+	swiftdialog_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_tag/dialog-$$swiftdialog_version.pkg" ;\
 	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg"
+
+	@echo
+	swiftdialog_bigsur_version=$$(awk -F '=' '/swiftdialog_bigsur_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	swiftdialog_bigsur_tag=$$(cut -d"-" -f1 <<< "$$swiftdialog_bigsur_version") ;\
+	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
+	swiftdialog_bigsur_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_bigsur_tag/dialog-$$swiftdialog_bigsur_version.pkg" ;\
+	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog-bigsur.pkg"
 
 	@echo
 	mist_version=$$(awk -F '=' '/mist_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\

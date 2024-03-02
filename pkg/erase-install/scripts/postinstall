@@ -6,11 +6,28 @@
 # current directory
 DIR=$(dirname "$0")
 
-# swiftDialog
-if /usr/sbin/installer -tgt / -pkg "$DIR/dialog.pkg"; then
-    echo "swiftDialog successfully installed"
+# swiftDialog - required version depends on macOS version
+system_version=$( /usr/bin/sw_vers -productVersion )
+
+# macOS 12 and greater uses the latest swiftDialog
+system_os=$(/usr/bin/cut -d. -f 1 <<< "$system_version")
+
+if [[ $system_os -ge 12 ]]; then
+    if /usr/sbin/installer -tgt / -pkg "$DIR/dialog.pkg"; then
+        echo "swiftDialog successfully installed"
+    else
+        echo "ERROR: swiftDialog was not installed"
+        exit 1
+    fi
+elif [[ $system_os -eq 11 ]]; then
+    if /usr/sbin/installer -tgt / -pkg "$DIR/dialog-bigsur.pkg"; then
+        echo "swiftDialog (Big Sur version) successfully installed"
+    else
+        echo "ERROR: swiftDialog was not installed"
+        exit 1
+    fi
 else
-    echo "ERROR: swiftDialog was not installed"
+    echo "ERROR: swiftDialog not compatible with this version of macOS"
     exit 1
 fi
 
