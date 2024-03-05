@@ -1720,7 +1720,8 @@ run_mist() {
     # restrict to a particular major OS if selected
     if [[ $prechosen_os ]]; then
         # check whether chosen OS is older than the system
-        if ! is-at-least "$prechosen_os" "$system_version"; then
+        
+        if ! is-at-least "$system_version" "$prechosen_os"; then
             writelog "[run_mist] ERROR: cannot select an older OS than the system"
             echo
             exit 1
