@@ -8,9 +8,18 @@ For open issues and known bugs, please see the [Issues](https://github.com/graha
 
 No date
 
-## [33.0]
+## [33.1]
 
 No date
+
+### Bugfixes in 33.1
+
+- Changed swiftDialog download URL which has changed again.
+- Fixed logic for comparing OS versions with the `--os` and `--sameos` options, which is broken in 33.0.
+
+## [33.0]
+
+09.03.2024
 
 ### Updates in 33.0
 
@@ -640,7 +649,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v33.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v33.1...HEAD
+[33.1]: https://github.com/grahampugh/erase-install/compare/v33.0...v33.1
 [33.0]: https://github.com/grahampugh/erase-install/compare/v32.0...v33.0
 [32.0]: https://github.com/grahampugh/erase-install/compare/v31.0...v32.0
 [31.0]: https://github.com/grahampugh/erase-install/compare/v30.2...v31.0
