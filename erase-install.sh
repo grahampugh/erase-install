@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="33.0"
+version="33.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -59,13 +59,12 @@ mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mis
 # URL for downloading swiftDialog (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
 swiftdialog_version_required="2.4.2-4755"
-dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_version_required}/dialog-${swiftdialog_version_required}.pkg"
+dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_version_required/-*/}/dialog-${swiftdialog_version_required}.pkg"
 
 # URL for downloading swiftDialog on macOS 11 (with tag version)
 # This ensures a compatible swiftDialog version is used if not using the package installer
 swiftdialog_bigsur_version_required="2.2.1-4591"
-swiftdialog_bigsur_tag_required=$(cut -d"-" -f1 <<< "$swiftdialog_bigsur_version_required")
-dialog_bigsur_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_bigsur_tag_required}/dialog-${swiftdialog_bigsur_version_required}.pkg"
+dialog_bigsur_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_bigsur_version_required/-*/}/dialog-${swiftdialog_bigsur_version_required}.pkg"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -737,6 +736,26 @@ convert_os_to_name () {
             ;;
     esac
     echo "$os_name"
+}
+
+# -----------------------------------------------------------------------------
+# convert OS major version to name
+# -----------------------------------------------------------------------------
+convert_name_to_os () {
+    local os_major_version
+    case "$1" in
+        "Big Sur") os_major_version="11"
+            ;;
+        "Monterey") os_major_version="12"
+            ;;
+        "Ventura") os_major_version="13"
+            ;;
+        "Sonoma") os_major_version="14"
+            ;;
+        *) os_major_version="$1"
+            ;;
+    esac
+    echo "$os_major_version"
 }
 
 # -----------------------------------------------------------------------------
@@ -1720,11 +1739,14 @@ run_mist() {
     # restrict to a particular major OS if selected
     if [[ $prechosen_os ]]; then
         # check whether chosen OS is older than the system
-        
-        if ! is-at-least "$system_version" "$prechosen_os"; then
-            writelog "[run_mist] ERROR: cannot select an older OS than the system"
+        prechosen_os=$(convert_name_to_os "$prechosen_os")
+
+        if ! is-at-least "${system_version/\.*/}" "$prechosen_os"; then
+            writelog "[run_mist] ERROR: cannot select an older OS ($prechosen_os) than the system (${system_version/\.*/}), cannot continue."
             echo
             exit 1
+        else
+            writelog "[run_mist] Selected OS ($prechosen_os) is the same as or newer than the system (${system_version/\.*/}), proceeding..."
         fi
         # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$prechosen_os")
@@ -1734,9 +1756,11 @@ run_mist() {
     # restrict to a particular version if selected
     elif [[ $prechosen_version ]]; then
         if ! is-at-least "$system_version" "$prechosen_version"; then 
-            writelog "[run_mist] ERROR: cannot select an older version than the system"
+            writelog "[run_mist] ERROR: cannot select an older version ($prechosen_version) than the system($system_version)"
             echo
             exit 1
+        else
+            writelog "[run_mist] Selected version ($prechosen_version) is the same as or newer than the system ($system_version), proceeding..."
         fi
         writelog "[run_mist] Checking that selected version $prechosen_version is available"
         mist_args+=("$prechosen_version")
