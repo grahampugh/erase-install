@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="33.1"
+version="34.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -51,20 +51,17 @@ logdir="/Library/Management/erase-install/log"
 # mist tool
 mist_bin="/usr/local/bin/mist"
 
-# URL for downloading dialog (with tag version)
+# Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_version_required="2.0"
-mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
+mist_tag_required="v2.0"
 
-# URL for downloading swiftDialog (with tag version)
+# Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_version_required="2.4.2-4755"
-dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_version_required/-*/}/dialog-${swiftdialog_version_required}.pkg"
+swiftdialog_tag_required="v2.4.2"
 
-# URL for downloading swiftDialog on macOS 11 (with tag version)
+# Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_bigsur_version_required="2.2.1-4591"
-dialog_bigsur_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_bigsur_version_required/-*/}/dialog-${swiftdialog_bigsur_version_required}.pkg"
+swiftdialog_bigsur_tag_required="v2.2.1"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -249,11 +246,11 @@ check_for_mist() {
     if [[ -f "$mist_bin" ]]; then
         # check mist version because older versions may not obtain a valid installer
         mist_version=$("$mist_bin" --version | head -n 1 | cut -d' ' -f1)
-        if [[ "$mist_version" == "$mist_version_required" ]]; then
-            writelog "[check_for_mist] mist-cli v$mist_version_required is installed ($mist_bin)"
+        if [[ v"$mist_version" == "$mist_tag_required" ]]; then
+            writelog "[check_for_mist] mist-cli $mist_tag_required is installed ($mist_bin)"
             mist_is_compatible=1
         else
-            writelog "[check_for_mist] mist-cli v$mist_version is installed ($mist_bin) - does not match required version v"$mist_version_required
+            writelog "[check_for_mist] mist-cli v$mist_version is installed ($mist_bin) - does not match required version $mist_tag_required"
             mist_is_compatible=0
         fi
     else
@@ -263,6 +260,11 @@ check_for_mist() {
     if [[ $mist_is_compatible -ne 1 ]]; then
         if [[ ! $no_curl ]]; then
             writelog "[check_for_mist] Downloading mist-cli..."
+
+            # obtain the download URL
+            mist_api_url="https://api.github.com/repos/ninxsoft/mist-cli/releases"
+            mist_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$mist_api_url/tags/$mist_tag_required" | awk -F '"' '/browser_download_url/ { print $4; exit }')
+            
             if /usr/bin/curl -L "$mist_download_url" -o "$workdir/mist-cli.pkg" ; then
                 if installer -pkg "$workdir/mist-cli.pkg" -target / ; then
                     mist_is_compatible=1
@@ -273,9 +275,9 @@ check_for_mist() {
         fi
         # check it did actually get downloaded
         if [[ $mist_is_compatible -eq 1 ]]; then
-            writelog "[check_for_mist] mist-cli v$mist_version_required is installed ($mist_bin)"
+            writelog "[check_for_mist] mist-cli $mist_tag_required is installed ($mist_bin)"
         elif [[ -f "$mist_bin" ]]; then
-            writelog "[check_for_mist] WARNING! mist-cli v$mist_version is installed ($mist_bin) - does not match required version v"$mist_version_required
+            writelog "[check_for_mist] WARNING! mist-cli v$mist_version is installed ($mist_bin) - does not match required version $mist_tag_required"
         else
             writelog "[check_for_mist] ERROR! Could not download mist-cli. Cannot continue."
             exit 1
@@ -311,11 +313,16 @@ check_for_swiftdialog_app() {
         if [[ ! $no_curl ]]; then
             if ! is-at-least "12" "$system_version"; then 
                 # we need to get the older version of swiftDialog that is compatible with Big Sur
-                dialog_download_url="$dialog_bigsur_download_url"
+                swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
             else
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
             fi
+
+            # obtain the download URL
+            swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
+            dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | awk -F '"' '/browser_download_url/ { print $4; exit }')
+            
             if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
                 if installer -pkg "$workdir/dialog.pkg" -target / ; then
                     dialog_string=$("$dialog_bin" --version)
@@ -2839,8 +2846,8 @@ writelog "[$script_name] System version: $system_version (Build: $system_build)"
 if [[ "$no_curl" != "yes" ]]; then
     if is-at-least "13" "$system_version"; then 
         latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
-        if ! is-at-least "$version" "$latest_erase_install_vers"; then
-            writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
+        if ! is-at-least "$latest_erase_install_vers" "$version" ; then
+            writelog "[$script_name] A newer version of this script is available ($latest_erase_install_vers). Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
         fi
     fi
 fi
