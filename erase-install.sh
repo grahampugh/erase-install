@@ -247,23 +247,38 @@ check_for_presentation_activity() {
 # -----------------------------------------------------------------------------
 check_for_mist() {
     if [[ -f "$mist_bin" ]]; then
-        writelog "[check_for_mist] mist is installed ($mist_bin)"
+        # check mist version because older versions may not obtain a valid installer
+        mist_version=$("$mist_bin" --version | head -n 1 | cut -d' ' -f1)
+        if [[ "$mist_version" == "$mist_version_required" ]]; then
+            writelog "[check_for_mist] mist-cli v$mist_version_required is installed ($mist_bin)"
+            mist_is_compatible=1
+        else
+            writelog "[check_for_mist] mist-cli v$mist_version is installed ($mist_bin) - does not match required version v"$mist_version_required
+            mist_is_compatible=0
+        fi
     else
+        writelog "[check_for_mist] mist-cli is not installed"
+        mist_is_compatible=0
+    fi
+    if [[ $mist_is_compatible -ne 1 ]]; then
         if [[ ! $no_curl ]]; then
             writelog "[check_for_mist] Downloading mist-cli..."
             if /usr/bin/curl -L "$mist_download_url" -o "$workdir/mist-cli.pkg" ; then
-                if ! installer -pkg "$workdir/mist-cli.pkg" -target / ; then
-                    writelog "[check_for_mist] mist installation failed"
+                if installer -pkg "$workdir/mist-cli.pkg" -target / ; then
+                    mist_is_compatible=1
+                else
+                    writelog "[check_for_mist] WARNING! mist-cli installation failed"
                 fi
-            else
-                writelog "[check_for_mist] mist download failed"
             fi
         fi
         # check it did actually get downloaded
-        if [[ -f "$mist_bin" ]]; then
-            writelog "[check_for_mist] mist is installed"
+        if [[ $mist_is_compatible -eq 1 ]]; then
+            writelog "[check_for_mist] mist-cli v$mist_version_required is installed ($mist_bin)"
+        elif [[ -f "$mist_bin" ]]; then
+            writelog "[check_for_mist] WARNING! mist-cli v$mist_version is installed ($mist_bin) - does not match required version v"$mist_version_required
         else
-            writelog "[check_for_mist] Could not download dialog."
+            writelog "[check_for_mist] ERROR! Could not download mist-cli. Cannot continue."
+            exit 1
         fi
     fi
 }
