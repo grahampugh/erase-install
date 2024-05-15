@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="33.1"
+version="34.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -51,20 +51,17 @@ logdir="/Library/Management/erase-install/log"
 # mist tool
 mist_bin="/usr/local/bin/mist"
 
-# URL for downloading dialog (with tag version)
+# Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_version_required="2.0"
-mist_download_url="https://github.com/ninxsoft/mist-cli/releases/download/v${mist_version_required}/mist-cli.${mist_version_required}.pkg"
+mist_tag_required="v2.0"
 
-# URL for downloading swiftDialog (with tag version)
+# Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_version_required="2.4.2-4755"
-dialog_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_version_required/-*/}/dialog-${swiftdialog_version_required}.pkg"
+swiftdialog_tag_required="v2.4.2"
 
-# URL for downloading swiftDialog on macOS 11 (with tag version)
+# Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_bigsur_version_required="2.2.1-4591"
-dialog_bigsur_download_url="https://github.com/swiftDialog/swiftDialog/releases/download/v${swiftdialog_bigsur_version_required/-*/}/dialog-${swiftdialog_bigsur_version_required}.pkg"
+swiftdialog_bigsur_tag_required="v2.2.1"
 
 # swiftDialog variables
 dialog_app="/Library/Application Support/Dialog/Dialog.app"
@@ -247,23 +244,43 @@ check_for_presentation_activity() {
 # -----------------------------------------------------------------------------
 check_for_mist() {
     if [[ -f "$mist_bin" ]]; then
-        writelog "[check_for_mist] mist is installed ($mist_bin)"
+        # check mist version because older versions may not obtain a valid installer
+        mist_version=$("$mist_bin" --version | head -n 1 | cut -d' ' -f1)
+        if [[ v"$mist_version" == "$mist_tag_required" ]]; then
+            writelog "[check_for_mist] mist-cli $mist_tag_required is installed ($mist_bin)"
+            mist_is_compatible=1
+        else
+            writelog "[check_for_mist] mist-cli v$mist_version is installed ($mist_bin) - does not match required version $mist_tag_required"
+            mist_is_compatible=0
+        fi
     else
+        writelog "[check_for_mist] mist-cli is not installed"
+        mist_is_compatible=0
+    fi
+    if [[ $mist_is_compatible -ne 1 ]]; then
         if [[ ! $no_curl ]]; then
             writelog "[check_for_mist] Downloading mist-cli..."
+
+            # obtain the download URL
+            mist_api_url="https://api.github.com/repos/ninxsoft/mist-cli/releases"
+            mist_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$mist_api_url/tags/$mist_tag_required" | awk -F '"' '/browser_download_url/ { print $4; exit }')
+            
             if /usr/bin/curl -L "$mist_download_url" -o "$workdir/mist-cli.pkg" ; then
-                if ! installer -pkg "$workdir/mist-cli.pkg" -target / ; then
-                    writelog "[check_for_mist] mist installation failed"
+                if installer -pkg "$workdir/mist-cli.pkg" -target / ; then
+                    mist_is_compatible=1
+                else
+                    writelog "[check_for_mist] WARNING! mist-cli installation failed"
                 fi
-            else
-                writelog "[check_for_mist] mist download failed"
             fi
         fi
         # check it did actually get downloaded
-        if [[ -f "$mist_bin" ]]; then
-            writelog "[check_for_mist] mist is installed"
+        if [[ $mist_is_compatible -eq 1 ]]; then
+            writelog "[check_for_mist] mist-cli $mist_tag_required is installed ($mist_bin)"
+        elif [[ -f "$mist_bin" ]]; then
+            writelog "[check_for_mist] WARNING! mist-cli v$mist_version is installed ($mist_bin) - does not match required version $mist_tag_required"
         else
-            writelog "[check_for_mist] Could not download dialog."
+            writelog "[check_for_mist] ERROR! Could not download mist-cli. Cannot continue."
+            exit 1
         fi
     fi
 }
@@ -296,11 +313,16 @@ check_for_swiftdialog_app() {
         if [[ ! $no_curl ]]; then
             if ! is-at-least "12" "$system_version"; then 
                 # we need to get the older version of swiftDialog that is compatible with Big Sur
-                dialog_download_url="$dialog_bigsur_download_url"
+                swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
             else
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
             fi
+
+            # obtain the download URL
+            swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
+            dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | awk -F '"' '/browser_download_url/ { print $4; exit }')
+            
             if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
                 if installer -pkg "$workdir/dialog.pkg" -target / ; then
                     dialog_string=$("$dialog_bin" --version)
@@ -1931,6 +1953,8 @@ set_localisations() {
         user_language="es"
     elif [[ $language = pt* ]]; then
         user_language="pt"
+    elif [[ $language = ja* ]]; then
+        user_language="ja"
     else
         user_language="en"
     fi
@@ -1942,6 +1966,7 @@ set_localisations() {
     dialog_dl_title_fr="Téléchargement de macOS"
     dialog_dl_title_es="Descargando macOS"
     dialog_dl_title_pt="Baixando o macOS"
+    dialog_dl_title_ja="macOS のダウンロード"
     dialog_dl_title=dialog_dl_title_${user_language}
 
     # Dialogue localizations - download window - description
@@ -1951,6 +1976,7 @@ set_localisations() {
     dialog_dl_desc_fr="Nous devons télécharger le programme d'installation de macOS sur votre ordinateur.  \n\nCela peut prendre plusieurs minutes, en fonction de votre connexion Internet."
     dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu Mac.  \n\nEsto puede tardar varios minutos, dependiendo de tu conexión a Internet."
     dialog_dl_desc_pt="Precisamos baixar o instalador do macOS para o seu computador. \n\nIsso pode levar vários minutos, dependendo da sua conexão com a Internet."
+    dialog_dl_desc_ja="macOS のインストーラをダウンロードしています。  \n\n回線状況によっては数分かかる場合があります。"
     dialog_dl_desc=dialog_dl_desc_${user_language}
 
     # Dialogue localizations - erase lock screen - title
@@ -1960,6 +1986,7 @@ set_localisations() {
     dialog_erase_title_fr="Effacement de macOS"
     dialog_erase_title_es="Borrado de macOS"
     dialog_erase_title_pt="Apagado de macOS"
+    dialog_erase_title_ja="macOS の消去"
     dialog_erase_title=dialog_erase_title_${user_language}
 
     # Dialogue localizations - erase lock screen - description
@@ -1969,6 +1996,7 @@ set_localisations() {
     dialog_erase_desc_fr="### La préparation du programme d'installation peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarre et poursuit la réinstallation."
     dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y continuará la reinstalación."
     dialog_erase_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a reinstalação continuará."
+    dialog_erase_desc_ja="### インストーラの準備には最大で30分かかる場合があります。  \n\n完了するとコンピュータが再起動し、再インストールが開始されます。"
     dialog_erase_desc=dialog_erase_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - title
@@ -1978,6 +2006,7 @@ set_localisations() {
     dialog_reinstall_title_fr="Mise à niveau de macOS"
     dialog_reinstall_title_es="Actualizando de macOS"
     dialog_reinstall_title_pt="Atualizando o macOS"
+    dialog_reinstall_title_ja="macOS のアップグレード"
     dialog_reinstall_title=dialog_reinstall_title_${user_language}
 
     # Dialogue localizations - reinstall lock screen - heading
@@ -1987,6 +2016,7 @@ set_localisations() {
     dialog_reinstall_heading_fr="Veuillez patienter pendant que nous préparons votre ordinateur pour la mise à niveau de macOS."
     dialog_reinstall_heading_es="Por favor, espera mientras preparamos tu mac para la actualización de macOS."
     dialog_reinstall_heading_pt="Aguarde enquanto preparamos seu computador para atualizar o macOS."
+    dialog_reinstall_heading_ja="macOS アップグレードの準備をしています。しばらくお待ちください。"
     dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
     # Dialogue localizations - reinstall lock screen - description
@@ -1996,6 +2026,7 @@ set_localisations() {
     dialog_reinstall_desc_fr="### Ce processus peut prendre jusqu'à 30 minutes.  \n\nUne fois terminé, votre ordinateur redémarrera et commencera la mise à niveau."
     dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y comenzará la actualización."
     dialog_reinstall_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a atualização começará."
+    dialog_reinstall_desc_ja="### インストーラの準備には最大で30分かかる場合があります。  \n\n完了するとコンピュータが再起動し、アップグレードが開始されます。"
     dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - status message
@@ -2005,6 +2036,7 @@ set_localisations() {
     dialog_reinstall_status_fr="Préparation de macOS pour l'installation"
     dialog_reinstall_status_es="Preparación de macOS para la instalación"
     dialog_reinstall_status_pt="Preparando o macOS para instalação"
+    dialog_reinstall_status_ja="macOS インストールの準備"
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
@@ -2014,6 +2046,7 @@ set_localisations() {
     dialog_rebooting_heading_fr="La mise à niveau est maintenant prête à être installée.  \n\n### Sauvegardez les travaux en cours maintenant!"
     dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarda ahora los trabajos pendientes!"
     dialog_rebooting_heading_pt="A atualização agora está pronta para instalação. \n\n### Salve qualquer trabalho aberto agora!"
+    dialog_rebooting_heading_ja="アップグレードのインストール準備ができました。  \n\n### 開いているファイルがあれば保存してください！"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -2023,6 +2056,7 @@ set_localisations() {
     dialog_erase_confirmation_desc_fr="Veuillez confirmer que vous souhaitez EFFACER TOUTES LES DONNÉES DE CET APPAREIL et réinstaller macOS"
     dialog_erase_confirmation_desc_es="Por favor, confirma que deseas BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
     dialog_erase_confirmation_desc_pt="Confirme que deseja APAGAR TODOS OS DADOS DESTE DISPOSITIVO e reinstalar o macOS"
+    dialog_erase_confirmation_desc_ja="***このデバイスから全てのデータが消去***され、macOS が再インストールされます。ご確認ください。"
     dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 
     # Dialogue localizations - reinstall confirmation window - description
@@ -2032,6 +2066,7 @@ set_localisations() {
     dialog_reinstall_confirmation_desc_fr="Veuillez confirmer que vous voulez mettre à jour macOS sur ce système maintenant."
     dialog_reinstall_confirmation_desc_es="Por favor, confirma que deseas actualizar macOS en este sistema ahora"
     dialog_reinstall_confirmation_desc_pt="Confirme que deseja atualizar o macOS neste sistema agora"
+    dialog_reinstall_confirmation_desc_ja="このシステムで macOS をアップグレードすることをご確認ください。"
     dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
 
     # Dialogue localizations - free space check - description
@@ -2041,6 +2076,7 @@ set_localisations() {
     dialog_check_desc_fr="La mise à niveau de macOS ne peut pas être installée car il n'y a pas assez d'espace disponible sur ce volume."
     dialog_check_desc_es="La actualización de macOS no se puede instalar porque no queda espacio suficiente en la unidad."
     dialog_check_desc_pt="A atualização do macOS não pode ser instalada porque não há espaço suficiente na unidade."
+    dialog_check_desc_ja="ドライブに十分な空き領域がないため、macOS アップグレードをインストールできません。"
     dialog_check_desc=dialog_check_desc_${user_language}
 
     # Dialogue localizations - power check - title
@@ -2050,6 +2086,7 @@ set_localisations() {
     dialog_power_title_fr="En attente de l'alimentation secteur"
     dialog_power_title_es="A la espera de la conexión a la red eléctrica"
     dialog_power_title_pt="Aguardando conexão de alimentação CA"
+    dialog_power_title_ja="電源アダプタの接続を待っています"
     dialog_power_title=dialog_power_title_${user_language}
 
     # Dialogue localizations - power check - description
@@ -2059,6 +2096,7 @@ set_localisations() {
     dialog_power_desc_fr="Veuillez connecter votre ordinateur à un adaptateur secteur.  \n\nCe processus se poursuivra une fois que l'alimentation secteur sera détectée dans la suivante:"
     dialog_power_desc_es="Conecta tu Mac a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
     dialog_power_desc_pt="Conecte seu computador à energia usando um adaptador de energia CA. \in\Este processo continuará se a alimentação CA for detectada dentro do tempo especificado."
+    dialog_power_desc_ja="コンピュータに電源アダプタを接続してください。  \n\n指定された時間内に電源アダプタが接続された場合、この処理は続行されます。"
     dialog_power_desc=dialog_power_desc_${user_language}
 
     # Dialogue localizations - no power detected - description
@@ -2068,6 +2106,7 @@ set_localisations() {
     dialog_nopower_desc_fr="### Le courant alternatif n'a pas été branché dans le délai spécifié.  \n\nAppuyez sur OK pour quitter."
     dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulsa OK para salir."
     dialog_nopower_desc_pt="### A alimentação CA não foi conectada no tempo especificado. \n\nPressione OK para sair."
+    dialog_nopower_desc_ja="### 指定された時間内に電源アダプタが接続されませんでした。  \n\nOK を押して終了してください。"
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
     # Dialogue localizations - Find My check - title
@@ -2077,6 +2116,7 @@ set_localisations() {
     dialog_fmm_title_fr="En attente de Localiser mon Mac"
     dialog_fmm_title_es="A la espera de la desactivacion de Buscar mi Mac"
     dialog_fmm_title_pt="Aguardando que o Buscar no Mac seja desativado"
+    dialog_fmm_title_ja="「Macを探す」が無効になるのを待っています"
     dialog_fmm_title=dialog_fmm_title_${user_language}
 
     # Dialogue localizations - Find My check - description
@@ -2086,6 +2126,7 @@ set_localisations() {
     dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
     dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
     dialog_fmm_desc_pt="Desative **Buscar no Mac** nas configurações do iCloud. \n\nEssa configuração pode ser encontrada em **Preferências do Sistema** > **ID Apple** > **iCloud**. \n\nEsse processo continuará se o Buscar no Mac tiver sido desativado dentro do tempo especificado."
+    dialog_fmm_desc_ja="iCloud の設定で「**Macを探す**」を無効にしてください。  \nこの設定は **システム環境設定** > **Apple ID** > **iCloud** にあります。  \n\n指定された時間内に「Macを探す」が無効になった場合、この処理は続行されます。"
     dialog_fmm_desc=dialog_fmm_desc_${user_language}
 
     # Dialogue localizations - Find My check failed - description
@@ -2095,6 +2136,7 @@ set_localisations() {
     dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
     dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulsa OK para salir."
     dialog_fmmenabled_desc_pt="### Buscar no Mac não foi desativado no tempo especificado. \n\nPressione OK para sair."
+    dialog_fmmenabled_desc_ja="### 「Macを探す」は指定された時間内に無効になりませんでした。  \n\nOK を押して終了してください。"
     dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
@@ -2104,6 +2146,7 @@ set_localisations() {
     dialog_erase_credentials_fr="L'effacement de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus d'effacement."
     dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce tu nombre de usuario y contraseña para iniciar el proceso de borrado."
     dialog_erase_credentials_pt="Apagar o macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de exclusão."
+    dialog_erase_credentials_ja="macOS を消去するには、ローカルアカウントの資格情報による認証が必要です。  \n\nアカウント名とパスワードを入力して消去を開始してください。"
     dialog_erase_credentials=dialog_erase_credentials_${user_language}
 
     # Dialogue localizations - ask for credentials - reinstall
@@ -2113,6 +2156,7 @@ set_localisations() {
     dialog_reinstall_credentials_fr="La mise à niveau de macOS nécessite une authentification à l'aide des informations d'identification du compte local.  \n\nVeuillez saisir votre nom de compte et votre mot de passe pour lancer le processus de mise à niveau."
     dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce el nombre de tu usuario y la contraseña para iniciar el proceso de actualización."
     dialog_reinstall_credentials_pt="A atualização do macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de atualização."
+    dialog_reinstall_credentials_ja="macOS をアップグレードするには、ローカルアカウントの資格情報による認証が必要です。  \n\nアカウント名とパスワードを入力してアップグレードを開始してください。"
     dialog_reinstall_credentials=dialog_reinstall_credentials_${user_language}
 
     # Dialogue localizations - not a volume owner
@@ -2122,6 +2166,7 @@ set_localisations() {
     dialog_not_volume_owner_fr="### Le compte n'est pas propriétaire du volume  \n\nVeuillez vous connecter en utilisant l'un des comptes suivants et réessayer."
     dialog_not_volume_owner_es="### La cuenta de usuario no es un Volume Owner   \n\nPor favor, inicie sesión con una de las siguientes cuentas de usuario e inténtelo de nuevo."
     dialog_not_volume_owner_pt="### A conta não é um Volume Owner \n\nFaça login usando uma das contas a seguir e tente novamente."
+    dialog_not_volume_owner_ja="### アカウントがボリュームのオーナーではありません  \n\n次のいずれかのアカウントで再度ログインをお試しください。"
     dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
     # Dialogue localizations - invalid user
@@ -2131,6 +2176,7 @@ set_localisations() {
     dialog_invalid_user_fr="### Mauvais utilisateur  \n\nCe compte ne peut pas être utilisé pour effectuer la réinstallation"
     dialog_invalid_user_es="### Usuario incorrecto  \n\nEsta cuenta de usuario no puede ser utilizada para realizar la reinstalación"
     dialog_invalid_user_pt="### Usuário incorreto \n\nEsta conta não pode ser usada para realizar a reinstalação"
+    dialog_invalid_user_ja="### ユーザーが間違っています  \n\nこのアカウントでは再インストールを実行できません"
     dialog_invalid_user=dialog_invalid_user_${user_language}
 
     # Dialogue localizations - invalid password
@@ -2140,6 +2186,7 @@ set_localisations() {
     dialog_invalid_password_fr="### Mot de passe erroné  \n\nLe mot de passe entré n'est PAS le mot de passe de connexion pour"
     dialog_invalid_password_es="### Contraseña incorrecta  \n\nLa contraseña introducida NO es la contraseña de acceso a"
     dialog_invalid_password_pt="### Senha incorreta \n\nA senha digitada NÃO é a senha de login para"
+    dialog_invalid_password_ja="### パスワードが間違っています  \n\n入力されたパスワードは、このアカウントのログインパスワードではありません"
     dialog_invalid_password=dialog_invalid_password_${user_language}
 
     # Dialogue localizations - buttons - confirm
@@ -2149,6 +2196,7 @@ set_localisations() {
     dialog_confirmation_button_fr="Confirmer"
     dialog_confirmation_button_es="Confirmar"
     dialog_confirmation_button_pt="Confirmar"
+    dialog_confirmation_button_ja="確認"
     dialog_confirmation_button=dialog_confirmation_button_${user_language}
 
     # Dialogue localizations - buttons - cancel
@@ -2158,6 +2206,7 @@ set_localisations() {
     dialog_cancel_button_fr="Annuler"
     dialog_cancel_button_es="Cancelar"
     dialog_cancel_button_pt="Cancelar"
+    dialog_cancel_button_ja="キャンセル"
     dialog_cancel_button=dialog_cancel_button_${user_language}
 
     # Dialogue localizations - buttons - enter
@@ -2167,6 +2216,7 @@ set_localisations() {
     dialog_enter_button_fr="Entrer"
     dialog_enter_button_es="Entrar"
     dialog_enter_button_pt="Digitar"
+    dialog_enter_button_ja="実行"
     dialog_enter_button=dialog_enter_button_${user_language}
 
     
@@ -2796,8 +2846,8 @@ writelog "[$script_name] System version: $system_version (Build: $system_build)"
 if [[ "$no_curl" != "yes" ]]; then
     if is-at-least "13" "$system_version"; then 
         latest_erase_install_vers=$(/usr/bin/curl https://api.github.com/repos/grahampugh/erase-install/releases/latest 2>/dev/null | plutil -extract name raw -- -)
-        if ! is-at-least "$version" "$latest_erase_install_vers"; then
-            writelog "[$script_name] A newer version of this script is available. Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
+        if ! is-at-least "$latest_erase_install_vers" "$version" ; then
+            writelog "[$script_name] A newer version of this script is available ($latest_erase_install_vers). Visit https://github.com/grahampugh/erase-install/releases/tag/v$latest_erase_install_vers to obtain the latest version."
         fi
     fi
 fi
