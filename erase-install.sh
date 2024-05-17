@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="33.1"
+version="34.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -440,7 +440,27 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        if ! is-at-least "$system_build" "$installer_build"; then
+        # if current system is on a beta, we have to assume that this is older than a build number of the same minor version
+        if /usr/bin/grep -e "[a-z]$" <<< "$system_build"; then
+            # system is beta
+            if /usr/bin/grep -e "[a-z]$" <<< "$installer_build"; then
+                if ! is-at-least "$system_build" "$installer_build"; then
+                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (both beta): invalid build."
+                    invalid_installer_found="yes"
+                else
+                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (both beta): valid build."
+                    invalid_installer_found="no"
+                fi
+            else
+                if ! is-at-least "${system_build:0:3}" "${installer_build:0:3}"; then
+                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (beta): invalid build."
+                    invalid_installer_found="yes"
+                else
+                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (beta) : valid build."
+                    invalid_installer_found="no"
+                fi
+            fi
+        elif ! is-at-least "$system_build" "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
