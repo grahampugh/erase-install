@@ -24,24 +24,28 @@ build:
 	mkdir -p "$(PKG_SCRIPTS)"
 
 	@echo
-	swiftdialog_version=$$(awk -F '=' '/swiftdialog_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	swiftdialog_tag=$$(cut -d"-" -f1 <<< "$$swiftdialog_version") ;\
-	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
-	swiftdialog_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_tag/dialog-$$swiftdialog_version.pkg" ;\
-	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg"
+	swiftdialog_tag=$$(awk -F '=' '/swiftdialog_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Downloading swiftDialog $$swiftdialog_tag" ;\
+	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
+	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
+	echo "## Downloaded swiftDialog $$swiftdialog_tag"
 
 	@echo
-	swiftdialog_bigsur_version=$$(awk -F '=' '/swiftdialog_bigsur_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	swiftdialog_bigsur_tag=$$(cut -d"-" -f1 <<< "$$swiftdialog_bigsur_version") ;\
-	echo "## Downloading swiftDialog v$$swiftdialog_version" ;\
-	swiftdialog_bigsur_url="https://github.com/swiftDialog/swiftDialog/releases/download/v$$swiftdialog_bigsur_tag/dialog-$$swiftdialog_bigsur_version.pkg" ;\
-	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog-bigsur.pkg"
+	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Downloading swiftDialog $$swiftdialog_bigsur_tag" ;\
+	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
+	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
+	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"
 
 	@echo
-	mist_version=$$(awk -F '=' '/mist_version_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	echo "## Downloading mist-cli v$$mist_version" ;\
-	mist_url="https://github.com/ninxsoft/mist-cli/releases/download/v$$mist_version/mist-cli.$$mist_version.pkg" ;\
-	curl -L "$$mist_url" -o "$(PKG_SCRIPTS)/mist-cli.pkg"
+	mist_tag=$$(awk -F '=' '/mist_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Downloading mist-cli $$mist_tag" ;\
+	mist_api_url="https://api.github.com/repos/ninxsoft/mist-cli/releases" ;\
+	mist_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$mist_api_url/tags/$$mist_tag" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	curl -L "$$mist_url" -o "$(PKG_SCRIPTS)/mist-cli.pkg" ;\
+	echo "## Downloaded mist-cli $$mist_tag"
 
 	@echo
 	pkg_version=$$(awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\

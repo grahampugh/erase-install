@@ -8,6 +8,20 @@ For open issues and known bugs, please see the [Issues](https://github.com/graha
 
 No date
 
+## [34.0]
+
+19.04.2024
+
+### Updates in 34.0
+
+- Added Japanese localization (#496, thanks to @teddi for this contribution).
+- Enforce the required version of mist-cli to prevent reported issues of older versions downloading incompatible macOS installers (#500, thanks @cchsadmin).
+- Use the GitHub API to obtain swiftDialog and mist-cli download URL (#494, thanks @bartreardon).
+
+### Bugfixes in 34.0
+
+- Fix comparison check of this script with latest available version.
+
 ## [33.1]
 
 14.03.2024
