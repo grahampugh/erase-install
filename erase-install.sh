@@ -100,7 +100,7 @@ ask_for_credentials() {
         "--icon"
         "${dialog_confirmation_icon}"
         "--overlayicon"
-        "SF=key.fill,colour=grey"
+        "SF=key.fill"
         "--iconsize"
         "${dialog_icon_size}"
         "--textfield"
@@ -1963,6 +1963,14 @@ set_localisations() {
     current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
     # detect the user's language
     language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
+    # override language if specified in arguments
+    if [[ "$language_override" ]]; then
+        writelog "[set_localisations] Overriding language to $language_override"
+        language="$language_override"
+    else
+        writelog "[set_localisations] Set language to $language"
+    fi
+
     if [[ $language = de* ]]; then
         user_language="de"
     elif [[ $language = nl* ]]; then
@@ -2345,6 +2353,8 @@ show_help() {
                         security team don't like it.
     --no-timeout        The script will normally timeout if the installer has not successfully
                         prepared after 1 hour. This extends that time limit to 24 hours.
+    --language          Override the system language with one of the other available languages.
+                        Acceptable values are en, de, fr, nl, es, pt, ja.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2559,9 +2569,6 @@ min_drive_space=45
 # default max_password_attempts to 5
 max_password_attempts=5
 
-# set language and localisations
-set_localisations
-
 # predefine arrays
 preinstall_command=()
 postinstall_command=()
@@ -2742,6 +2749,10 @@ while test $# -gt 0 ; do
             shift
             kc_service="$1"
             ;;
+        --language)
+            shift
+            language_override="$1"
+            ;;
         --kc=*)
             kc=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
@@ -2810,6 +2821,9 @@ while test $# -gt 0 ; do
         --credentials*)
             credentials=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
+        --language*)
+            language_override=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
+            ;;
         -h|--help) show_help
             ;;
     esac
@@ -2855,6 +2869,9 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         echo
     fi
 fi
+
+# set language and localisations
+set_localisations
 
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
