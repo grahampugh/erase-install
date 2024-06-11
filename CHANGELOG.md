@@ -4,9 +4,35 @@
 
 For open issues and known bugs, please see the [Issues](https://github.com/grahampugh/erase-install/issues) page.
 
+## Notice for installing erase-install package on macOS Sequoia
+
+Since the package on this site is not signed, if you download this package and try to install it from Finder on a Mac running macOS Sonoma, it will fail to install, even if running Ctrl-Click. To solve this, do **either** of these:
+
+1. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
+2. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
+
 ## [Untagged]
 
 No date
+
+## [35.0]
+
+11.06.2024
+
+### Updates in 35.0
+
+- Added the `--min-battery` option which, in conjunction with `--check-power` allows to set a minimum battery percentage, above which the power check is ignored. For example, `--check power --min-battery 30` sets the minimum percentage to 30%. The minimum allowed is 15% (addresses #455, thanks @PhillyPhoto). `--check power` without `--min-battery` still requires AC power.
+- Added a 5-minute timeout to the password dialogs to prevent people ignoring it (addresses #501, thanks @PhillyPhoto).
+- Added the `--language` option to give the ability to override the language of the dialog windows - the default is either the system language or English if there is no translation of the system language available. Now you can set the language to any of the available translations using the short language codes, which are **en, de, fr, nl, es, pt, ja**. For example, `--language de` or `--language=de` will set the language to German regardless of the system language setting.
+- Bumped mist-cli version to 2.1 which fixes a bug downloading macOS Sequoia beta installers.
+- Added the catalog `https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog`, which can be used with `--beta` and `--catalog 15` to obtain macOS Sequoia beta installers. Note that this will be replaced with the production macOS 15 catalog once it is published.
+
+### Bugfixes in 35.0
+
+- Fixed the comparison check of installer pkgs with current system when using `--pkg` mode.
+- Changed lock symbol colour on the password dialog from grey to black as grey seems to have stopped working.
+- Fixed code comment error (#508, thanks @jarrodCoombes).
+- Fixed some function output labels.
 
 ## [34.0]
 
@@ -15,12 +41,12 @@ No date
 ### Updates in 34.0
 
 - Added Japanese localization (#496, thanks to @teddi for this contribution).
-- Enforce the required version of mist-cli to prevent reported issues of older versions downloading incompatible macOS installers (#500, thanks @cchsadmin).
-- Use the GitHub API to obtain swiftDialog and mist-cli download URL (#494, thanks @bartreardon).
+- Enforced the required version of mist-cli to prevent reported issues of older versions downloading incompatible macOS installers (#500, thanks @cchsadmin).
+- Started using the GitHub API to obtain swiftDialog and mist-cli download URL (#494, thanks @bartreardon).
 
 ### Bugfixes in 34.0
 
-- Fix comparison check of this script with latest available version.
+- Fixed the comparison check of this script with latest available version.
 
 ## [33.1]
 
@@ -663,7 +689,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v33.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v35.0...HEAD
+[35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0
+[34.0]: https://github.com/grahampugh/erase-install/compare/v33.1...v34.0
 [33.1]: https://github.com/grahampugh/erase-install/compare/v33.0...v33.1
 [33.0]: https://github.com/grahampugh/erase-install/compare/v32.0...v33.0
 [32.0]: https://github.com/grahampugh/erase-install/compare/v31.0...v32.0

@@ -1,4 +1,4 @@
-#!/bin/zsh 
+#!/bin/zsh --no-rcs
 # shellcheck shell=bash
 # shellcheck disable=SC2001
 # this is to use sed in the case statements
@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="34.0"
+version="35.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -53,7 +53,7 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.0"
+mist_tag_required="v2.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -100,7 +100,7 @@ ask_for_credentials() {
         "--icon"
         "${dialog_confirmation_icon}"
         "--overlayicon"
-        "SF=key.fill,colour=grey"
+        "SF=key.fill"
         "--iconsize"
         "${dialog_icon_size}"
         "--textfield"
@@ -109,6 +109,9 @@ ask_for_credentials() {
         "Password,secure"
         "--button1text"
         "Continue"
+        "--timer"
+        "300"
+        "--hidetimerbar"
     )
     if [[ "$erase" == "yes" ]]; then
         dialog_args+=(
@@ -169,7 +172,7 @@ check_fmm() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
-        # now count down while checking for power
+        # now count down while checking if Find My has been disabled
         while [[ "$fmm_wait_timer" -gt 0 ]]; do
             if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
                 writelog "[check_fmm] OK - Find My not enabled"
@@ -183,7 +186,7 @@ check_fmm() {
         done
 
         # quit dialog
-        writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
+        writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
         /bin/echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
@@ -204,7 +207,7 @@ check_fmm() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
-        writelog "[wait_for_power] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        writelog "[check_fmm] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -462,7 +465,27 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        if ! is-at-least "$system_build" "$installer_build"; then
+        # if current system is on a beta, we have to assume that this is older than a build number of the same minor version
+        if /usr/bin/grep -e "[a-z]$" <<< "$system_build"; then
+            # system is beta
+            if /usr/bin/grep -e "[a-z]$" <<< "$installer_build"; then
+                if ! is-at-least "$system_build" "$installer_build"; then
+                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (both beta): invalid build."
+                    invalid_installer_found="yes"
+                else
+                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (both beta): valid build."
+                    invalid_installer_found="no"
+                fi
+            else
+                if ! is-at-least "${system_build:0:3}" "${installer_build:0:3}"; then
+                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (beta): invalid build."
+                    invalid_installer_found="yes"
+                else
+                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (beta) : valid build."
+                    invalid_installer_found="no"
+                fi
+            fi
+        elif ! is-at-least "$system_build" "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
@@ -490,7 +513,7 @@ check_installer_pkg_is_valid() {
     installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f3 )
 
     # compare the local system's build number with that of InstallAssistant.pkg 
-    if is-at-least ! "$system_build" "$installer_pkg_build"; then
+    if ! is-at-least "$system_build" "$installer_pkg_build"; then
         writelog "[check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
         working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="yes"
@@ -624,10 +647,26 @@ check_power_status() {
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         writelog "[check_power_status] OK - AC power detected"
     elif [[ $silent ]]; then
-        writelog "[wait_for_power] ERROR - No AC power detected, cannot continue."
+        writelog "[check_power_status] ERROR - No AC power detected, cannot continue."
         echo
         exit 1
     else
+        if [[ $min_battery_check ]]; then
+            # set a sensible absolute minimum battery percentage if using min battery check
+            if ((min_battery_check < 15)); then
+                min_battery_check=15
+            fi
+            writelog "[check_power_status] Minimum battery percentage is set to $min_battery_check"
+            # check current internal battery percentage
+            battery_percentage=$(/usr/bin/pmset -g batt | /usr/bin/grep InternalBattery-0 | /usr/bin/awk '{print $3}' | /usr/bin/sed 's|%;||' 2>/dev/null)
+            # check that the battery has a higher percentage remaining than the minimum set
+            if ((battery_percentage > min_battery_check)); then
+                writelog "[check_power_status] OK - battery power is at $battery_percentage"
+                return
+            else
+                writelog "[check_power_status] WARNING - battery power is at $battery_percentage"
+            fi
+        fi
         writelog "[check_power_status] WARNING - No AC power detected"
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -685,7 +724,7 @@ check_power_status() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
-        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
+        writelog "[check_power_status] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -1107,6 +1146,7 @@ get_catalog() {
     catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
 
 # -----------------------------------------------------------------------------
@@ -1943,6 +1983,14 @@ set_localisations() {
     current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
     # detect the user's language
     language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
+    # override language if specified in arguments
+    if [[ "$language_override" ]]; then
+        writelog "[set_localisations] Overriding language to $language_override"
+        language="$language_override"
+    else
+        writelog "[set_localisations] Set language to $language"
+    fi
+
     if [[ $language = de* ]]; then
         user_language="de"
     elif [[ $language = nl* ]]; then
@@ -2255,6 +2303,8 @@ show_help() {
     --power-wait-limit NN
                         Maximum seconds to wait for detection of AC power, if
                         --check-power is set. Default is 60.
+    --min-battery NN    If supplied along with --check-power, check for power is skipped if the 
+                        battery is at a higher percentage than NN%.
     --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
     --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
                         --check-fmm is set. Default is 300.
@@ -2325,6 +2375,8 @@ show_help() {
                         security team don't like it.
     --no-timeout        The script will normally timeout if the installer has not successfully
                         prepared after 1 hour. This extends that time limit to 24 hours.
+    --language          Override the system language with one of the other available languages.
+                        Acceptable values are en, de, fr, nl, es, pt, ja.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2539,9 +2591,6 @@ min_drive_space=45
 # default max_password_attempts to 5
 max_password_attempts=5
 
-# set language and localisations
-set_localisations
-
 # predefine arrays
 preinstall_command=()
 postinstall_command=()
@@ -2647,6 +2696,10 @@ while test $# -gt 0 ; do
             shift
             power_wait_timer="$1"
             ;;
+        --min-battery)
+            shift
+            min_battery_check="$1"
+            ;;
         --min-drive-space)
             shift
             min_drive_space="$1"
@@ -2722,6 +2775,10 @@ while test $# -gt 0 ; do
             shift
             kc_service="$1"
             ;;
+        --language)
+            shift
+            language_override="$1"
+            ;;
         --kc=*)
             kc=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
@@ -2733,6 +2790,9 @@ while test $# -gt 0 ; do
             ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
+            ;;
+        --min-battery*)
+            min_battery_check=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --min-drive-space*)
             min_drive_space=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
@@ -2790,6 +2850,9 @@ while test $# -gt 0 ; do
         --credentials*)
             credentials=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
+        --language*)
+            language_override=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
+            ;;
         -h|--help) show_help
             ;;
     esac
@@ -2835,6 +2898,9 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         echo
     fi
 fi
+
+# set language and localisations
+set_localisations
 
 # some options vary based on installer versions
 system_version=$( /usr/bin/sw_vers -productVersion )
