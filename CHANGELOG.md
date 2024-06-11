@@ -25,6 +25,7 @@ No date
 - Added a 5-minute timeout to the password dialogs to prevent people ignoring it (addresses #501, thanks @PhillyPhoto).
 - Added the `--language` option to give the ability to override the language of the dialog windows - the default is either the system language or English if there is no translation of the system language available. Now you can set the language to any of the available translations using the short language codes, which are **en, de, fr, nl, es, pt, ja**. For example, `--language de` or `--language=de` will set the language to German regardless of the system language setting.
 - Bumped mist-cli version to 2.1 which fixes a bug downloading macOS Sequoia beta installers.
+- Bumped swiftDialog version to 2.5.0 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes version 2.5.0. If running on Big Sur, this will be deleted and an internet connection is required to download version 2.2.1.
 - Added the catalog `https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog`, which can be used with `--beta` and `--catalog 15` to obtain macOS Sequoia beta installers. Note that this will be replaced with the production macOS 15 catalog once it is published.
 
 ### Bugfixes in 35.0

@@ -57,7 +57,7 @@ mist_tag_required="v2.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.4.2"
+swiftdialog_tag_required="v2.5.0"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
