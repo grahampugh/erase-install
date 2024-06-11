@@ -1,4 +1,4 @@
-#!/bin/zsh 
+#!/bin/zsh --no-rcs
 # shellcheck shell=bash
 # shellcheck disable=SC2001
 # this is to use sed in the case statements
@@ -53,7 +53,7 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.0"
+mist_tag_required="v2.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -510,7 +510,7 @@ check_installer_pkg_is_valid() {
     installer_pkg_build=$( basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f3 )
 
     # compare the local system's build number with that of InstallAssistant.pkg 
-    if is-at-least ! "$system_build" "$installer_pkg_build"; then
+    if ! is-at-least "$system_build" "$installer_pkg_build"; then
         writelog "[check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
         working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="yes"
@@ -1127,6 +1127,7 @@ get_catalog() {
     catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
 
 # -----------------------------------------------------------------------------
