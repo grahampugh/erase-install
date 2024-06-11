@@ -4,6 +4,13 @@
 
 For open issues and known bugs, please see the [Issues](https://github.com/grahampugh/erase-install/issues) page.
 
+## Notice for installing erase-install package on macOS Sequoia
+
+Since the package on this site is not signed, if you download this package and try to install it from Finder on a Mac running macOS Sonoma, it will fail to install, even if running Ctrl-Click. To solve this, do **either** of these:
+
+1. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
+2. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
+
 ## [Untagged]
 
 No date
@@ -14,7 +21,7 @@ No date
 
 ### Updates in 35.0
 
-- Added the `--min-battery` option which, in conjunction with `--check-power` allows to set a minimum battery percentage, above which the power check is ignored. For example, `--check power --min-battery 30` sets the minimum percentage to 30%. The minimum allowed is 15% (addresses #455, thanks @PhillyPhoto).
+- Added the `--min-battery` option which, in conjunction with `--check-power` allows to set a minimum battery percentage, above which the power check is ignored. For example, `--check power --min-battery 30` sets the minimum percentage to 30%. The minimum allowed is 15% (addresses #455, thanks @PhillyPhoto). `--check power` without `--min-battery` still requires AC power.
 - Added a 5-minute timeout to the password dialogs to prevent people ignoring it (addresses #501, thanks @PhillyPhoto).
 - Added the `--language` option to give the ability to override the language of the dialog windows - the default is either the system language or English if there is no translation of the system language available. Now you can set the language to any of the available translations using the short language codes, which are **en, de, fr, nl, es, pt, ja**. For example, `--language de` or `--language=de` will set the language to German regardless of the system language setting.
 - Bumped mist-cli version to 2.1 which fixes a bug downloading macOS Sequoia beta installers.
