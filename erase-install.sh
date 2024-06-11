@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="34.1"
+version="35.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -109,6 +109,9 @@ ask_for_credentials() {
         "Password,secure"
         "--button1text"
         "Continue"
+        "--timer"
+        "300"
+        "--hidetimerbar"
     )
     if [[ "$erase" == "yes" ]]; then
         dialog_args+=(
@@ -169,7 +172,7 @@ check_fmm() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
 
-        # now count down while checking for power
+        # now count down while checking if Find My has been disabled
         while [[ "$fmm_wait_timer" -gt 0 ]]; do
             if ! nvram -xp | grep fmm-mobileme-token-FMM > /dev/null ; then
                 writelog "[check_fmm] OK - Find My not enabled"
@@ -183,7 +186,7 @@ check_fmm() {
         done
 
         # quit dialog
-        writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
+        writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
         /bin/echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
@@ -204,7 +207,7 @@ check_fmm() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
-        writelog "[wait_for_power] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        writelog "[check_fmm] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -644,10 +647,26 @@ check_power_status() {
     if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
         writelog "[check_power_status] OK - AC power detected"
     elif [[ $silent ]]; then
-        writelog "[wait_for_power] ERROR - No AC power detected, cannot continue."
+        writelog "[check_power_status] ERROR - No AC power detected, cannot continue."
         echo
         exit 1
     else
+        if [[ $min_battery_check ]]; then
+            # set a sensible absolute minimum battery percentage if using min battery check
+            if ((min_battery_check < 15)); then
+                min_battery_check=15
+            fi
+            writelog "[check_power_status] Minimum battery percentage is set to $min_battery_check"
+            # check current internal battery percentage
+            battery_percentage=$(/usr/bin/pmset -g batt | /usr/bin/grep InternalBattery-0 | /usr/bin/awk '{print $3}' | /usr/bin/sed 's|%;||' 2>/dev/null)
+            # check that the battery has a higher percentage remaining than the minimum set
+            if ((battery_percentage > min_battery_check)); then
+                writelog "[check_power_status] OK - battery power is at $battery_percentage"
+                return
+            else
+                writelog "[check_power_status] WARNING - battery power is at $battery_percentage"
+            fi
+        fi
         writelog "[check_power_status] WARNING - No AC power detected"
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -705,7 +724,7 @@ check_power_status() {
         # run the dialog command
         "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 
-        writelog "[wait_for_power] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
+        writelog "[check_power_status] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
         echo
         exit 1
     fi
@@ -2284,6 +2303,8 @@ show_help() {
     --power-wait-limit NN
                         Maximum seconds to wait for detection of AC power, if
                         --check-power is set. Default is 60.
+    --min-battery NN    If supplied along with --check-power, check for power is skipped if the 
+                        battery is at a higher percentage than NN%.
     --check-fmm         Prompt the user to disable Find My Mac before proceeding, when using --erase
     --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
                         --check-fmm is set. Default is 300.
@@ -2675,6 +2696,10 @@ while test $# -gt 0 ; do
             shift
             power_wait_timer="$1"
             ;;
+        --min-battery)
+            shift
+            min_battery_check="$1"
+            ;;
         --min-drive-space)
             shift
             min_drive_space="$1"
@@ -2765,6 +2790,9 @@ while test $# -gt 0 ; do
             ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
+            ;;
+        --min-battery*)
+            min_battery_check=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
             ;;
         --min-drive-space*)
             min_drive_space=$(echo "$1" | sed -e 's|^[^=]*=||g' | tr -d '"')
