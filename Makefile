@@ -24,19 +24,21 @@ build:
 	mkdir -p "$(PKG_SCRIPTS)"
 
 	@echo
-	swiftdialog_tag=$$(awk -F '=' '/swiftdialog_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	swiftdialog_tag=$$(awk -F '=' '/swiftdialog_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
 	echo "## Downloading swiftDialog $$swiftdialog_tag" ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
 	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	echo "## Downloading swiftDialog from $$swiftdialog_url" ;\
 	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_tag"
 
 	@echo
-	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
 	echo "## Downloading swiftDialog $$swiftdialog_bigsur_tag" ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
 	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
-	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
+	echo "## Downloading swiftDialog from $$swiftdialog_bigsur_url" ;\
+	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog-bigsur.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"
 
 	@echo
@@ -62,4 +64,5 @@ clean :
 	@echo "Cleaning up package root"
 	rm -Rf "$(PKG_ROOT)/Library/Management/erase-install/"* ||:
 	rm $(CURDIR)/pkg/erase-install/build/*.pkg ||:
+	rm -Rf $(CURDIR)/pkg/erase-install/scripts/*.pkg ||:
 	rm -Rf $(CURDIR)/pkg/erase-install/payload ||:
