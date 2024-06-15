@@ -138,7 +138,7 @@ ask_for_credentials() {
 # Not used in --silent mode.
 # -----------------------------------------------------------------------------
 check_fmm() {
-    # default Finy My wait timer to 60 seconds
+    # default Find My wait timer to 60 seconds
     if [[ ! $fmm_wait_timer ]]; then 
         fmm_wait_timer=300
     fi
