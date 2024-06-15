@@ -2405,6 +2405,8 @@ show_help() {
                         prepared after 1 hour. This extends that time limit to 24 hours.
     --language          Override the system language with one of the other available languages.
                         Acceptable values are en, de, fr, nl, es, pt, ja.
+    --cloneuser         Copy account settings for the user when installing 
+                        to a new volume. For use with the --erase option.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2713,6 +2715,8 @@ while test $# -gt 0 ; do
         --set-securebootlevel) set_secureboot="yes"
             ;;
         --clear-firmware) clear_firmware="yes"
+            ;;
+        --cloneuser) cloneuser="yes"
             ;;
         --check-power)
             check_power="yes"
@@ -3318,6 +3322,11 @@ install_args+=("--forcequitapps")
 if [[ $erase == "yes" && $newvolumename ]]; then
     install_args+=("--newvolumename")
     install_args+=("$newvolumename")
+fi
+
+# add cloneuser key if specified
+if [[ $erase == "yes" && $cloneuser ]]; then
+    install_args+=("--cloneuser")
 fi
 
 # icon for dialogs
