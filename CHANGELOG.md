@@ -18,6 +18,7 @@ No date
 ### Updates in 36.0
 
 - Added Ukrainian localization (#512, thanks to @liubkkkko for this contribution).
+- Added `--cloneuser` option.
 
 ### Bugfixes in 36.0
 
