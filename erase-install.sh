@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="35.0"
+version="36.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -3328,6 +3328,8 @@ macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
 icon_path="$workdir/icons/$macos_app_name.png"
 if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
     if [[ ! $no_curl == "yes" ]]; then
+        # ensure the icons directory exists
+        /bin/mkdir -p "$workdir/icons"
         # download the image from github
         macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/$macos_app_name.png?raw=true"
         curl -L "$macos_installer_icon_url" -o "$icon_path"

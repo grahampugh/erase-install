@@ -15,6 +15,14 @@ Since the package on this site is not signed, if you download this package and t
 
 No date
 
+### Updates in 36.0
+
+- Added Ukrainian localization (#512, thanks to @liubkkkko for this contribution).
+
+### Bugfixes in 36.0
+
+- Ensured `icons` directory is created when running as standalone script.
+
 ## [35.0]
 
 11.06.2024
