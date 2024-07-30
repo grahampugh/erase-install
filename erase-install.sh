@@ -53,7 +53,7 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.1"
+mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
