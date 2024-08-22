@@ -20,10 +20,12 @@ No date
 
 - Added Ukrainian localization (#512, thanks to @liubkkkko for this contribution).
 - Added `--cloneuser` option.
+- Bumped mist-cli version to 2.1.1.
 
 ### Bugfixes in 36.0
 
 - Ensured `icons` directory is created when running as standalone script.
+- Updated `Makefile` to use a GitHub Personal Access Token to allow builds where an API rate limit had been reached. If you're building you're own version, put your GitHub Personal Access Token into `/Users/Shared/gh_token` (or edit the Makefile accordingly).
 
 ## [35.0]
 
