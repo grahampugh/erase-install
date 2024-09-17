@@ -9,8 +9,8 @@ For open issues and known bugs, please see the [Issues](https://github.com/graha
 Since the package on this site is not signed, if you download this package from a browser and try to install it from Finder on a Mac running macOS Sequoia, it will fail to install, even if running Ctrl-Click. To solve this, do **one** of these:
 
 1. Go to System Settings, Privacy & Security, scroll down, click on "Open Anyway".
-2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
-3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
+2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-36.0.pkg`
+3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-36.0.pkg`
 
 ## [Untagged]
 
@@ -709,7 +709,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v35.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v36.0...HEAD
+[36.0]: https://github.com/grahampugh/erase-install/compare/v35.0...v36.0
 [35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0
 [34.0]: https://github.com/grahampugh/erase-install/compare/v33.1...v34.0
 [33.1]: https://github.com/grahampugh/erase-install/compare/v33.0...v33.1
