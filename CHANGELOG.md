@@ -9,8 +9,8 @@ For open issues and known bugs, please see the [Issues](https://github.com/graha
 Since the package on this site is not signed, if you download this package from a browser and try to install it from Finder on a Mac running macOS Sequoia, it will fail to install, even if running Ctrl-Click. To solve this, do **one** of these:
 
 1. Go to System Settings, Privacy & Security, scroll down, click on "Open Anyway".
-2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
-3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
+2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-36.0.pkg`
+3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-36.0.pkg`
 
 ## [Untagged]
 
