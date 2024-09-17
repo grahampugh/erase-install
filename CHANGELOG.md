@@ -6,14 +6,33 @@ For open issues and known bugs, please see the [Issues](https://github.com/graha
 
 ## Notice for installing erase-install package on macOS Sequoia
 
-Since the package on this site is not signed, if you download this package and try to install it from Finder on a Mac running macOS Sonoma, it will fail to install, even if running Ctrl-Click. To solve this, do **either** of these:
+Since the package on this site is not signed, if you download this package from a browser and try to install it from Finder on a Mac running macOS Sequoia, it will fail to install, even if running Ctrl-Click. To solve this, do **one** of these:
 
-1. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
-2. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
+1. Go to System Settings, Privacy & Security, scroll down, click on "Open Anyway".
+2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-35.0.pkg`
+3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-35.0.pkg`
 
 ## [Untagged]
 
 No date
+
+## [36.0]
+
+17.09.2026
+
+### Updates in 36.0
+
+- Added support for macOS Sequoia, including the icon.
+- Added Ukrainian localization (#512, thanks to @liubkkkko for this contribution).
+- Added `--cloneuser` option.
+- Bumped mist-cli version to 2.1.1.
+- Bumped swiftDialog version to 2.5.2 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.2 and 2.2.1, and the appropriate one will be installed.
+- Switched from using `/bin/echo` to using the built-in `echo`.
+
+### Bugfixes in 36.0
+
+- Ensured `icons` directory is created when running as standalone script.
+- Updated `Makefile` to use a GitHub Personal Access Token to allow builds where an API rate limit had been reached. If you're building you're own version, put your GitHub Personal Access Token into `/Users/Shared/gh_token` (or edit the Makefile accordingly).
 
 ## [35.0]
 
@@ -25,6 +44,7 @@ No date
 - Added a 5-minute timeout to the password dialogs to prevent people ignoring it (addresses #501, thanks @PhillyPhoto).
 - Added the `--language` option to give the ability to override the language of the dialog windows - the default is either the system language or English if there is no translation of the system language available. Now you can set the language to any of the available translations using the short language codes, which are **en, de, fr, nl, es, pt, ja**. For example, `--language de` or `--language=de` will set the language to German regardless of the system language setting.
 - Bumped mist-cli version to 2.1 which fixes a bug downloading macOS Sequoia beta installers.
+- Bumped swiftDialog version to 2.5.0 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.1 and 2.2.1, and the appropriate one will be installed.
 - Added the catalog `https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog`, which can be used with `--beta` and `--catalog 15` to obtain macOS Sequoia beta installers. Note that this will be replaced with the production macOS 15 catalog once it is published.
 
 ### Bugfixes in 35.0

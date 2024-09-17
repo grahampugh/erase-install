@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="35.0"
+version="36.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -53,11 +53,11 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.1"
+mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.4.2"
+swiftdialog_tag_required="v2.5.2"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -138,7 +138,7 @@ ask_for_credentials() {
 # Not used in --silent mode.
 # -----------------------------------------------------------------------------
 check_fmm() {
-    # default Finy My wait timer to 60 seconds
+    # default Find My wait timer to 60 seconds
     if [[ ! $fmm_wait_timer ]]; then 
         fmm_wait_timer=300
     fi
@@ -178,7 +178,7 @@ check_fmm() {
                 writelog "[check_fmm] OK - Find My not enabled"
                 # quit dialog
                 writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-                /bin/echo "quit:" >> "$dialog_log"
+                echo "quit:" >> "$dialog_log"
                 return
             fi
             sleep 1
@@ -187,7 +187,7 @@ check_fmm() {
 
         # quit dialog
         writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -695,7 +695,7 @@ check_power_status() {
                 writelog "[check_power_status] OK - AC power detected"
                 # quit dialog
                 writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-                /bin/echo "quit:" >> "$dialog_log"
+                echo "quit:" >> "$dialog_log"
                 return
             fi
             sleep 1
@@ -704,7 +704,7 @@ check_power_status() {
 
         # quit dialog
         writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -793,6 +793,8 @@ convert_os_to_name () {
             ;;
         "14") os_name="Sonoma"
             ;;
+        "15") os_name="Sequoia"
+            ;;
         *) os_name="$1"
             ;;
     esac
@@ -812,6 +814,8 @@ convert_name_to_os () {
         "Ventura") os_major_version="13"
             ;;
         "Sonoma") os_major_version="14"
+            ;;
+        "Sequoia") os_major_version="15"
             ;;
         *) os_major_version="$1"
             ;;
@@ -894,8 +898,8 @@ dialog_progress() {
     current_progress_value=0
     # initialise progress messages
     writelog "Sending to dialog: progresstext:"
-    /bin/echo "progresstext: " >> "$dialog_log"
-    /bin/echo  "progress: 0" >> "$dialog_log"
+    echo "progresstext: " >> "$dialog_log"
+    echo  "progress: 0" >> "$dialog_log"
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
@@ -903,12 +907,12 @@ dialog_progress() {
             sleep 0.1
         done
         writelog "Sending to dialog: progresstext: Preparing to run macOS Installer..."
-        /bin/echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
+        echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
         
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
         done
-        /bin/echo "progress: 0" >> "$dialog_log"
+        echo "progress: 0" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -920,22 +924,22 @@ dialog_progress() {
                 fi
                 sleep 1
             done
-            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
-            /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+            echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
+            echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
 
     elif [[ "$1" == "mist" ]]; then
         # if mist runs in quiet mode we cannot display download progress
         if [[ "$quiet" == "yes" ]]; then
-            /bin/echo "progresstext: Downloading macOS installer..." >> "$dialog_log"
+            echo "progresstext: Downloading macOS installer..." >> "$dialog_log"
         else
             # Wait for a search message to appear
             until grep -q "SEARCH" "$LOG_FILE" ; do
                 sleep 1
             done
             writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
-            /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+            echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
 
             # Wait for a Found message to appear
             until grep -q "Found \[" "$LOG_FILE" ; do
@@ -943,20 +947,20 @@ dialog_progress() {
             done
             dialog_found_installer=$(/usr/bin/grep "Found \[" "$LOG_FILE" | sed 's/.*Found \[.*\] //' | sed 's/ \[.*\]//')
             writelog "Sending to dialog: progresstext: Found $dialog_found_installer"
-            /bin/echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
+            echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
 
             # Wait for the download to start and set the progress bar to 100 steps
             until grep -q "DOWNLOAD" "$LOG_FILE" ; do
                 sleep 2
             done
             writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
-            /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-            /bin/echo  "progress: 0" >> "$dialog_log"
+            echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
+            echo  "progress: 0" >> "$dialog_log"
             # Wait for the InstallAssistant package to start downloading
             until grep -q "InstallAssistant.pkg" "$LOG_FILE" ; do
                 sleep 2
             done
-            /bin/echo  "progress: 0" >> "$dialog_log"
+            echo  "progress: 0" >> "$dialog_log"
             sleep 2
             until [[ $current_progress_value -gt 100 ]]; do
                 until [[ $current_progress_value -gt $last_progress_value ]]; do
@@ -964,27 +968,27 @@ dialog_progress() {
                     current_progress_value=$(cut -d. -f1 <<< "$progress_from_mist" | sed 's|^0||')
                     sleep 2
                 done
-                /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
-                /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+                echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+                echo "progress: $current_progress_value" >> "$dialog_log"
                 last_progress_value=$current_progress_value
             done
             # if the percentage reaches or goes over 100, show that we are finishing up
             writelog "Sending to dialog: progress: complete"
-            /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
+            echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
             writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
-            /bin/echo "progress: complete" >> "$dialog_log"
+            echo "progress: complete" >> "$dialog_log"
         fi
 
     elif [[ "$1" == "fetch-full-installer" ]]; then
         writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
-        /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+        echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
         # Wait for the download to start and set the progress bar to 100 steps
         until grep -q "Installing:" "$LOG_FILE" ; do
             sleep 2
         done
         writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
-        /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-        /bin/echo "progress: 0" >> "$dialog_log"
+        echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
+        echo "progress: 0" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ "$current_progress_value" -ge 100 ]]; do
@@ -992,25 +996,25 @@ dialog_progress() {
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
-            /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
-            /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+            echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+            echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
         # if the percentage reaches or goes over 100, show that we are finishing up
         writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
-        /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
+        echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
         writelog "Sending to dialog: progress: complete"
-        /bin/echo "progress: complete" >> "$dialog_log"
+        echo "progress: complete" >> "$dialog_log"
 
     elif [[ "$1" == "reboot-delay" ]]; then
         # Countdown seconds to reboot (a bit shorter than rebootdelay)
         countdown=$((rebootdelay-2))
-        /bin/echo "progress: $countdown" >> "$dialog_log"
+        echo "progress: $countdown" >> "$dialog_log"
         until [ "$countdown" -eq 0 ]; do
             sleep 1
             current_progress_value=$countdown
-            /bin/echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
-            /bin/echo "progress: $countdown" >> "$dialog_log"
+            echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
+            echo "progress: $countdown" >> "$dialog_log"
             ((countdown--))
         done
     fi
@@ -1089,7 +1093,7 @@ finish() {
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
         writelog "[finish] sending quit message to dialog ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
         # delete dialog logfile
         sleep 0.5
         # /bin/rm -f "$dialog_log"
@@ -1462,7 +1466,7 @@ launch_startosinstall() {
     if [[ $test_run == "yes" ]]; then
         combined_args+=("/bin/zsh")
         combined_args+=("-c")
-        combined_args+=("/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+        combined_args+=("echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
 
         test_args=()
         test_args+=("$working_macos_app/Contents/Resources/startosinstall")
@@ -1521,7 +1525,7 @@ ljt() ( #v1.0.9 ljt [query] [file]
 try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
 EOT
 
-    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then echo "$errOut" >&2; return 1; fi
 )
 
 # -----------------------------------------------------------------------------
@@ -2003,6 +2007,8 @@ set_localisations() {
         user_language="pt"
     elif [[ $language = ja* ]]; then
         user_language="ja"
+    elif [[ $language = ua* ]]; then
+        user_language="ua"
     else
         user_language="en"
     fi
@@ -2015,6 +2021,7 @@ set_localisations() {
     dialog_dl_title_es="Descargando macOS"
     dialog_dl_title_pt="Baixando o macOS"
     dialog_dl_title_ja="macOS のダウンロード"
+    dialog_dl_title_ua="Завантаження macOS"
     dialog_dl_title=dialog_dl_title_${user_language}
 
     # Dialogue localizations - download window - description
@@ -2025,6 +2032,7 @@ set_localisations() {
     dialog_dl_desc_es="Necesitamos descargar el instalador de macOS en tu Mac.  \n\nEsto puede tardar varios minutos, dependiendo de tu conexión a Internet."
     dialog_dl_desc_pt="Precisamos baixar o instalador do macOS para o seu computador. \n\nIsso pode levar vários minutos, dependendo da sua conexão com a Internet."
     dialog_dl_desc_ja="macOS のインストーラをダウンロードしています。  \n\n回線状況によっては数分かかる場合があります。"
+    dialog_dl_desc_ua="«Нам потрібно завантажити програму встановлення macOS на ваш комп’ютер.  \n\nЦе може зайняти декілька хвилин, залежно від вашого інтернет-з’єднання."
     dialog_dl_desc=dialog_dl_desc_${user_language}
 
     # Dialogue localizations - erase lock screen - title
@@ -2035,6 +2043,7 @@ set_localisations() {
     dialog_erase_title_es="Borrado de macOS"
     dialog_erase_title_pt="Apagado de macOS"
     dialog_erase_title_ja="macOS の消去"
+    dialog_erase_title_ua="Стирання macOS"
     dialog_erase_title=dialog_erase_title_${user_language}
 
     # Dialogue localizations - erase lock screen - description
@@ -2045,6 +2054,7 @@ set_localisations() {
     dialog_erase_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y continuará la reinstalación."
     dialog_erase_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a reinstalação continuará."
     dialog_erase_desc_ja="### インストーラの準備には最大で30分かかる場合があります。  \n\n完了するとコンピュータが再起動し、再インストールが開始されます。"
+    dialog_erase_desc_ua="### Підготовка інсталятора може тривати до 30 хвилин.  \n\nПісля завершення ваш комп'ютер перезавантажиться та продовжить перевстановлення."
     dialog_erase_desc=dialog_erase_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - title
@@ -2055,6 +2065,7 @@ set_localisations() {
     dialog_reinstall_title_es="Actualizando de macOS"
     dialog_reinstall_title_pt="Atualizando o macOS"
     dialog_reinstall_title_ja="macOS のアップグレード"
+    dialog_reinstall_title_ua="Оновлення macOS"
     dialog_reinstall_title=dialog_reinstall_title_${user_language}
 
     # Dialogue localizations - reinstall lock screen - heading
@@ -2065,6 +2076,7 @@ set_localisations() {
     dialog_reinstall_heading_es="Por favor, espera mientras preparamos tu mac para la actualización de macOS."
     dialog_reinstall_heading_pt="Aguarde enquanto preparamos seu computador para atualizar o macOS."
     dialog_reinstall_heading_ja="macOS アップグレードの準備をしています。しばらくお待ちください。"
+    dialog_reinstall_heading_ua="Зачекайте, поки ми підготуємо ваш комп’ютер до оновлення macOS."
     dialog_reinstall_heading=dialog_reinstall_heading_${user_language}
 
     # Dialogue localizations - reinstall lock screen - description
@@ -2075,6 +2087,7 @@ set_localisations() {
     dialog_reinstall_desc_es="### La preparación del instalador puede tardar hasta 30 minutos.  \n\nUna vez completado, tu Mac se reiniciará y comenzará la actualización."
     dialog_reinstall_desc_pt="### A preparação do instalador pode levar até 30 minutos. \n\nDepois de concluído, seu computador será reiniciado e a atualização começará."
     dialog_reinstall_desc_ja="### インストーラの準備には最大で30分かかる場合があります。  \n\n完了するとコンピュータが再起動し、アップグレードが開始されます。"
+    dialog_reinstall_desc_ua="### Підготовка інсталятора може тривати до 30 хвилин.  \n\nПісля завершення комп'ютер перезавантажиться та почнеться оновлення."
     dialog_reinstall_desc=dialog_reinstall_desc_${user_language}
 
     # Dialogue localizations - reinstall lock screen - status message
@@ -2085,6 +2098,7 @@ set_localisations() {
     dialog_reinstall_status_es="Preparación de macOS para la instalación"
     dialog_reinstall_status_pt="Preparando o macOS para instalação"
     dialog_reinstall_status_ja="macOS インストールの準備"
+    dialog_reinstall_status_ua="Підготовка macOS до встановлення"
     dialog_reinstall_status=dialog_reinstall_status_${user_language}
 
     # Dialogue localizations - reebooting screen - heading
@@ -2095,6 +2109,7 @@ set_localisations() {
     dialog_rebooting_heading_es="La actualización ya está lista para ser instalada.  \n\n### ¡Guarda ahora los trabajos pendientes!"
     dialog_rebooting_heading_pt="A atualização agora está pronta para instalação. \n\n### Salve qualquer trabalho aberto agora!"
     dialog_rebooting_heading_ja="アップグレードのインストール準備ができました。  \n\n### 開いているファイルがあれば保存してください！"
+    dialog_rebooting_heading_ua="Тепер оновлення готове до встановлення.  \n\n### Збережіть будь-яку відкриту роботу зараз!"
     dialog_rebooting_heading=dialog_rebooting_heading_${user_language}
 
     # Dialogue localizations - erase confirmation window - description
@@ -2105,6 +2120,7 @@ set_localisations() {
     dialog_erase_confirmation_desc_es="Por favor, confirma que deseas BORRAR TODOS LOS DATOS DE ESTE DISPOSITIVO y reinstalar macOS"
     dialog_erase_confirmation_desc_pt="Confirme que deseja APAGAR TODOS OS DADOS DESTE DISPOSITIVO e reinstalar o macOS"
     dialog_erase_confirmation_desc_ja="***このデバイスから全てのデータが消去***され、macOS が再インストールされます。ご確認ください。"
+    dialog_erase_confirmation_desc_ua="Будь ласка, підтвердіть, що ви хочете ВИДАЛИТИ ВСІ ДАНІ З ЦЬОГО ПРИСТРОЮ та переінсталювати macOS"
     dialog_erase_confirmation_desc=dialog_erase_confirmation_desc_${user_language}
 
     # Dialogue localizations - reinstall confirmation window - description
@@ -2115,6 +2131,7 @@ set_localisations() {
     dialog_reinstall_confirmation_desc_es="Por favor, confirma que deseas actualizar macOS en este sistema ahora"
     dialog_reinstall_confirmation_desc_pt="Confirme que deseja atualizar o macOS neste sistema agora"
     dialog_reinstall_confirmation_desc_ja="このシステムで macOS をアップグレードすることをご確認ください。"
+    dialog_reinstall_confirmation_desc_ua="Будь ласка, підтвердіть, що ви хочете оновити macOS на цій системі зараз"
     dialog_reinstall_confirmation_desc=dialog_reinstall_confirmation_desc_${user_language}
 
     # Dialogue localizations - free space check - description
@@ -2125,6 +2142,7 @@ set_localisations() {
     dialog_check_desc_es="La actualización de macOS no se puede instalar porque no queda espacio suficiente en la unidad."
     dialog_check_desc_pt="A atualização do macOS não pode ser instalada porque não há espaço suficiente na unidade."
     dialog_check_desc_ja="ドライブに十分な空き領域がないため、macOS アップグレードをインストールできません。"
+    dialog_check_desc_ua="Оновлення macOS не вдається встановити, оскільки на диску залишилось недостатньо місця."
     dialog_check_desc=dialog_check_desc_${user_language}
 
     # Dialogue localizations - power check - title
@@ -2135,6 +2153,7 @@ set_localisations() {
     dialog_power_title_es="A la espera de la conexión a la red eléctrica"
     dialog_power_title_pt="Aguardando conexão de alimentação CA"
     dialog_power_title_ja="電源アダプタの接続を待っています"
+    dialog_power_title_ua="Очікування підключення зарядного пристрою"
     dialog_power_title=dialog_power_title_${user_language}
 
     # Dialogue localizations - power check - description
@@ -2145,6 +2164,7 @@ set_localisations() {
     dialog_power_desc_es="Conecta tu Mac a la corriente eléctrica mediante un adaptador de CA.  \n\nEste proceso continuará si se detecta alimentación de CA dentro del tiempo especificado."
     dialog_power_desc_pt="Conecte seu computador à energia usando um adaptador de energia CA. \in\Este processo continuará se a alimentação CA for detectada dentro do tempo especificado."
     dialog_power_desc_ja="コンピュータに電源アダプタを接続してください。  \n\n指定された時間内に電源アダプタが接続された場合、この処理は続行されます。"
+    dialog_power_desc_ua="Будь ласка, підключіть комп'ютер до мережі за допомогою зарядного пристрою.   \n\nЦей процес буде продовжено, якщо протягом зазначеного часу буде підключено зарядний пристрій."
     dialog_power_desc=dialog_power_desc_${user_language}
 
     # Dialogue localizations - no power detected - description
@@ -2155,6 +2175,7 @@ set_localisations() {
     dialog_nopower_desc_es="### La alimentación de CA no se ha conectado en el tiempo especificado.  \n\nPulsa OK para salir."
     dialog_nopower_desc_pt="### A alimentação CA não foi conectada no tempo especificado. \n\nPressione OK para sair."
     dialog_nopower_desc_ja="### 指定された時間内に電源アダプタが接続されませんでした。  \n\nOK を押して終了してください。"
+    dialog_nopower_desc_ua="### Зарядний пристрій не було підключено вчасно  \n\nНатисніть OK, щоб вийти." 
     dialog_nopower_desc=dialog_nopower_desc_${user_language}
 
     # Dialogue localizations - Find My check - title
@@ -2163,8 +2184,9 @@ set_localisations() {
     dialog_fmm_title_nl="Wachten op Vind mijn Mac"
     dialog_fmm_title_fr="En attente de Localiser mon Mac"
     dialog_fmm_title_es="A la espera de la desactivacion de Buscar mi Mac"
-    dialog_fmm_title_pt="Aguardando que o Buscar no Mac seja desativado"
+    dialog_fmm_title_pt="Aguardando que o Buscar no Mac seja desativado"  
     dialog_fmm_title_ja="「Macを探す」が無効になるのを待っています"
+    dialog_fmm_title_ua="Очікування вимкнення функції Find My Mac"
     dialog_fmm_title=dialog_fmm_title_${user_language}
 
     # Dialogue localizations - Find My check - description
@@ -2173,8 +2195,9 @@ set_localisations() {
     dialog_fmm_desc_nl="Schakel **Vind mijn Mac** uit in uw iCloud-instellingen.  \n\nDeze instelling vindt u in **Systeemvoorkeuren** > **Apple ID** > **iCloud**.  \n\nDit proces wordt voortgezet als **Vind mijn Mac** binnen de opgegeven tijd is uitgeschakeld."
     dialog_fmm_desc_fr="Veuillez désactiver **Localiser mon Mac** dans vos paramètres iCloud.  \n\nCe paramètre se trouve dans **Préférences système** > **Identifiant Apple** > **iCloud**.  \n\nCe processus se poursuivra si Localiser mon Mac a été désactivé dans le délai spécifié."
     dialog_fmm_desc_es="Por favor desactiva **Buscar mi Mac** en los ajustes de iCloud.  \n\nEste ajuste se encuentra en **Preferencias del sistema** > **ID de Apple** > **iCloud**.  \n\nEste proceso continuará si Buscar mi Mac se ha desactivado dentro del tiempo especificado."
-    dialog_fmm_desc_pt="Desative **Buscar no Mac** nas configurações do iCloud. \n\nEssa configuração pode ser encontrada em **Preferências do Sistema** > **ID Apple** > **iCloud**. \n\nEsse processo continuará se o Buscar no Mac tiver sido desativado dentro do tempo especificado."
+    dialog_fmm_desc_pt="Desative **Buscar no Mac** nas configurações do iCloud. \n\nEssa configuração pode ser encontrada em **Preferências do Sistema** > **ID Apple** > **iCloud**. \n\nEsse processo continuará se o Buscar no Mac tiver sido desativado dentro do tempo especificado." 
     dialog_fmm_desc_ja="iCloud の設定で「**Macを探す**」を無効にしてください。  \nこの設定は **システム環境設定** > **Apple ID** > **iCloud** にあります。  \n\n指定された時間内に「Macを探す」が無効になった場合、この処理は続行されます。"
+    dialog_fmm_desc_ua="Будь ласка, вимкніть **Find My Mac** у налаштуваннях iCloud.  \n\nЦей параметр можна знайти в **Системні налаштування** > **Apple ID** > **iCloud**.  \n\nЦей процес продовжиться, якщо функцію «Find My Mac» буде вимкнено протягом зазначеного часу."
     dialog_fmm_desc=dialog_fmm_desc_${user_language}
 
     # Dialogue localizations - Find My check failed - description
@@ -2185,6 +2208,7 @@ set_localisations() {
     dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulsa OK para salir."
     dialog_fmmenabled_desc_pt="### Buscar no Mac não foi desativado no tempo especificado. \n\nPressione OK para sair."
     dialog_fmmenabled_desc_ja="### 「Macを探す」は指定された時間内に無効になりませんでした。  \n\nOK を押して終了してください。"
+    dialog_fmmenabled_desc_ua="### Find My Mac не було вимкнено вчасно. \n\nНатисніть OK, щоб вийти."
     dialog_fmmenabled_desc=dialog_fmmenabled_desc_${user_language}
 
     # Dialogue localizations - ask for credentials - erase
@@ -2195,6 +2219,7 @@ set_localisations() {
     dialog_erase_credentials_es="El borrado de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce tu nombre de usuario y contraseña para iniciar el proceso de borrado."
     dialog_erase_credentials_pt="Apagar o macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de exclusão."
     dialog_erase_credentials_ja="macOS を消去するには、ローカルアカウントの資格情報による認証が必要です。  \n\nアカウント名とパスワードを入力して消去を開始してください。"
+    dialog_erase_credentials_ua="Видалення macOS вимагає автентифікації за допомогою локальних облікових даних.  \n\nБудь ласка, введіть ім'я та пароль вашого облікового запису, щоб розпочати процес стирання."
     dialog_erase_credentials=dialog_erase_credentials_${user_language}
 
     # Dialogue localizations - ask for credentials - reinstall
@@ -2205,6 +2230,7 @@ set_localisations() {
     dialog_reinstall_credentials_es="La actualización de macOS requiere la autenticación mediante las credenciales de la cuenta de usuario local.  \n\nIntroduce el nombre de tu usuario y la contraseña para iniciar el proceso de actualización."
     dialog_reinstall_credentials_pt="A atualização do macOS requer autenticação usando credenciais de conta local. \n\nDigite seu nome de conta e senha para iniciar o processo de atualização."
     dialog_reinstall_credentials_ja="macOS をアップグレードするには、ローカルアカウントの資格情報による認証が必要です。  \n\nアカウント名とパスワードを入力してアップグレードを開始してください。"
+    dialog_reinstall_credentials_ua="Оновлення macOS вимагає автентифікації за допомогою локальних облікових даних.  \n\nБудь ласка, введіть ім'я та пароль вашого облікового запису, щоб розпочати процес оновлення."
     dialog_reinstall_credentials=dialog_reinstall_credentials_${user_language}
 
     # Dialogue localizations - not a volume owner
@@ -2215,6 +2241,7 @@ set_localisations() {
     dialog_not_volume_owner_es="### La cuenta de usuario no es un Volume Owner   \n\nPor favor, inicie sesión con una de las siguientes cuentas de usuario e inténtelo de nuevo."
     dialog_not_volume_owner_pt="### A conta não é um Volume Owner \n\nFaça login usando uma das contas a seguir e tente novamente."
     dialog_not_volume_owner_ja="### アカウントがボリュームのオーナーではありません  \n\n次のいずれかのアカウントで再度ログインをお試しください。"
+    dialog_not_volume_owner_ua="### Обліковий запис не є Власником тому  \n\nБудь ласка, увійдіть за допомогою одного з наступних облікових записів і спробуйте ще раз."
     dialog_not_volume_owner=dialog_not_volume_owner_${user_language}
 
     # Dialogue localizations - invalid user
@@ -2225,6 +2252,7 @@ set_localisations() {
     dialog_invalid_user_es="### Usuario incorrecto  \n\nEsta cuenta de usuario no puede ser utilizada para realizar la reinstalación"
     dialog_invalid_user_pt="### Usuário incorreto \n\nEsta conta não pode ser usada para realizar a reinstalação"
     dialog_invalid_user_ja="### ユーザーが間違っています  \n\nこのアカウントでは再インストールを実行できません"
+    dialog_invalid_user_ua="### Неправильний користувач  \n\nЦей обліковий запис не може бути використаний для перевстановлення"
     dialog_invalid_user=dialog_invalid_user_${user_language}
 
     # Dialogue localizations - invalid password
@@ -2235,6 +2263,7 @@ set_localisations() {
     dialog_invalid_password_es="### Contraseña incorrecta  \n\nLa contraseña introducida NO es la contraseña de acceso a"
     dialog_invalid_password_pt="### Senha incorreta \n\nA senha digitada NÃO é a senha de login para"
     dialog_invalid_password_ja="### パスワードが間違っています  \n\n入力されたパスワードは、このアカウントのログインパスワードではありません"
+    dialog_invalid_password_ua="### Неправильний пароль  \n\nВведений пароль НЕ є паролем для входу до"
     dialog_invalid_password=dialog_invalid_password_${user_language}
 
     # Dialogue localizations - buttons - confirm
@@ -2245,6 +2274,7 @@ set_localisations() {
     dialog_confirmation_button_es="Confirmar"
     dialog_confirmation_button_pt="Confirmar"
     dialog_confirmation_button_ja="確認"
+    dialog_confirmation_button_ua="Підтвердити"
     dialog_confirmation_button=dialog_confirmation_button_${user_language}
 
     # Dialogue localizations - buttons - cancel
@@ -2255,6 +2285,7 @@ set_localisations() {
     dialog_cancel_button_es="Cancelar"
     dialog_cancel_button_pt="Cancelar"
     dialog_cancel_button_ja="キャンセル"
+    dialog_cancel_button_ua="Скасувати"
     dialog_cancel_button=dialog_cancel_button_${user_language}
 
     # Dialogue localizations - buttons - enter
@@ -2265,6 +2296,7 @@ set_localisations() {
     dialog_enter_button_es="Entrar"
     dialog_enter_button_pt="Digitar"
     dialog_enter_button_ja="実行"
+    dialog_enter_button_ua="Гаразд"
     dialog_enter_button=dialog_enter_button_${user_language}
 
     
@@ -2377,6 +2409,8 @@ show_help() {
                         prepared after 1 hour. This extends that time limit to 24 hours.
     --language          Override the system language with one of the other available languages.
                         Acceptable values are en, de, fr, nl, es, pt, ja.
+    --cloneuser         Copy account settings for the user when installing 
+                        to a new volume. For use with the --erase option.
 
     Extra packages:
         startosinstall --eraseinstall can install packages after the new installation. 
@@ -2685,6 +2719,8 @@ while test $# -gt 0 ; do
         --set-securebootlevel) set_secureboot="yes"
             ;;
         --clear-firmware) clear_firmware="yes"
+            ;;
+        --cloneuser) cloneuser="yes"
             ;;
         --check-power)
             check_power="yes"
@@ -3292,6 +3328,11 @@ if [[ $erase == "yes" && $newvolumename ]]; then
     install_args+=("$newvolumename")
 fi
 
+# add cloneuser key if specified
+if [[ $erase == "yes" && $cloneuser ]]; then
+    install_args+=("--cloneuser")
+fi
+
 # icon for dialogs
 # macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
 macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
@@ -3300,6 +3341,8 @@ macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
 icon_path="$workdir/icons/$macos_app_name.png"
 if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
     if [[ ! $no_curl == "yes" ]]; then
+        # ensure the icons directory exists
+        /bin/mkdir -p "$workdir/icons"
         # download the image from github
         macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/$macos_app_name.png?raw=true"
         curl -L "$macos_installer_icon_url" -o "$icon_path"
@@ -3389,7 +3432,7 @@ if [[ "$arch" == "arm64" ]]; then
         # this command supposedly fixes this problem (experimental!)
         writelog "[$script_name] updating preboot files (takes a few seconds)..."
         sleep 0.1
-        /bin/echo "progresstext: Updating preboot files..." >> "$dialog_log"
+        echo "progresstext: Updating preboot files..." >> "$dialog_log"
         if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
             writelog "[$script_name] preboot files updated"
         else
@@ -3400,7 +3443,7 @@ if [[ "$arch" == "arm64" ]]; then
         if [[ "$clear_firmware" == "yes" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Clearing the firmware settings with the nvram command"
-            /bin/echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
+            echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
             if /usr/sbin/nvram -c; then
                 writelog "[$script_name] nvram command exited with success"
             else
@@ -3412,7 +3455,7 @@ if [[ "$arch" == "arm64" ]]; then
         if [[ "$set_secureboot" == "yes" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Setting high secure boot level with bputil command"
-            /bin/echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
+            echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
             if /usr/bin/bputil -f -u "$current_user" -p "$account_password"; then
                 writelog "[$script_name] bputil command exited with success"
             else
