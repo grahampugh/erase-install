@@ -709,7 +709,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v35.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v36.0...HEAD
+[36.0]: https://github.com/grahampugh/erase-install/compare/v35.0...v36.0
 [35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0
 [34.0]: https://github.com/grahampugh/erase-install/compare/v33.1...v34.0
 [33.1]: https://github.com/grahampugh/erase-install/compare/v33.0...v33.1
