@@ -57,7 +57,7 @@ mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.1"
+swiftdialog_tag_required="v2.5.2"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -178,7 +178,7 @@ check_fmm() {
                 writelog "[check_fmm] OK - Find My not enabled"
                 # quit dialog
                 writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-                /bin/echo "quit:" >> "$dialog_log"
+                echo "quit:" >> "$dialog_log"
                 return
             fi
             sleep 1
@@ -187,7 +187,7 @@ check_fmm() {
 
         # quit dialog
         writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -695,7 +695,7 @@ check_power_status() {
                 writelog "[check_power_status] OK - AC power detected"
                 # quit dialog
                 writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-                /bin/echo "quit:" >> "$dialog_log"
+                echo "quit:" >> "$dialog_log"
                 return
             fi
             sleep 1
@@ -704,7 +704,7 @@ check_power_status() {
 
         # quit dialog
         writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
 
         # set the dialog command arguments
         get_default_dialog_args "utility"
@@ -793,6 +793,8 @@ convert_os_to_name () {
             ;;
         "14") os_name="Sonoma"
             ;;
+        "15") os_name="Sequoia"
+            ;;
         *) os_name="$1"
             ;;
     esac
@@ -812,6 +814,8 @@ convert_name_to_os () {
         "Ventura") os_major_version="13"
             ;;
         "Sonoma") os_major_version="14"
+            ;;
+        "Sequoia") os_major_version="15"
             ;;
         *) os_major_version="$1"
             ;;
@@ -894,8 +898,8 @@ dialog_progress() {
     current_progress_value=0
     # initialise progress messages
     writelog "Sending to dialog: progresstext:"
-    /bin/echo "progresstext: " >> "$dialog_log"
-    /bin/echo  "progress: 0" >> "$dialog_log"
+    echo "progresstext: " >> "$dialog_log"
+    echo  "progress: 0" >> "$dialog_log"
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
@@ -903,12 +907,12 @@ dialog_progress() {
             sleep 0.1
         done
         writelog "Sending to dialog: progresstext: Preparing to run macOS Installer..."
-        /bin/echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
+        echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
         
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
             sleep 2
         done
-        /bin/echo "progress: 0" >> "$dialog_log"
+        echo "progress: 0" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -920,22 +924,22 @@ dialog_progress() {
                 fi
                 sleep 1
             done
-            /bin/echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
-            /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+            echo "progresstext: Preparing macOS Installer ($current_progress_value%)" >> "$dialog_log"
+            echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
 
     elif [[ "$1" == "mist" ]]; then
         # if mist runs in quiet mode we cannot display download progress
         if [[ "$quiet" == "yes" ]]; then
-            /bin/echo "progresstext: Downloading macOS installer..." >> "$dialog_log"
+            echo "progresstext: Downloading macOS installer..." >> "$dialog_log"
         else
             # Wait for a search message to appear
             until grep -q "SEARCH" "$LOG_FILE" ; do
                 sleep 1
             done
             writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
-            /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+            echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
 
             # Wait for a Found message to appear
             until grep -q "Found \[" "$LOG_FILE" ; do
@@ -943,20 +947,20 @@ dialog_progress() {
             done
             dialog_found_installer=$(/usr/bin/grep "Found \[" "$LOG_FILE" | sed 's/.*Found \[.*\] //' | sed 's/ \[.*\]//')
             writelog "Sending to dialog: progresstext: Found $dialog_found_installer"
-            /bin/echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
+            echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
 
             # Wait for the download to start and set the progress bar to 100 steps
             until grep -q "DOWNLOAD" "$LOG_FILE" ; do
                 sleep 2
             done
             writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
-            /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-            /bin/echo  "progress: 0" >> "$dialog_log"
+            echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
+            echo  "progress: 0" >> "$dialog_log"
             # Wait for the InstallAssistant package to start downloading
             until grep -q "InstallAssistant.pkg" "$LOG_FILE" ; do
                 sleep 2
             done
-            /bin/echo  "progress: 0" >> "$dialog_log"
+            echo  "progress: 0" >> "$dialog_log"
             sleep 2
             until [[ $current_progress_value -gt 100 ]]; do
                 until [[ $current_progress_value -gt $last_progress_value ]]; do
@@ -964,27 +968,27 @@ dialog_progress() {
                     current_progress_value=$(cut -d. -f1 <<< "$progress_from_mist" | sed 's|^0||')
                     sleep 2
                 done
-                /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
-                /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+                echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+                echo "progress: $current_progress_value" >> "$dialog_log"
                 last_progress_value=$current_progress_value
             done
             # if the percentage reaches or goes over 100, show that we are finishing up
             writelog "Sending to dialog: progress: complete"
-            /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
+            echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
             writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
-            /bin/echo "progress: complete" >> "$dialog_log"
+            echo "progress: complete" >> "$dialog_log"
         fi
 
     elif [[ "$1" == "fetch-full-installer" ]]; then
         writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
-        /bin/echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+        echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
         # Wait for the download to start and set the progress bar to 100 steps
         until grep -q "Installing:" "$LOG_FILE" ; do
             sleep 2
         done
         writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
-        /bin/echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-        /bin/echo "progress: 0" >> "$dialog_log"
+        echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
+        echo "progress: 0" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ "$current_progress_value" -ge 100 ]]; do
@@ -992,25 +996,25 @@ dialog_progress() {
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
-            /bin/echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
-            /bin/echo "progress: $current_progress_value" >> "$dialog_log"
+            echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+            echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
         # if the percentage reaches or goes over 100, show that we are finishing up
         writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
-        /bin/echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
+        echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
         writelog "Sending to dialog: progress: complete"
-        /bin/echo "progress: complete" >> "$dialog_log"
+        echo "progress: complete" >> "$dialog_log"
 
     elif [[ "$1" == "reboot-delay" ]]; then
         # Countdown seconds to reboot (a bit shorter than rebootdelay)
         countdown=$((rebootdelay-2))
-        /bin/echo "progress: $countdown" >> "$dialog_log"
+        echo "progress: $countdown" >> "$dialog_log"
         until [ "$countdown" -eq 0 ]; do
             sleep 1
             current_progress_value=$countdown
-            /bin/echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
-            /bin/echo "progress: $countdown" >> "$dialog_log"
+            echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
+            echo "progress: $countdown" >> "$dialog_log"
             ((countdown--))
         done
     fi
@@ -1089,7 +1093,7 @@ finish() {
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
         writelog "[finish] sending quit message to dialog ($dialog_log)"
-        /bin/echo "quit:" >> "$dialog_log"
+        echo "quit:" >> "$dialog_log"
         # delete dialog logfile
         sleep 0.5
         # /bin/rm -f "$dialog_log"
@@ -1462,7 +1466,7 @@ launch_startosinstall() {
     if [[ $test_run == "yes" ]]; then
         combined_args+=("/bin/zsh")
         combined_args+=("-c")
-        combined_args+=("/bin/echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+        combined_args+=("echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
 
         test_args=()
         test_args+=("$working_macos_app/Contents/Resources/startosinstall")
@@ -1521,7 +1525,7 @@ ljt() ( #v1.0.9 ljt [query] [file]
 try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
 EOT
 
-    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then /bin/echo "$errOut" >&2; return 1; fi
+    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then echo "$errOut" >&2; return 1; fi
 )
 
 # -----------------------------------------------------------------------------
@@ -3428,7 +3432,7 @@ if [[ "$arch" == "arm64" ]]; then
         # this command supposedly fixes this problem (experimental!)
         writelog "[$script_name] updating preboot files (takes a few seconds)..."
         sleep 0.1
-        /bin/echo "progresstext: Updating preboot files..." >> "$dialog_log"
+        echo "progresstext: Updating preboot files..." >> "$dialog_log"
         if /usr/sbin/diskutil apfs updatepreboot / > /dev/null; then
             writelog "[$script_name] preboot files updated"
         else
@@ -3439,7 +3443,7 @@ if [[ "$arch" == "arm64" ]]; then
         if [[ "$clear_firmware" == "yes" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Clearing the firmware settings with the nvram command"
-            /bin/echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
+            echo "progresstext: Clearing firmware settings..." >> "$dialog_log"
             if /usr/sbin/nvram -c; then
                 writelog "[$script_name] nvram command exited with success"
             else
@@ -3451,7 +3455,7 @@ if [[ "$arch" == "arm64" ]]; then
         if [[ "$set_secureboot" == "yes" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Setting high secure boot level with bputil command"
-            /bin/echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
+            echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
             if /usr/bin/bputil -f -u "$current_user" -p "$account_password"; then
                 writelog "[$script_name] bputil command exited with success"
             else

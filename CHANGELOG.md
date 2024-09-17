@@ -18,14 +18,16 @@ No date
 
 ## [36.0]
 
-No date
+17.09.2026
 
 ### Updates in 36.0
 
+- Added support for macOS Sequoia, including the icon.
 - Added Ukrainian localization (#512, thanks to @liubkkkko for this contribution).
 - Added `--cloneuser` option.
 - Bumped mist-cli version to 2.1.1.
-- Bumped swiftDialog version to 2.5.1 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.1 and 2.2.1, and the appropriate one will be installed.
+- Bumped swiftDialog version to 2.5.2 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.2 and 2.2.1, and the appropriate one will be installed.
+- Switched from using `/bin/echo` to using the built-in `echo`.
 
 ### Bugfixes in 36.0
 
