@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="36.0"
+version="36.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -3082,7 +3082,7 @@ if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "
     do_overwrite_existing_installer=1
 fi
 
-if [[ "$prechosen_build" ]]; then
+if [[ "$prechosen_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
     if [[ "$installer_build" != "$prechosen_build" ]]; then
@@ -3093,7 +3093,7 @@ if [[ "$prechosen_build" ]]; then
     fi
 fi
 
-if [[ "$prechosen_os" ]]; then
+if [[ "$prechosen_os" && $do_overwrite_existing_installer -ne 1 ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
     if [[ "$installer_build" ]]; then
@@ -3108,7 +3108,7 @@ if [[ "$prechosen_os" ]]; then
     fi
 fi
 
-if [[ $update_installer == "yes" ]]; then
+if [[ $update_installer == "yes" && $do_overwrite_existing_installer -ne 1 ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
     if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
@@ -3120,7 +3120,7 @@ if [[ $update_installer == "yes" ]]; then
     fi
 fi
 
-if [[ $invalid_installer_found == "yes" ]]; then 
+if [[ $invalid_installer_found == "yes" && $do_overwrite_existing_installer -ne 1 ]]; then 
     # --replace-invalid option: replace an existing installer if it is invalid
     if [[ -d "$working_macos_app" && $replace_invalid_installer == "yes" ]]; then
         do_overwrite_existing_installer=1

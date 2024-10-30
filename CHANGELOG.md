@@ -16,6 +16,14 @@ Since the package on this site is not signed, if you download this package from 
 
 No date
 
+## [36.1]
+
+No date
+
+### Bugfixes in 36.1
+
+- `--update` and `--overwrite` options will now function when an invalid installer is present on the device (addresses #529).
+
 ## [36.0]
 
 17.09.2026
