@@ -57,7 +57,7 @@ mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.2"
+swiftdialog_tag_required="v2.5.3"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -1228,6 +1228,20 @@ get_mist_list() {
     mist_args=()
     mist_args+=("list")
     mist_args+=("installer")
+
+    # restrict list as specified
+    if [[ $prechosen_os ]]; then
+        mist_args+=("$prechosen_os")
+    elif [[ $prechosen_version ]]; then
+        mist_args+=("$prechosen_version")
+    elif [[ $prechosen_build ]]; then
+        mist_args+=("$prechosen_build")
+    elif [[ $samebuild == "yes" ]]; then
+        mist_args+=("$system_version")
+    elif [[ $sameos == "yes" ]]; then
+        mist_args+=("${system_version/\.*/}")
+    fi
+
     if [[ "$skip_validation" != "yes" ]]; then
         mist_args+=("--compatible")
     fi
@@ -1793,6 +1807,8 @@ run_list_full_installers() {
 run_mist() {
     # first, if we didn't already check for updates, run mist list to get some needed information about builds
     get_mist_list
+    # latest_version is the top entry in the filtered list
+    latest_version=$(ljt '0.version' < "$mist_export_file")
 
     # define mist export file location
     mist_export_file="$workdir/mist-list.json"
@@ -1813,6 +1829,13 @@ run_mist() {
             exit 1
         else
             writelog "[run_mist] Selected OS ($prechosen_os) is the same as or newer than the system (${system_version/\.*/}), proceeding..."
+            if ! is-at-least "$system_version" "$latest_version"; then
+                writelog "[run_mist] ERROR: latest version of $prechosen_os in catalog ($latest_version) is older than the system version ($system_version)"
+                echo
+                exit 1
+            else
+                writelog "[run_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
+            fi
         fi
         # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
         prechosen_os_name=$(convert_os_to_name "$prechosen_os")
@@ -1822,7 +1845,7 @@ run_mist() {
     # restrict to a particular version if selected
     elif [[ $prechosen_version ]]; then
         if ! is-at-least "$system_version" "$prechosen_version"; then 
-            writelog "[run_mist] ERROR: cannot select an older version ($prechosen_version) than the system($system_version)"
+            writelog "[run_mist] ERROR: cannot select an older version ($prechosen_version) than the system ($system_version)"
             echo
             exit 1
         else
@@ -1860,14 +1883,14 @@ run_mist() {
 
     else
         # if no version was selected, we want the latest available, which is the first in the mist-list
-        latest_version=$(ljt '0.version' < "$mist_export_file")
         if [[ $latest_version ]]; then
             if ! is-at-least "$system_version" "$latest_version"; then
                 writelog "[run_mist] ERROR: latest version in catalog ($latest_version) is older than the system version ($system_version)"
                 echo
                 exit 1
+            else
+                writelog "[run_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
             fi
-            writelog "[run_mist] Selected $latest_version as the latest version available"
             mist_args+=("$latest_version")
         else
             writelog "[run_mist] ERROR: mist was unable to locate any installers (probably no internet connection)"
@@ -3082,7 +3105,7 @@ if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "
     do_overwrite_existing_installer=1
 fi
 
-if [[ "$prechosen_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ "$prechosen_build" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
     if [[ "$installer_build" != "$prechosen_build" ]]; then
@@ -3093,7 +3116,7 @@ if [[ "$prechosen_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     fi
 fi
 
-if [[ "$prechosen_os" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ "$prechosen_os" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
     if [[ "$installer_build" ]]; then
@@ -3108,7 +3131,7 @@ if [[ "$prechosen_os" && $do_overwrite_existing_installer -ne 1 ]]; then
     fi
 fi
 
-if [[ $update_installer == "yes" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ $update_installer == "yes" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
     if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"

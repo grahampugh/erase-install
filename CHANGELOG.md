@@ -20,9 +20,14 @@ No date
 
 No date
 
+### Updates in 36.1
+
+- Bumped swiftDialog version to 2.5.3 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.3 and 2.2.1, and the appropriate one will be installed.
+
 ### Bugfixes in 36.1
 
 - `--update` and `--overwrite` options will now function when an invalid installer is present on the device (addresses #529).
+- Filtered the mist list search to the prechosen OS, version or build and added a check to see that there is a version of the prechosen OS that is compatible with the system. Prevents downloading e.g. 15.1 on a 15.2 beta system when `--os 15` is chosen (addresses #534).
 
 ## [36.0]
 
