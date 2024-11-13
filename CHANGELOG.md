@@ -20,9 +20,15 @@ No date
 
 No date
 
+### Updates in 36.1
+
+- Total size of `InstallAssistant.pkg` and the amount downloaded so far are now shown in the Download dialog, for example `2.1 GB / 15.34 GB`, in addition to the existing percentage progress (partially addresses #530).
+- Bumped swiftDialog version to 2.5.3 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.3 and 2.2.1, and the appropriate one will be installed.
+
 ### Bugfixes in 36.1
 
 - `--update` and `--overwrite` options will now function when an invalid installer is present on the device (addresses #529).
+- Fixed a problem where Intel Mac board IDs may be incorrectly identified as incompatible with a valid installer (thanks to @pcrandom on Slack).
 
 ## [36.0]
 
