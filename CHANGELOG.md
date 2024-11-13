@@ -14,7 +14,7 @@ Since the package on this site is not signed, if you download this package from 
 
 ## [Untagged]
 
-No date
+13.11.2024
 
 ## [36.1]
 
@@ -31,7 +31,7 @@ No date
 
 ## [36.0]
 
-17.09.2026
+17.09.2024
 
 ### Updates in 36.0
 
