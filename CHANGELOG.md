@@ -14,11 +14,24 @@ Since the package on this site is not signed, if you download this package from 
 
 ## [Untagged]
 
+13.11.2024
+
+## [36.1]
+
 No date
+
+### Updates in 36.1
+
+- Bumped swiftDialog version to 2.5.3 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.3 and 2.2.1, and the appropriate one will be installed.
+
+### Bugfixes in 36.1
+
+- `--update` and `--overwrite` options will now function when an invalid installer is present on the device (addresses #529).
+- Filtered the mist list search to the prechosen OS, version or build and added a check to see that there is a version of the prechosen OS that is compatible with the system. Prevents downloading e.g. 15.1 on a 15.2 beta system when `--os 15` is chosen (addresses #534).
 
 ## [36.0]
 
-17.09.2026
+17.09.2024
 
 ### Updates in 36.0
 
@@ -709,7 +722,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v36.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v36.1...HEAD
+[36.1]: https://github.com/grahampugh/erase-install/compare/v36.0...v36.1
 [36.0]: https://github.com/grahampugh/erase-install/compare/v35.0...v36.0
 [35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0
 [34.0]: https://github.com/grahampugh/erase-install/compare/v33.1...v34.0
