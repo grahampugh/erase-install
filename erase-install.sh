@@ -437,7 +437,7 @@ check_installer_is_valid() {
                 # 2. Grab compatible device/board IDs from com_apple_MobileAsset_MacSoftwareUpdate
                 compatible_device_ids=$(grep -A2 "SupportedDeviceModels" "$build_xml" | grep string | awk -F '<string>|</string>' '{ print $2 }')
                 # 3. Check that 1 is in 2. 
-                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id") ]]; then
+                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id"*) ]]; then
                     writelog "[check_installer_is_valid] Installer is compatible with system"
                 else
                     writelog "[check_installer_is_valid] ERROR: Installer is incompatible with system"
@@ -593,19 +593,25 @@ check_newer_available() {
             if [[ "$available_build" ]]; then
                 if [[ $installer_pkg_build ]]; then
                     echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
+                    if ! is-at-least "$available_build" "$installer_pkg_build"; then
+                        newer_build_found="yes"
+                    fi
                 else
                     echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
+                    if ! is-at-least "$available_build" "$installer_build"; then
+                        newer_build_found="yes"
+                    fi
                 fi
-                if ! is-at-least "$available_build" "$installer_build"; then
-                    newer_build_found="yes"
-                fi
+            fi
+            if [[ $newer_build_found == "yes" ]]; then
+                writelog "[check_newer_available] Newer installer found."
+                do_overwrite_existing_installer=1
+            else 
+                writelog "[check_newer_available] No newer builds found"
             fi
         else
             writelog "[check_newer_available] ERROR reading output from mist, cannot continue"
             exit 1
-        fi
-        if [[ "$newer_build_found" == "no" ]]; then 
-            writelog "[check_newer_available] No newer builds found"
         fi
     else
         writelog "[check_newer_available] ERROR running mist, cannot continue"
@@ -3136,10 +3142,6 @@ if [[ $update_installer == "yes" && "$installer_build" && $do_overwrite_existing
     if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
         check_newer_available
-        if [[ $newer_build_found == "yes" ]]; then
-            writelog "[$script_name] Newer installer found."
-            do_overwrite_existing_installer=1
-        fi
     fi
 fi
 

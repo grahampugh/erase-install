@@ -28,6 +28,7 @@ No date
 
 - `--update` and `--overwrite` options will now function when an invalid installer is present on the device (addresses #529).
 - Filtered the mist list search to the prechosen OS, version or build and added a check to see that there is a version of the prechosen OS that is compatible with the system. Prevents downloading e.g. 15.1 on a 15.2 beta system when `--os 15` is chosen (addresses #534).
+- Fixed checks for newer packages (addresses #532).
 
 ## [36.0]
 
