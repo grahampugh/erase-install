@@ -437,7 +437,7 @@ check_installer_is_valid() {
                 # 2. Grab compatible device/board IDs from com_apple_MobileAsset_MacSoftwareUpdate
                 compatible_device_ids=$(grep -A2 "SupportedDeviceModels" "$build_xml" | grep string | awk -F '<string>|</string>' '{ print $2 }')
                 # 3. Check that 1 is in 2. 
-                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id") ]]; then
+                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id"*) ]]; then
                     writelog "[check_installer_is_valid] Installer is compatible with system"
                 else
                     writelog "[check_installer_is_valid] ERROR: Installer is incompatible with system"
