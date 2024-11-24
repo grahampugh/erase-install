@@ -29,7 +29,7 @@ build:
 	echo "## Downloading swiftDialog $$swiftdialog_tag" ;\
 	github_token=$$(cat $(GITHUB_TOKEN_FILE)) ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
-	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.1.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_url" ;\
 	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_tag"
@@ -39,7 +39,7 @@ build:
 	echo "## Downloading swiftDialog $$swiftdialog_bigsur_tag" ;\
 	github_token=$$(cat $(GITHUB_TOKEN_FILE)) ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
-	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | awk -F '"' '/browser_download_url/ { print $$4; exit }') ;\
+	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.1.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_bigsur_url" ;\
 	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog-bigsur.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"

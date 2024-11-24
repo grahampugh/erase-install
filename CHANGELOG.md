@@ -14,11 +14,19 @@ Since the package on this site is not signed, if you download this package from 
 
 ## [Untagged]
 
-13.11.2024
+No date
+
+## [37.0]
+
+No date
+
+### Updates in 37.0
+
+- Now uses a portable version of swiftDialog that is installed in the Working Directory. This prevents incompatibility with any preexisting version, and also allows the version that is downloaded to be removed when using the `--cleanup-after-use` flag.
 
 ## [36.1]
 
-No date
+13.11.2024
 
 ### Updates in 36.1
 

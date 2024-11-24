@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="36.1"
+version="37.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -57,15 +57,15 @@ mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.3"
+swiftdialog_tag_required="v2.5.4"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
 swiftdialog_bigsur_tag_required="v2.2.1"
 
 # swiftDialog variables
-dialog_app="/Library/Application Support/Dialog/Dialog.app"
-dialog_bin="/usr/local/bin/dialog"
+dialog_portable_app="$workdir/Dialog.app"
+dialog_default_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
 dialog_output="/var/tmp/dialog.json"
 
@@ -293,25 +293,32 @@ check_for_mist() {
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
-    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        if ! is-at-least "12" "$system_version"; then 
-            dialog_string=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Library/Application\ Support/Dialog/Dialog.app/Contents/Info.plist)
-            dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-            if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]]; then
-                writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
-                app_directory="/Library/Application Support/Dialog"
-                bin_shortcut="/usr/local/bin/dialog"
-                /bin/rm -rf "$app_directory" 
-                /bin/rm -f "$bin_shortcut" /var/tmp/dialog.*
-            fi
+    if [[ -d "$dialog_portable_app" ]]; then
+        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
+            /bin/rm -rf "$dialog_portable_app" 
+            /bin/rm -f /var/tmp/dialog.*
+            dialog_bin=""
+        fi
+    fi
+
+    # check for a pre-installed version
+    if [[ -d "$dialog_default_app" ]]; then
+        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
+            writelog "[check_for_swiftdialog_app] Preinstalled version of swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version."
+            dialog_bin=""
         fi
     fi
 
     # now check for any version of swiftDialog and download if not present
-    if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
-        dialog_string=$("$dialog_bin" --version 2>/dev/null)
-        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_app)"
+    if [[ -f "$dialog_bin" ]]; then
+        writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
         if [[ ! $no_curl ]]; then
             if ! is-at-least "12" "$system_version"; then 
@@ -324,26 +331,36 @@ check_for_swiftdialog_app() {
 
             # obtain the download URL
             swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-            dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | awk -F '"' '/browser_download_url/ { print $4; exit }')
+            dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.1.browser_download_url -)
             
-            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                if installer -pkg "$workdir/dialog.pkg" -target / ; then
-                    dialog_string=$("$dialog_bin" --version)
-                    dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.dmg" ; then
+                if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$workdir/swiftDialog.dmg" ; then
+                    writelog "[check_for_swiftdialog_app] Mounting $workdir/swiftDialog.dmg"
+                    if cp -r /Volumes/Dialog/Dialog.app "$dialog_portable_app"; then
+                        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+                        dialog_string=$("$dialog_bin" --version)
+                        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+                        writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
+                    else
+                        writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                    fi
+                    diskutil unmount force "/Volumes/Dialog"
                 else
-                    writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                    writelog "[check_for_swiftdialog_app] ERROR: could not mount swiftDialog disk image"
                     exit 1
                 fi
             else
-                writelog "[check_for_swiftdialog_app] swiftDialog download failed"
+                writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
                 exit 1
             fi
         fi
         # check it did actually get downloaded
-        if [[ -d "$dialog_app" && -f "$dialog_bin" ]]; then
+        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_bin is installed" # TEMP
+    
+        if [[ -f "$dialog_bin" ]]; then
             writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed"
         else
-            writelog "[check_for_swiftdialog_app] Could not download swiftDialog."
+            writelog "[check_for_swiftdialog_app] ERROR: Could not download swiftDialog."
             exit 1
         fi
     fi
@@ -423,7 +440,7 @@ check_installer_is_valid() {
     # now attempt to mount the installer and grab the build number from
     # com_apple_MobileAsset_MacSoftwareUpdate.xml
     if [[ -f "$cached_installer_app/Contents/SharedSupport/SharedSupport.dmg" ]]; then
-        if hdiutil attach -quiet -noverify -nobrowse "$cached_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
+        if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$cached_installer_app/Contents/SharedSupport/SharedSupport.dmg" ; then
             writelog "[check_installer_is_valid] Mounting $cached_installer_app/Contents/SharedSupport/SharedSupport.dmg"
             sleep 1
             build_xml="/Volumes/Shared Support/com_apple_MobileAsset_MacSoftwareUpdate/com_apple_MobileAsset_MacSoftwareUpdate.xml"
