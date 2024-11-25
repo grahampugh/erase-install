@@ -31,17 +31,19 @@ build:
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
 	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.1.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_url" ;\
-	curl -L "$$swiftdialog_url" -o "$(PKG_SCRIPTS)/dialog.pkg" ;\
-	echo "## Downloaded swiftDialog $$swiftdialog_tag"
+	curl -L "$$swiftdialog_url" -o "/private/tmp/swiftDialog.dmg" ;\
+	echo "## Downloaded swiftDialog $$swiftdialog_tag" ;\
+	hdiutil attach -quiet -noverify -nobrowse "/private/tmp/swiftDialog.dmg" ;\
+	cp -r /Volumes/Dialog/Dialog.app "$(PKG_ROOT)/Library/Management/erase-install/Dialog.app"
 
 	@echo
 	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
 	echo "## Downloading swiftDialog $$swiftdialog_bigsur_tag" ;\
 	github_token=$$(cat $(GITHUB_TOKEN_FILE)) ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
-	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.1.browser_download_url' raw -) ;\
+	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.0.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_bigsur_url" ;\
-	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/dialog-bigsur.pkg" ;\
+	curl -L "$$swiftdialog_bigsur_url" -o "$(PKG_SCRIPTS)/swiftDialog-bigsur.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"
 
 	@echo

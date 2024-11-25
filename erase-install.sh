@@ -305,8 +305,8 @@ check_for_swiftdialog_app() {
         fi
     fi
 
-    # check for a pre-installed version
-    if [[ -d "$dialog_default_app" ]]; then
+    # check also for a pre-installed version
+    if [[ ! -d "$dialog_portable_app" && -d "$dialog_default_app" ]]; then
         dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
@@ -317,48 +317,69 @@ check_for_swiftdialog_app() {
     fi
 
     # now check for any version of swiftDialog and download if not present
-    if [[ -f "$dialog_bin" ]]; then
+    if [[ -f "$dialog_bin" && "v$dialog_string" == "$swiftdialog_tag_required"* ]]; then
         writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
+        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
         if [[ ! $no_curl ]]; then
             if ! is-at-least "12" "$system_version"; then 
                 # we need to get the older version of swiftDialog that is compatible with Big Sur
                 swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
-            else
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
-            fi
-
-            # obtain the download URL
-            swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-            dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.1.browser_download_url -)
-            
-            if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.dmg" ; then
-                if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$workdir/swiftDialog.dmg" ; then
-                    writelog "[check_for_swiftdialog_app] Mounting $workdir/swiftDialog.dmg"
-                    if cp -r /Volumes/Dialog/Dialog.app "$dialog_portable_app"; then
-                        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+                # obtain the download URL
+                swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
+                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
+                
+                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
+                    if installer -tgt / -pkg "$workdir/dialog.pkg" ; then
+                        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
                         dialog_string=$("$dialog_bin" --version)
                         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
                         writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
                     else
                         writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
                     fi
-                    diskutil unmount force "/Volumes/Dialog"
                 else
-                    writelog "[check_for_swiftdialog_app] ERROR: could not mount swiftDialog disk image"
+                    writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
                     exit 1
                 fi
             else
-                writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
-                exit 1
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
+                # obtain the download URL
+                swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
+                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.1.browser_download_url -)
+                
+                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.dmg" ; then
+                    mount_point=$(/usr/bin/mktemp -d /Users/Shared/swiftDialog.XXX)
+                    mkdir -p "$mount_point"
+                    if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$workdir/swiftDialog.dmg" -mountpoint "$mount_point" ; then
+                        writelog "[check_for_swiftdialog_app] Mounting $workdir/swiftDialog.dmg"
+                        rm -Rf "$workdir/Dialog.app"
+                        if cp -R "$mount_point/Dialog.app" "$workdir"/; then
+                            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+                            dialog_string=$("$dialog_bin" --version)
+                            dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+                            writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
+                        else
+                            writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                        fi
+                        diskutil unmount force "$mount_point"
+                        rm -rf "$mount_point"
+                    else
+                        writelog "[check_for_swiftdialog_app] ERROR: could not mount swiftDialog disk image"
+                    fi
+                    rm "$workdir/swiftDialog.dmg"
+                else
+                    writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
+                fi
             fi
+
         fi
         # check it did actually get downloaded
-        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_bin is installed" # TEMP
+        # writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed" # TEMP
     
         if [[ -f "$dialog_bin" ]]; then
-            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed"
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_bin)"
         else
             writelog "[check_for_swiftdialog_app] ERROR: Could not download swiftDialog."
             exit 1
