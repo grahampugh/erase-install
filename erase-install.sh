@@ -941,7 +941,7 @@ dialog_progress() {
     last_progress_value=0
     current_progress_value=0
     # initialise progress messages
-    writelog "Sending to dialog: progresstext:"
+    writelog "[dialog_progress] Sending to dialog: progresstext:"
     echo "progresstext: " >> "$dialog_log"
     echo  "progress: 0" >> "$dialog_log"
 
@@ -950,10 +950,14 @@ dialog_progress() {
         until grep -q "Preparing to run macOS Installer..." "$LOG_FILE" ; do
             sleep 0.1
         done
-        writelog "Sending to dialog: progresstext: Preparing to run macOS Installer..."
+        writelog "[dialog_progress] Sending to dialog: progresstext: Preparing to run macOS Installer..."
         echo "progresstext: Preparing to run macOS Installer..." >> "$dialog_log"
         
         until grep -q "Preparing: \d" "$LOG_FILE" ; do
+            if grep -q "Error: could not get authorization..." "$LOG_FILE"; then
+                writelog "[dialog_progress] ERROR: startosinstall authorization failed"
+                exit 20
+            fi
             sleep 2
         done
         echo "progress: 0" >> "$dialog_log"
@@ -982,7 +986,7 @@ dialog_progress() {
             until grep -q "SEARCH" "$LOG_FILE" ; do
                 sleep 1
             done
-            writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
+            writelog "[dialog_progress] Sending to dialog: progresstext: Searching for a valid macOS installer..."
             echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
 
             # Wait for a Found message to appear
@@ -990,14 +994,14 @@ dialog_progress() {
                 sleep 1
             done
             dialog_found_installer=$(/usr/bin/grep "Found \[" "$LOG_FILE" | sed 's/.*Found \[.*\] //' | sed 's/ \[.*\]//')
-            writelog "Sending to dialog: progresstext: Found $dialog_found_installer"
+            writelog "[dialog_progress] Sending to dialog: progresstext: Found $dialog_found_installer"
             echo "progresstext: Found $dialog_found_installer" >> "$dialog_log"
 
             # Wait for the download to start and set the progress bar to 100 steps
             until grep -q "DOWNLOAD" "$LOG_FILE" ; do
                 sleep 2
             done
-            writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
+            writelog "[dialog_progress] Sending to dialog: progresstext: Downloading $dialog_found_installer"
             echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
             echo  "progress: 0" >> "$dialog_log"
             # Wait for the InstallAssistant package to start downloading
@@ -1017,20 +1021,20 @@ dialog_progress() {
                 last_progress_value=$current_progress_value
             done
             # if the percentage reaches or goes over 100, show that we are finishing up
-            writelog "Sending to dialog: progress: complete"
+            writelog "[dialog_progress] Sending to dialog: progress: complete"
             echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
-            writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
+            writelog "[dialog_progress] Sending to dialog: progresstext: Preparing downloaded macOS installer"
             echo "progress: complete" >> "$dialog_log"
         fi
 
     elif [[ "$1" == "fetch-full-installer" ]]; then
-        writelog "Sending to dialog: progresstext: Searching for a valid macOS installer..."
+        writelog "[dialog_progress] Sending to dialog: progresstext: Searching for a valid macOS installer..."
         echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
         # Wait for the download to start and set the progress bar to 100 steps
         until grep -q "Installing:" "$LOG_FILE" ; do
             sleep 2
         done
-        writelog "Sending to dialog: progresstext: Downloading $dialog_found_installer"
+        writelog "[dialog_progress] Sending to dialog: progresstext: Downloading $dialog_found_installer"
         echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
         echo "progress: 0" >> "$dialog_log"
 
@@ -1045,9 +1049,9 @@ dialog_progress() {
             last_progress_value=$current_progress_value
         done
         # if the percentage reaches or goes over 100, show that we are finishing up
-        writelog "Sending to dialog: progresstext: Preparing downloaded macOS installer"
+        writelog "[dialog_progress] Sending to dialog: progresstext: Preparing downloaded macOS installer"
         echo "progresstext: Preparing downloaded macOS installer" >> "$dialog_log"
-        writelog "Sending to dialog: progress: complete"
+        writelog "[dialog_progress] Sending to dialog: progress: complete"
         echo "progress: complete" >> "$dialog_log"
 
     elif [[ "$1" == "reboot-delay" ]]; then
@@ -2987,7 +2991,12 @@ log_rotate
 echo
 writelog "[$script_name] v$version script execution started: $(date)"
 echo
-writelog "[$script_name] Arguments provided: $all_args"
+if [[ "$credentials" ]]; then
+    all_args_sanitized="${all_args//$credentials/<encodedcredentials>}"
+    writelog "[$script_name] Arguments provided: $all_args_sanitized"
+else
+    writelog "[$script_name] Arguments provided: $all_args"
+fi
 
 # announce if the Test Run mode is implemented
 if [[ $erase == "yes" || $reinstall == "yes" ]]; then
