@@ -13,14 +13,14 @@ system_version=$( /usr/bin/sw_vers -productVersion )
 system_os=$(/usr/bin/cut -d. -f 1 <<< "$system_version")
 
 if [[ $system_os -ge 12 ]]; then
-    if /usr/sbin/installer -tgt / -pkg "$DIR/dialog.pkg"; then
+    if [[ -d "/Library/Management/erase-install/Dialog.app" ]]; then
         echo "swiftDialog successfully installed"
     else
         echo "ERROR: swiftDialog was not installed"
         exit 1
     fi
 elif [[ $system_os -eq 11 ]]; then
-    if /usr/sbin/installer -tgt / -pkg "$DIR/dialog-bigsur.pkg"; then
+    if /usr/sbin/installer -tgt / -pkg "$DIR/swiftDialog-bigsur.pkg"; then
         echo "swiftDialog (Big Sur version) successfully installed"
     else
         echo "ERROR: swiftDialog was not installed"

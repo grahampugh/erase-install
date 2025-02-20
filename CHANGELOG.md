@@ -14,11 +14,21 @@ Since the package on this site is not signed, if you download this package from 
 
 ## [Untagged]
 
-13.11.2024
+No date
 
-## [36.1]
+## [37.0]
 
 No date
+
+### Updates in 37.0
+
+- Now uses a portable version of swiftDialog that is installed in the Working Directory (by default, `/Library/Management/erase-install`). This prevents incompatibility with any preexisting version of swiftDialog, and also allows the version that is downloaded to be removed when using the `--cleanup-after-use` flag. Note that a portable release is not available for v2.2.1 of swiftDialog, which is required for computers running macOS Big Sur, so if the package is installed on a Big Sur Mac, the pkg installer is used so any existing version of swiftDialog will be overwritten, as before.
+- Added a check to see if startosinstall authorisation failed, which will cause the script to quit rather than wait until it times out (thanks @pcrandom).
+- Obfuscates the credentials from the output when using `--very-insecure-mode` (thanks @pcrandom).
+  
+## [36.1]
+
+13.11.2024
 
 ### Updates in 36.1
 
