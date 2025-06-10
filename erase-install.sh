@@ -37,7 +37,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="37.0"
+version="38.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -57,7 +57,7 @@ mist_tag_required="v2.1.1"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.4"
+swiftdialog_tag_required="v2.5.6"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -608,6 +608,12 @@ check_newer_available() {
         mist_args+=("$catalogurl")
     elif [[ $catalog ]]; then
         darwin_version=$(get_darwin_from_os_version "$catalog")
+        # exit if darwin version is 0
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[run_mist] ERROR: Invalid darwin version for catalog $catalog"
+            echo
+            exit 1
+        fi
         get_catalog
         writelog "[check_newer_available] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
@@ -839,6 +845,8 @@ convert_os_to_name () {
             ;;
         "15") os_name="Sequoia"
             ;;
+        "26") os_name="Tahoe"
+            ;;
         *) os_name="$1"
             ;;
     esac
@@ -860,6 +868,8 @@ convert_name_to_os () {
         "Sonoma") os_major_version="14"
             ;;
         "Sequoia") os_major_version="15"
+            ;;
+        "Tahoe") os_major_version="26"
             ;;
         *) os_major_version="$1"
             ;;
@@ -1163,7 +1173,19 @@ get_darwin_from_os_version() {
         darwin_version=$(cut -d. -f2 <<< "$os_major")
         darwin_version=$((darwin_version+4))
     else
-        darwin_version=$((os_major_check+9))
+        # for macOS 26 and above, the darwin version is the major version - 1
+        if [[ $os_major_check -ge 26 ]]; then
+            darwin_version=$((os_major_check-1))
+        elif [[ $os_major_check -ge 11 && $os_major_check -le 15 ]]; then
+            # for macOS 11 to 15, the darwin version is the major version + 9
+            # this is because macOS 11 is Darwin 20, macOS 12 is Darwin 21, etc.
+            # so we add 9 to the major version number
+            # e.g. macOS 11 (Big Sur) -> Darwin 20, macOS 12 (Monterey) -> Darwin 21, etc.
+            darwin_version=$((os_major_check+9))
+        else
+            # return zero for unsupported macOS versions
+            darwin_version=0
+        fi
     fi
     echo "$darwin_version"
 }
@@ -1179,9 +1201,19 @@ read_from_keychain() {
     if security unlock-keychain -p "$kc_pass" "$kc"; then
         writelog "[read_from_keychain] Unlocked keychain..."
         account_shortname=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "acct" | cut -d \" -f4)
-        [[ $account_shortname ]] && writelog "[read_from_keychain] Obtained user $account_shortname..."
+        if [[ $account_shortname ]]; then
+            writelog "[read_from_keychain] Obtained user $account_shortname..."
+        else
+            writelog "[read_from_keychain] Could not find user in keychain."
+            exit 1
+        fi
         account_password=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "password" | cut -d \" -f2)
-        [[ $account_password ]] && writelog "[read_from_keychain] Obtained password..."
+        if [[ $account_password ]]; then
+            writelog "[read_from_keychain] Obtained password..."
+        else
+            writelog "[read_from_keychain] Could not find password in keychain."
+            exit 1
+        fi
     else
         writelog "[read_from_keychain] Could not unlock keychain. Continuing..."
     fi
@@ -1199,6 +1231,7 @@ get_catalog() {
     catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-15seed-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
 }
 
 # -----------------------------------------------------------------------------
@@ -1304,6 +1337,11 @@ get_mist_list() {
         mist_args+=("$catalogurl")
     elif [[ $catalog ]]; then
         darwin_version=$(get_darwin_from_os_version "$catalog")
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[get_mist_list] ERROR: Unsupported macOS version $catalog"
+            echo
+            exit 1
+        fi
         get_catalog
         writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
@@ -1356,6 +1394,18 @@ get_user_details() {
             if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
                 account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
                 account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
+                if [[ $account_shortname ]]; then
+                    writelog "[get_user_details] Credentials for $account_shortname supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No credentials supplied, so exiting..."
+                    exit 1
+                fi
+                if [[ $account_password ]]; then
+                    writelog "[get_user_details] Password supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No password supplied, so exiting..."
+                    exit 1
+                fi
             else
                 writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
                 exit 1
@@ -1396,8 +1446,8 @@ get_user_details() {
         # check that this user exists
         if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
             writelog "[get_user_details] $account_shortname account cannot be found!"
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
-                password_is_invalid
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode == "yes" ]]; then
+                user_is_invalid
                 echo
                 exit 1
             fi
@@ -1451,7 +1501,7 @@ get_user_details() {
         if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
             writelog "[get_user_details] $account_shortname is not a Volume Owner"
             user_not_volume_owner
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes" ]]; then
                 password_is_invalid
                 exit 1
             fi
@@ -1462,7 +1512,7 @@ get_user_details() {
         # check that the password is correct
         check_password "$account_shortname" "$account_password"
 
-        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent)  ]]; then
+        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes")  ]]; then
             password_is_invalid
             exit 1
         fi
@@ -2001,6 +2051,12 @@ run_mist() {
         mist_args+=("$catalogurl")
     elif [[ $catalog ]]; then
         darwin_version=$(get_darwin_from_os_version "$catalog")
+        # exit if darwin version is 0
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[run_mist] ERROR: Invalid darwin version for catalog $catalog"
+            echo
+            exit 1
+        fi
         get_catalog
         writelog "[run_mist] Non-default catalog selected (darwin version $darwin_version)"
         mist_args+=("--catalog-url")
@@ -2582,25 +2638,27 @@ unpack_pkg_to_applications_folder() {
 user_is_invalid() {
     # required for Silicon Macs
     writelog "[user_is_invalid] ERROR - user was not validated."
-    if [[ ! $silent ]]; then
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "--title"
-            "${dialog_window_title}"
-            "--icon"
-            "${dialog_warning_icon}"
-            "--iconsize"
-            "${dialog_icon_size}"
-            "--overlayicon"
-            "SF=person.fill.xmark,colour=red"
-            "--message"
-            "${(P)dialog_invalid_user}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+    if [[ $silent || $very_insecure_mode ]]; then
+        # exit with error code
+        exit 1
     fi
+    # set the dialog command arguments
+    get_default_dialog_args "utility"
+    dialog_args=("${default_dialog_args[@]}")
+    dialog_args+=(
+        "--title"
+        "${dialog_window_title}"
+        "--icon"
+        "${dialog_warning_icon}"
+        "--iconsize"
+        "${dialog_icon_size}"
+        "--overlayicon"
+        "SF=person.fill.xmark,colour=red"
+        "--message"
+        "${(P)dialog_invalid_user}"
+    )
+    # run the dialog command
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------
@@ -2610,25 +2668,28 @@ user_is_invalid() {
 password_is_invalid() {
     # required for Silicon Macs
     writelog "[password_is_invalid] ERROR - password is invalid."
-    if [[ ! $silent ]]; then
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "--title"
-            "${dialog_window_title}"
-            "--icon"
-            "${dialog_confirmation_icon}"
-            "--iconsize"
-            "${dialog_icon_size}"
-            "--overlayicon"
-            "SF=person.fill.xmark,colour=red"
-            "--message"
-            "${(P)dialog_invalid_password} $user"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+    if [[ $silent || $very_insecure_mode ]]; then
+        writelog "[password_is_invalid] ERROR - password is invalid."
+        # exit with error code
+        exit 1
     fi
+    # set the dialog command arguments
+    get_default_dialog_args "utility"
+    dialog_args=("${default_dialog_args[@]}")
+    dialog_args+=(
+        "--title"
+        "${dialog_window_title}"
+        "--icon"
+        "${dialog_confirmation_icon}"
+        "--iconsize"
+        "${dialog_icon_size}"
+        "--overlayicon"
+        "SF=person.fill.xmark,colour=red"
+        "--message"
+        "${(P)dialog_invalid_password} $user"
+    )
+    # run the dialog command
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------
