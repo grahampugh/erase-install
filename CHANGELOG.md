@@ -23,6 +23,7 @@ No date
 ### Updates in 38.0
 
 - Updated the calculation of Darwin version from major OS version and vice versa to account for macOS 26 (Darwin 25).
+- Added temporary catalog for macOS 26 betas.
 - Bumped swiftDialog version to 2.5.6 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.6 and 2.2.1, and the appropriate one will be installed.
 
 ### Bugfixes in 38.0
