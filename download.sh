@@ -45,14 +45,15 @@ fi
 # for each product, extract the Packages key
 echo "Please wait while we process the catalog..."
 while read -r product; do
-    # use PlistBuddy to check for URLs that end with InstallAssistant.pkg
-    # and print the product name and URL
-    # echo "Checking product: $product"
-    url=$(/usr/libexec/PlistBuddy -c "Print :Products:""$product"":Packages" "$catalog_plist_path" 2>/dev/null | grep -o 'https://[^"]*InstallAssistant.pkg' | head -n 1)
-    post_date=$(/usr/libexec/PlistBuddy -c "Print :Products:""$product"":PostDate" "$catalog_plist_path" 2>/dev/null)
+    package_json=$(plutil -extract Products."$product".Packages json -o - "$catalog_plist_path")
+    # extract the URL key that ends with InstallAssistant.pkg
+    url=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json")
+
     if [[ -n "$url" ]]; then
+        post_date=$(plutil -extract Products."$product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
+        pkg_size=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json")
         # download the associated dist file and extract useful information
-        dist_file=$(/usr/libexec/PlistBuddy -c "Print :Products:""$product"":Distributions:English" "$catalog_plist_path" 2>/dev/null)
+        dist_file=$(plutil -extract Products."$product".Distributions.English raw -o - "$catalog_plist_path" 2>/dev/null)
         # echo "File: $dist_file"
         if [[ -z "$dist_file" ]]; then
             echo "No dist file found for product $product."
@@ -91,6 +92,7 @@ while read -r product; do
         echo "  \"title\": \"$title\"," >> "$json_file"
         echo "  \"build\": \"$build\"," >> "$json_file"
         echo "  \"version\": \"$version\"," >> "$json_file"
+        echo "  \"pkg_size\": \"$pkg_size\"," >> "$json_file"
         echo "  \"supported_board_ids\": [" >> "$json_file"
         if [[ -n "$supportedBoardIDs" ]]; then
             # convert the comma-separated list to a JSON array, removing any spaces
