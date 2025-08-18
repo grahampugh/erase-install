@@ -22,6 +22,8 @@ No date
 
 ### Updates in 38.0
 
+- New experimental `--native` mode. This can be used instead of using `mist-cli` (standard mode), or `--fetch-full-installer`. It requires macOS 15 or newer to be running on the base system, or `jq` to be separately installed, as it makes extensive use of `jq`. The advantage of this mode is that it requires less space than when using `mist-cli`, as it only downloads `InstallAssistant.pkg` rather than creating a disk image containing it. However, discovering the package URLs takes longer than `mist-cli` as the shell commands used run slower. To compensate for this, a JSON file of results is cached for one day, to help testing go faster.
+- `--native` mode may help in cases where the base system is macOS 15.6 or newer, where `mist-cli` currently fails to create the installer package [mist-cli Issue #186](https://github.com/ninxsoft/mist-cli/issues/186).
 - Updated the calculation of Darwin version from major OS version and vice versa to account for macOS 26 (Darwin 25).
 - Added temporary catalog for macOS 26 betas.
 - Bumped swiftDialog version to 2.5.6 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.6 and 2.2.1, and the appropriate one will be installed.
