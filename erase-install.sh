@@ -81,9 +81,6 @@ default_downloaded_app_name="Install %NAME%.app"
 default_downloaded_pkg_name="InstallAssistant-%VERSION%-%BUILD%.pkg"
 default_downloaded_pkg_id="com.apple.InstallAssistant.%VERSION%.%BUILD%.pkg"
 
-# temp file for curl output
-tmpcurlfile=$(mktemp -t InstallAssistantDownload.XXXXXX)
-
 # =============================================================================
 # Functions 
 # functions are listed alphabetically
@@ -1454,19 +1451,25 @@ get_device_id() {
 get_installers_list_json() {
     catalog_download_path="$workdir/downloads/$(basename "$catalogurl")"
     catalog_plist_path="$workdir/downloads/$(basename "$catalogurl").plist"
+    installers_list_json_file="$workdir/downloads/$(basename "$catalogurl").products.json"
 
     # download the catalog if not already present
     if [[ ! -d "$workdir/downloads" ]]; then
         mkdir -p "$workdir/downloads"
     fi
-    if [[ ! -f "$catalog_plist_path" ]]; then
-        echo "Downloading catalog..."
-        curl "$catalogurl" -o "$catalog_download_path"
+    if [[ ! -f "$catalog_plist_path" || $(date -r "$catalog_plist_path" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+        # clear old json file
+        rm "$installers_list_json_file"
+        writelog "[get_installers_list_json] Downloading catalog..."
+        if ! curl -sL "$catalogurl" -o "$catalog_download_path"; then
+            writelog "[get_installers_list_json] Failed to download catalog"
+            return 1
+        fi
         if [[ "$catalog_download_path" == *.gz ]]; then
-            echo "Unzipping catalog..."
+            writelog "[get_installers_list_json] Unzipping catalog..."
             gunzip -c "$catalog_download_path" > "$catalog_plist_path"
         else
-            echo "Catalog already downloaded, ensure the identifier is .plist"
+            writelog "[get_installers_list_json] Catalog already downloaded, ensure the identifier is .plist"
             cp "$catalog_download_path" "$catalog_plist_path"
         fi
     fi
@@ -1474,52 +1477,62 @@ get_installers_list_json() {
     # get a list of products from the catalog using plutil
     products=$(/usr/libexec/PlistBuddy -c "Print :Products:" "$catalog_plist_path" | sed -n 's/^    \([0-9]\{3\}-[0-9]\{5\}\) = Dict {$/\1/p')
 
-    # echo "Available products:"
     # print the list of products
-    # echo "$products"
-    if [[ -z "$products" ]]; then
-        echo "No products found in the catalog."
+    # echo "Available products:" # DEBUG
+    # echo "$products" # DEBUG
+
+    if [[ ! "$products" ]]; then
+        writelog "[get_installers_list_json] No products found in the catalog."
         exit 1
     fi
 
-    # create a JSON file to store the product information
-    installers_list_json_file="$workdir/downloads/products.json"
-    # if json file exists and was not created today, remove it
-    if [[ -f "$installers_list_json_file" && $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
-        echo "Removing old JSON file..."
+    # if json file exists and was not created today, or has no content (including if it just has an empty list or array), remove it
+    if [[ -f "$installers_list_json_file" && ( $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]" ) ]]; then
+        writelog "[get_installers_list_json] Removing old or empty JSON file..."
         rm "$installers_list_json_file"
-
+    fi
+    if [[ ! -f "$installers_list_json_file" ]]; then
         # for each product, extract the Packages key
-        echo "Please wait while we process the catalog..."
+        writelog "[get_installers_list_json] Please wait while we process the catalog..."
         tmp_json_file="$workdir/downloads/products_tmp.json"
         echo > "$tmp_json_file"
         get_device_id
 
         while read -r ia_product; do
-        package_json=$(plutil -extract Products."$ia_product".Packages json -o - "$catalog_plist_path")
+        # some tests failed to extract the data directly as json, so extract as xml1 first and then convert
+        package_plist=$(plutil -extract Products."$ia_product".Packages xml1 -o - "$catalog_plist_path" 2>/dev/null)
+        # now convert to json
+        package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null)
         # extract the URL key that ends with InstallAssistant.pkg
-        ia_url=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json")
+        ia_url=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null)
         if [[ -n "$ia_url" ]]; then
             ia_post_date=$(plutil -extract Products."$ia_product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
             ia_post_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ia_post_date" "+%Y-%m-%d" 2>/dev/null)
-            pkg_size_bytes=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json")
+            pkg_size_bytes=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json" 2>/dev/null)
             # convert size from bytes to GB
-            ia_pkg_size=$(bc <<< "scale=2; $pkg_size_bytes / 1024 / 1024 / 1024")
+            if [[ "$pkg_size_bytes" == "empty" || -z "$pkg_size_bytes" || ! "$pkg_size_bytes" =~ ^[0-9]+$ ]]; then
+                ia_pkg_size="0.00"
+            else
+                ia_pkg_size=$(bc <<< "scale=2; $pkg_size_bytes / 1024 / 1024 / 1024")
+            fi
             dist_file=$(plutil -extract Products."$ia_product".Distributions.English raw -o - "$catalog_plist_path" 2>/dev/null)
-            if [[ -z "$dist_file" ]]; then
+            if [[ ! "$dist_file" ]]; then
                 echo "No dist file found for product $ia_product."
-                    continue
+                    exit 1
                 fi
                 dist_xml="$workdir/downloads/$(basename "$dist_file").xml"
-                if [[ ! -f "$dist_xml" ]]; then
-                    echo "Downloading dist file..."
-                    curl -s "$dist_file" -o "$dist_xml"
+                if [[ ! -f "$dist_xml" || $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+                    writelog "[get_installers_list_json] Downloading dist file for $ia_product..."
+                    if ! curl -sL "$dist_file" -o "$dist_xml"; then
+                        writelog "[get_installers_list_json] Failed to download dist file for $ia_product"
+                        exit 1
+                    fi
                 fi
-                ia_title=$(xmllint --xpath 'string(/installer-gui-script/title/text())' "$dist_xml")
-                ia_build=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='BUILD']/text())" "$dist_xml")
-                ia_version=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='VERSION']/text())" "$dist_xml")
-                ia_supportedBoardIDs=$(grep "var supportedBoardIDs" "$dist_xml" | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
-                ia_supportedDeviceIDs=$(grep "var supportedDeviceIDs" "$dist_xml" | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
+                ia_title=$(xmllint --xpath 'string(/installer-gui-script/title/text())' "$dist_xml" 2>/dev/null)
+                ia_build=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='BUILD']/text())" "$dist_xml" 2>/dev/null)
+                ia_version=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='VERSION']/text())" "$dist_xml" 2>/dev/null)
+                ia_supportedBoardIDs=$(grep "var supportedBoardIDs" "$dist_xml" 2>/dev/null | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
+                ia_supportedDeviceIDs=$(grep "var supportedDeviceIDs" "$dist_xml" 2>/dev/null | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
                 # check if the current device's device ID or board ID is in the supported list
                 if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id"*) ]]; then
                     ia_compatible="True"
@@ -1554,21 +1567,22 @@ get_installers_list_json() {
         done <<< "$products"
 
         # Combine all JSON objects into a valid JSON array, sorted by the number before the decimal point of the version, followed by the product ID, with highest first
-        echo "Combining JSON objects into a valid JSON array..."
-        if [[ -s "$tmp_json_file" ]]; then
+        if [[ ! "$tmp_json_file" =~ {.*} ]]; then
+            writelog "[get_installers_list_json] Combining JSON objects into a valid JSON array..."
             # combine all JSON objects into a valid JSON array
             jq -s '[.[] | select(type == "object")]' "$tmp_json_file" > "$installers_list_json_file"
-            # now sort the JSON objects by version and product ID
-            # TODO
             writelog "[get_installers_list_json] JSON file created at $installers_list_json_file"
         else
             writelog "[get_installers_list_json] No valid products found in the catalog."
-            echo "No valid products found in the catalog."
             exit 1
         fi
     else
         writelog "[get_installers_list_json] JSON file already exists at $installers_list_json_file"
-        echo "JSON file already exists at $installers_list_json_file"
+    fi
+    # remove temp json file
+    if [[ -f "$tmp_json_file" ]]; then
+        writelog "[get_installers_list_json] Removing temporary JSON file $tmp_json_file"
+        rm "$tmp_json_file"
     fi
 }
 
@@ -1581,7 +1595,6 @@ list_installers_from_json() {
         darwin_version=$(get_darwin_from_os_version "$catalog")
         if [[ $darwin_version -eq 0 ]]; then
             writelog "[list_installers_from_json] ERROR: Unsupported macOS version $catalog"
-            echo
             exit 1
         fi
         writelog "[list_installers_from_json] Non-default catalog selected (darwin version $darwin_version)"
@@ -1592,14 +1605,14 @@ list_installers_from_json() {
         catalogurl="${catalogs[$darwin_version]}"
     fi
     get_installers_list_json
-    # check if the JSON file exists
-    if [[ ! -f "$installers_list_json_file" ]]; then
-        writelog "[list_installers_from_json] ERROR: $installers_list_json_file not found"
+    # check if the JSON file exists and contains any data (such as an empty array)
+    if [[ ! -f "$installers_list_json_file" || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]" ]]; then
+        writelog "[list_installers_from_json] ERROR: $installers_list_json_file not found or empty"
         exit 1
     fi
 
     # use jq to list the installers
-    echo "Available installers:"
+    writelog "[list_installers_from_json] Available installers:"
     echo "┌────────────┬─────────────────┬─────────┬──────────┬──────────┬────────────┬────────────┐"
     echo "│ PRODUCT ID │ TITLE           │ VERSION │ BUILD    │ SIZE GB  │ DATE       │ COMPATIBLE │"
     echo "├────────────┼─────────────────┼─────────┼──────────┼──────────┼────────────┼────────────┤"
@@ -3305,7 +3318,8 @@ while test $# -gt 0 ; do
             ;;
         -f|--ffi|--fetch-full-installer) ffi="yes"
             ;;
-        -n|--native) native="yes"
+        -n|--native) 
+            native="yes"
             ;;
         -l|--list) list="yes"
             ;;
@@ -3623,6 +3637,16 @@ if [[ ! $silent ]]; then
     check_for_swiftdialog_app
 fi
 
+if [[ $native == "yes" ]]; then
+    tmpcurlfile=$(mktemp -t InstallAssistantDownload.XXXXXX)
+    # bail if jq is not installed and --native mode is selected
+    if ! is-at-least "15" "$system_version" && ! command -v jq &> /dev/null; then
+        writelog "[$script_name] This script requires macOS 15 or jq to be installed or newer for native download."
+        echo
+        exit 1
+    fi
+fi
+
 # account for when people mistakenly put a version string instead of a major OS
 if [[ "$prechosen_os" ]]; then
     prechosen_os_check=$(cut -d. -f1 <<< "$prechosen_os")
@@ -3858,7 +3882,6 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
         if [[ $ffi ]]; then
             dialog_progress fetch-full-installer >/dev/null 2>&1 &
         elif [[ $native ]]; then
-            echo "Dialog log: $dialog_log" # DEBUG
             dialog_progress native >/dev/null 2>&1 &
         else
             dialog_progress mist >/dev/null 2>&1 &
