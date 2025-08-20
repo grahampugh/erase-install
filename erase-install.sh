@@ -1521,7 +1521,7 @@ get_installers_list_json() {
                     exit 1
                 fi
                 dist_xml="$workdir/downloads/$(basename "$dist_file").xml"
-                if [[ ! -f "$dist_xml" || $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+                if [[ ! -f "$dist_xml" || $(date -r "$dist_xml" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
                     writelog "[get_installers_list_json] Downloading dist file for $ia_product..."
                     if ! curl -sL "$dist_file" -o "$dist_xml"; then
                         writelog "[get_installers_list_json] Failed to download dist file for $ia_product"
@@ -1534,7 +1534,7 @@ get_installers_list_json() {
                 ia_supportedBoardIDs=$(grep "var supportedBoardIDs" "$dist_xml" 2>/dev/null | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
                 ia_supportedDeviceIDs=$(grep "var supportedDeviceIDs" "$dist_xml" 2>/dev/null | sed -E 's/.*\[\s*([^]]+)\].*/\1/' | tr -d "'")
                 # check if the current device's device ID or board ID is in the supported list
-                if [[ ($device_id && "$compatible_device_ids" == *"$device_id"*) || ($board_id && "$compatible_device_ids" == *"$board_id"*) ]]; then
+                if [[ ($device_id && "$ia_supportedDeviceIDs" == *"$device_id"*) || ($board_id && "$ia_supportedBoardIDs" == *"$board_id"*) ]]; then
                     ia_compatible="True"
                 else
                     ia_compatible="False"
