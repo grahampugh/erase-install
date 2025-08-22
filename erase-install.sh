@@ -579,7 +579,7 @@ check_newer_available_from_json_file() {
             if [[ "$skip_validation" != "yes" ]]; then
                 writelog "[check_newer_available_from_json_file] Checking that selected version '$prechosen_version' is available and compatible"
                 # check if the prechosen version is in the JSON file and the compatible key is set to True
-                if jq -e ".[] | select(.version == \"$prechosen_version\" and .compatible == true)" "$installers_list_json_file" > /dev/null; then
+                if jq -e ".[] | select(.version == \"$prechosen_version\" and .compatible == \"True\")" "$installers_list_json_file" > /dev/null; then
                     writelog "[check_newer_available_from_json_file] Newer compatible version found: $prechosen_version"
                     newer_version_found="yes"
                 else
@@ -598,7 +598,7 @@ check_newer_available_from_json_file() {
             if [[ "$skip_validation" != "yes" ]]; then
                 writelog "[check_newer_available_from_json_file] Restricting to selected OS '$prechosen_os' and checking compatibility"
                 # use jq to compare the OS Version with the number before the first decimal point of the version string
-                if jq -e ".[] | select(.version | startswith(\"$prechosen_os\") and .compatible == true)" "$installers_list_json_file" > /dev/null; then
+                if jq -e ".[] | select(.version | startswith(\"$prechosen_os\") and .compatible == \"True\")" "$installers_list_json_file" > /dev/null; then
                     writelog "[check_newer_available_from_json_file] Newer compatible version found for OS '$prechosen_os'"
                     newer_version_found="yes"
                 else
@@ -618,7 +618,7 @@ check_newer_available_from_json_file() {
             if [[ "$skip_validation" != "yes" ]]; then
                 writelog "[check_newer_available_from_json_file] Restricting to same OS as current system ($system_os)"
                 # use jq to compare the OS Version with the number before the first decimal point of the version string
-                if jq -e ".[] | select(.version | startswith(\"$system_os\") and .compatible == true)" "$installers_list_json_file" > /dev/null; then
+                if jq -e ".[] | select(.version | startswith(\"$system_os\") and .compatible == \"True\")" "$installers_list_json_file" > /dev/null; then
                     writelog "[check_newer_available_from_json_file] Newer compatible version found for OS '$system_os'"
                     newer_version_found="yes"
                 else
@@ -638,7 +638,7 @@ check_newer_available_from_json_file() {
             if [[ "$skip_validation" != "yes" ]]; then
                 writelog "[check_newer_available_from_json_file] No restrictions set, checking all available compatible installers"
                 # use jq to compare the OS Version with the number before the first decimal point of the version string
-                if jq -e '.[] | select(.version and .compatible == true)' "$installers_list_json_file" > /dev/null; then
+                if jq -e '.[] | select(.version and .compatible == \"True\")' "$installers_list_json_file" > /dev/null; then
                     writelog "[check_newer_available_from_json_file] Newer compatible version found"
                     newer_version_found="yes"
                 else
@@ -2248,7 +2248,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatibleInstallAssistant.pkg for version $prechosen_version"
             # check that this version is available in the list and is compatible with the system
-            latest_installer=$(jq -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == true)" "$installers_list_json_file")
+            latest_installer=$(jq -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == \"True\")" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
@@ -2272,7 +2272,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for macOS $prechosen_os"
             # check that this OS is available in the list based on the number before the first decimal point of the version, and is compatible with the system
-            latest_installer=$(jq -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == true)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            latest_installer=$(jq -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
@@ -2296,7 +2296,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system OS $system_os"
             # check that the current system OS is available in the list and is compatible with the system
-            latest_installer=$(jq -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == true)" "$installers_list_json_file")
+            latest_installer=$(jq -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == \"True\")" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
@@ -2320,7 +2320,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for build $prechosen_build"
             # check that this build is available in the list and is compatible with the system
-            latest_installer=$(jq -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == true)" "$installers_list_json_file")
+            latest_installer=$(jq -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
@@ -2344,7 +2344,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system build $system_build"
             # check that the current system version is available in the list and is compatible with the system
-            latest_installer=$(jq -e ".[] | select(.build == \"$system_build\") | select(.compatible == true)" "$installers_list_json_file")
+            latest_installer=$(jq -e ".[] | select(.build == \"$system_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
@@ -2368,7 +2368,7 @@ download_install_assistant_pkg() {
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] No version or OS selected, obtaining the latest compatible InstallAssistant.pkg"
             # get the latest compatible installer
-            latest_installer=$(jq -e "[.[] | select(.compatible == true)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            latest_installer=$(jq -e "[.[] | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
             # get the installer URL
             installer_url=$(jq -r ".url" <<< "$latest_installer")
             if [[ $installer_url == null ]]; then
