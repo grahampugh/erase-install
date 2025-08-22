@@ -28,6 +28,8 @@ Requirements:
 - Device file system is APFS
 DOC
 
+set +o allexport  # ensure variables are not exported
+
 # =============================================================================
 # Variables 
 # =============================================================================
@@ -773,7 +775,7 @@ check_newer_available_from_mist() {
 check_password() {
     user="$1"
     password="$2"
-    password_matches=$( /usr/bin/dscl /Search -authonly "$user" "$password" )
+    password_matches=$(/usr/bin/dscl /Search -authonly "$user" <<< echo "$password")
 
     if [[ -z "$password_matches" ]]; then
         writelog "[check_password] Success: the password entered is the correct login password for $user."
@@ -783,6 +785,7 @@ check_password() {
         password_check="fail"
         /usr/bin/afplay "/System/Library/Sounds/Basso.aiff"
     fi
+    password=""
 }
 
 # -----------------------------------------------------------------------------
@@ -4147,7 +4150,7 @@ if [[ "$arch" == "arm64" ]]; then
             # note this process can take up to 10 seconds
             writelog "[$script_name] Setting high secure boot level with bputil command"
             echo "progresstext: Setting high secure boot level..." >> "$dialog_log"
-            if /usr/bin/bputil -f -u "$current_user" -p "$account_password"; then
+            if /usr/bin/bputil -f -u "$current_user" -p <<< echo "$account_password"; then
                 writelog "[$script_name] bputil command exited with success"
             else
                 writelog "[$script_name] WARNING! bputil command exited with error."
