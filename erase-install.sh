@@ -3109,6 +3109,8 @@ show_help() {
                         Obtain the installer using 'softwareupdate --fetch-full-installer' method instead of
                         using mist-cli. 
     --native            Use the native download option instead of using mist-cli or fetch-full-installer. This is set by default on computers running macOS 15.6 or newer.
+    --mist              Override native mode on macOS 15.6 or newer to use mist-cli instead. 
+                        May cause failure to download installers.
     --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
                         the existing installer is removed but not replaced. This is useful
                         for running the script after an upgrade to clear the working files.
@@ -3400,6 +3402,9 @@ while test $# -gt 0 ; do
             ;;
         -n|--native) 
             native="yes"
+            ;;
+        --mist)
+            mist="yes"
             ;;
         -l|--list) list="yes"
             ;;
@@ -3719,7 +3724,7 @@ fi
 
 # set to native mode if running macOS 15.6 or newer
 if is-at-least "15.6" "$system_version"; then
-    if [[ ! "$ffi" == "yes" ]]; then
+    if [[ "$ffi" != "yes" && "$mist" != "yes" ]]; then
         writelog "Setting to --native mode to prevent failures with mist-cli on macOS 15.6 and newer"
         native="yes"
     fi
@@ -3776,9 +3781,6 @@ fi
 # /Applications is the only path for fetch-full-installer
 if [[ $ffi ]]; then
     installer_directory="/Applications"
-    if [[ $list == "yes" ]]; then
-        list_installers="yes"
-    fi
 fi
 
 # ensure installer_directory (--path) exists
@@ -3788,17 +3790,18 @@ if [[ ! -d "$installer_directory" ]]; then
 fi
 
 # if getting a list from softwareupdate then we don't need to make any OS checks
-if [[ $list == "yes" && ! $ffi ]]; then
-    # get_mist_list
-    list_installers_from_json
-    echo
-    exit
-elif [[ $list_installers ]]; then
-    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then 
-        rm "$workdir/ffi-list-full-installers.txt"
+if [[ $list == "yes" ]]; then
+    if [[ $ffi ]]; then
+        if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then 
+            rm "$workdir/ffi-list-full-installers.txt"
+        fi
+        run_list_full_installers
+        /bin/cat "$workdir/ffi-list-full-installers.txt"
+    elif [[ $native == "yes" ]]; then
+        list_installers_from_json
+    else
+        get_mist_list
     fi
-    run_list_full_installers
-    /bin/cat "$workdir/ffi-list-full-installers.txt"
     echo
     exit
 fi
