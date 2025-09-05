@@ -1,10 +1,10 @@
 SHELL := /bin/bash
 CURDIR != pwd
-MUNKIPKG := /usr/local/bin/munkipkg
 PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
 PKG_SCRIPTS := $(CURDIR)/pkg/erase-install/scripts
 PKG_BUILD := $(CURDIR)/pkg/erase-install/build
 GITHUB_TOKEN_FILE := /Users/Shared/gh_token
+PKG_VERSION :=$(shell awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"')
 
 all: build
 
@@ -62,7 +62,7 @@ build:
 
 	@echo
 	@echo "## Making package in '$(PKG_ROOT)' directory"
-	cd $(CURDIR)/pkg && python3 $(MUNKIPKG) erase-install
+	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --scripts "$(PKG_SCRIPTS)" "$(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg"
 	open $(PKG_BUILD)
 
 .PHONY : clean
