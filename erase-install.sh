@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="38.0"
+version="39.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -55,7 +55,7 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.1.1"
+mist_tag_required="v2.2"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -3059,10 +3059,9 @@ show_help() {
                         method if called with --native. 
     --move              Moves the downloaded macOS installer to $installer_directory 
                         if it is cached in the working directory $workdir.
-    --reinstall         After download, reinstalls macOS without erasing the
-                        current system
-    --erase             After download, erases the current system
-                        and reinstalls macOS.
+    --install | --reinstall
+                        After download, reinstalls macOS without erasing the current system
+    --erase             After download, erases the current system and reinstalls macOS.
     --confirm           Displays a confirmation dialog prior to erasing or reinstalling macOS.
     --check-power       Checks for AC power if set.
     --power-wait-limit NN
@@ -3074,7 +3073,7 @@ show_help() {
     --fmm-wait-limit NN Maximum seconds to wait for removal of Find My Mac, if
                         --check-fmm is set. Default is 300.
     --cleanup-after-use Creates a LaunchDaemon to delete $workdir after use. Mainly useful
-                        in conjunction with the --reinstall option.
+                        in conjunction with the --install/--reinstall option.
 
     Options for filtering which installer to download/use:
 
@@ -3108,8 +3107,8 @@ show_help() {
     --fetch-full-installer | --ffi | -f
                         Obtain the installer using 'softwareupdate --fetch-full-installer' method instead of
                         using mist-cli. 
-    --native            Use the native download option instead of using mist-cli or fetch-full-installer. This is set by default on computers running macOS 15.6 or newer.
-    --mist              Override native mode on macOS 15.6 or newer to use mist-cli instead. 
+    --native            Use the native download option instead of using mist-cli or fetch-full-installer.
+    --mist              Use mist-cli to download installers. This is the default method. 
                         May cause failure to download installers.
     --clear-cache-only  When used in conjunction with --overwrite, --update or --replace-invalid,
                         the existing installer is removed but not replaced. This is useful
@@ -3129,7 +3128,7 @@ show_help() {
     --catalogurl ...    Select a non-standard catalog URL.
     --caching-server ...
                         Set mist-cli to use a Caching Server, specifying the URL to the server.
-    --pkg               Creates a package from the installer. Ignored if --move, --erase or --reinstall is selected.
+    --pkg               Creates a package from the installer. Ignored if --move, --erase or --install/--reinstall is selected.
                         Note that mist takes a long time to build the package from the complete installer, so
                         this method is not recommended for normal workflows.
     --keep-pkg          Retains a cached package if --move is used to extract an installer from it.
@@ -3179,7 +3178,7 @@ show_help() {
     --seed ...          Select a non-standard seed program. This is only used with --fetch-full-installer 
                         options.
     --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
-                        (--reinstall option only)
+                        (--install/--reinstall option only)
     --kc                Keychain containing a user password (do not use the login keychain!!)
     --kc-pass           Password to open the keychain
     --kc-service        The name of the key containing the account and password
@@ -3373,7 +3372,7 @@ all_args="$*"
 
 while test $# -gt 0 ; do
     case "$1" in
-        -r|--reinstall) 
+        -i|--install|-r|--reinstall) 
             reinstall="yes"
             ;;
         -e|--erase) erase="yes"
@@ -3723,12 +3722,12 @@ if [[ ! $silent ]]; then
 fi
 
 # set to native mode if running macOS 15.6 or newer
-if is-at-least "15.6" "$system_version"; then
-    if [[ "$ffi" != "yes" && "$mist" != "yes" ]]; then
-        writelog "Setting to --native mode to prevent failures with mist-cli on macOS 15.6 and newer"
-        native="yes"
-    fi
-fi
+# if is-at-least "15.6" "$system_version"; then
+#     if [[ "$ffi" != "yes" && "$mist" != "yes" ]]; then
+#         writelog "Setting to --native mode to prevent failures with mist-cli on macOS 15.6 and newer"
+#         native="yes"
+#     fi
+# fi
 
 if [[ $native == "yes" ]]; then
     tmpcurlfile=$(mktemp -t InstallAssistantDownload.XXXXXX)
@@ -3763,7 +3762,7 @@ fi
 
 # exit out or correct for incompatible options
 if [[ $erase == "yes" && $reinstall == "yes" ]]; then
-    writelog "[$script_name] ERROR: Choose either --erase or --reinstall options, but not both!"
+    writelog "[$script_name] ERROR: Choose either --erase or --install/--reinstall options, but not both!"
     exit 1
 elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_build) ]]; then
     writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"

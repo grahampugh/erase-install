@@ -16,9 +16,23 @@ Since the package on this site is not signed, if you download this package from 
 
 No date
 
-## [38.0]
+## [39.0]
 
 No date
+
+### Updates in 39.0
+
+- `--install` is a new option, equivalent to `--reinstall`.
+- Bump mist-cli to v2.2 to address issues with creating installers on macOS 15.6 or newer.
+- Reverted default download behaviour to use mist-cli unless `--native` mode is used. `--native` mode remains as an option for those who require less space for the upgrade/erase process.
+
+### Bugfixes in 38.0
+
+- Removed extraneous code from `Makefile` that was preventing the package from building.
+
+## [38.0]
+
+25.08.2025
 
 ### Updates in 38.0
 
@@ -28,6 +42,7 @@ No date
 - Added temporary catalog for macOS 26 betas (updated again 24 August).
 - Bumped swiftDialog version to 2.5.6 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.6 and 2.2.1, and the appropriate one will be installed.
 - Added macOS Tahoe icon.
+- `Makefile` no longer requires `munkipkg` to build the package, it uses the native `pkgbuild` command instead.
 
 ### Bugfixes in 38.0
 

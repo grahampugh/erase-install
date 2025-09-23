@@ -56,11 +56,6 @@ build:
 	echo "## Downloaded mist-cli $$mist_tag"
 
 	@echo
-	pkg_version=$$(awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	echo "## Writing version string $$pkg_version to build-info.plist" ;\
-	/usr/libexec/PlistBuddy -c "Set :version '$$pkg_version'" $(CURDIR)/pkg/erase-install/build-info.plist
-
-	@echo
 	@echo "## Making package in '$(PKG_ROOT)' directory"
 	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --scripts "$(PKG_SCRIPTS)" "$(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg"
 	open $(PKG_BUILD)
