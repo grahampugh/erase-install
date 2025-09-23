@@ -16,6 +16,14 @@ Since the package on this site is not signed, if you download this package from 
 
 No date
 
+## [39.1]
+
+23.09.2025
+
+### Bugfixes in 39.1
+
+- Fixed an issue with the `Makefile` which was not setting Dialog.app to be non-relocatable, causing Dialog to potentially be installed over the top of an existing Dialog app bundle elsewhere on disk instead of inside `/Library/Management/erase-install`.
+
 ## [39.0]
 
 23.09.2025
@@ -765,8 +773,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v39.0...HEAD
-[39.0]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.0
+[untagged]: https://github.com/grahampugh/erase-install/compare/v39.1...HEAD
+[39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
+[39.0]: https://github.com/grahampugh/erase-install/compare/v38.0...v39.0
 [38.0]: https://github.com/grahampugh/erase-install/compare/v37.0...v38.0
 [37.0]: https://github.com/grahampugh/erase-install/compare/v36.1...v37.0
 [36.1]: https://github.com/grahampugh/erase-install/compare/v36.0...v36.1

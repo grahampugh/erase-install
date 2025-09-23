@@ -57,7 +57,9 @@ build:
 
 	@echo
 	@echo "## Making package in '$(PKG_ROOT)' directory"
-	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --scripts "$(PKG_SCRIPTS)" "$(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg"
+	pkgbuild --analyze --root "$(PKG_ROOT)" "$(PKG_BUILD)/erase-install-component.plist"
+	/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable boolean false' "$(PKG_BUILD)/erase-install-component.plist"
+	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" "$(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg"
 	open $(PKG_BUILD)
 
 .PHONY : clean
