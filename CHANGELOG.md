@@ -18,7 +18,7 @@ No date
 
 ## [39.0]
 
-No date
+23.09.2025
 
 ### Updates in 39.0
 
