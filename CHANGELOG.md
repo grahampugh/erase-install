@@ -26,7 +26,7 @@ No date
 - Bump mist-cli to v2.2 to address issues with creating installers on macOS 15.6 or newer.
 - Reverted default download behaviour to use mist-cli unless `--native` mode is used. `--native` mode remains as an option for those who require less space for the upgrade/erase process.
 
-### Bugfixes in 38.0
+### Bugfixes in 39.0
 
 - Removed extraneous code from `Makefile` that was preventing the package from building.
 
@@ -765,7 +765,10 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v36.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v39.0...HEAD
+[39.0]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.0
+[38.0]: https://github.com/grahampugh/erase-install/compare/v37.0...v38.0
+[37.0]: https://github.com/grahampugh/erase-install/compare/v36.1...v37.0
 [36.1]: https://github.com/grahampugh/erase-install/compare/v36.0...v36.1
 [36.0]: https://github.com/grahampugh/erase-install/compare/v35.0...v36.0
 [35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0
