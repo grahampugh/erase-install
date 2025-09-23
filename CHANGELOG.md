@@ -4,7 +4,7 @@
 
 For open issues and known bugs, please see the [Issues](https://github.com/grahampugh/erase-install/issues) page.
 
-## Notice for installing erase-install package on macOS Sequoia
+## Notice for installing erase-install package on macOS Sequoia or newer
 
 Since the package on this site is not signed, if you download this package from a browser and try to install it from Finder on a Mac running macOS Sequoia, it will fail to install, even if running Ctrl-Click. To solve this, do **one** of these:
 
