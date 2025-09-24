@@ -1503,12 +1503,12 @@ get_installers_list_json() {
         get_device_id
 
         while read -r ia_product; do
-        # some tests failed to extract the data directly as json, so extract as xml1 first and then convert
-        package_plist=$(plutil -extract Products."$ia_product".Packages xml1 -o - "$catalog_plist_path" 2>/dev/null)
-        # now convert to json
-        package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null)
-        # extract the URL key that ends with InstallAssistant.pkg
-        ia_url=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null)
+            # some tests failed to extract the data directly as json, so extract as xml1 first and then convert
+            package_plist=$(plutil -extract Products."$ia_product".Packages xml1 -o - "$catalog_plist_path" 2>/dev/null)
+            # now convert to json
+            package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null)
+            # extract the URL key that ends with InstallAssistant.pkg
+            ia_url=$(jq -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null)
             if [[ -n "$ia_url" ]]; then
                 ia_post_date=$(plutil -extract Products."$ia_product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
                 ia_post_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ia_post_date" "+%Y-%m-%d" 2>/dev/null)
