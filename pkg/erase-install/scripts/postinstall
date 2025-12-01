@@ -38,3 +38,23 @@ else
     echo "ERROR: mist-cli was not installed"
     exit 1
 fi
+
+# jq
+if [[ $system_os -le 14 && ! -f /usr/local/bin/jq ]]; then
+    # check if the mac is arm64 or intel
+    arch=$(/usr/bin/uname -m)
+    if [[ $arch == "arm64" ]]; then
+        jq_source="$DIR/jq-arm64"
+    else
+        jq_source="$DIR/jq-amd64"
+    fi
+
+    if /bin/cp "$jq_source" /usr/local/bin/jq; then
+        /bin/chmod +x /usr/local/bin/jq
+        echo "jq successfully installed"
+    else
+        echo "ERROR: jq was not installed"
+        exit 1
+    fi
+fi
+

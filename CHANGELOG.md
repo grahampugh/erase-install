@@ -4,7 +4,7 @@
 
 For open issues and known bugs, please see the [Issues](https://github.com/grahampugh/erase-install/issues) page.
 
-## Notice for installing erase-install package on macOS Sequoia
+## Notice for installing erase-install package on macOS Sequoia or newer
 
 Since the package on this site is not signed, if you download this package from a browser and try to install it from Finder on a Mac running macOS Sequoia, it will fail to install, even if running Ctrl-Click. To solve this, do **one** of these:
 
@@ -12,13 +12,65 @@ Since the package on this site is not signed, if you download this package from 
 2. Install from the command line, e.g. `sudo installer -tgt / -pkg /path/to/erase-install-36.0.pkg`
 3. Remove the quarantine bit, e.g. `xattr -d com.apple.quarantine /path/to/erase-install-36.0.pkg`
 
+## Note about release versioning
+
+I've decided that pre-release tags and release versions should have incremental numbers, rather than removing and recreating the same tag and release. This should make it easier for people testing out beta versions to know what they are running. This means that from now on, the latest "full" release is likely to not be a .0 release, but whichever beta I decide is ready for production. I'll also therefore always increment the "major" version number for any new release (not based on an arbitrary decision about what is major or minor).
+
+I have deleted previous beta releases that don't make it to be a latest release. I've also removed all previous full releases, other than v27.3, to tidy things up.
+
 ## [Untagged]
 
 No date
 
+## [40.4]
+
+01.12.2025
+
+### Updates in 40.4
+
+- Added a `--select` option, allowing the user to select an installer based on a dialog with a drop-down list of compatible installers. The selected Build is then used. This only works in the default `--native` mode (not with `--mist` or `--ffi` modes). Note that the user could select an older build than the current system, so this option not recommended for regular users intending to upgrade or erase their device.
+- Improved the speed of downloading dist files in `--native` mode by parallelising the downloads.
+- `jq` will now be installed on macOS 14 or lower if not already present, allowing use of `--native` mode on all devices. The appropriate version of `jq` for Intel or Apple Silicon is installed.
+- Allow the use of `--native` mode on older systems if `jq` is present. Note: `jq` must be in the path (addresses #561).
+- Updated dialogs to use a banner with background colour.
+- Replaced beta catalog for Tahoe with `"https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"`.
+- Added a `--trash` option, which will move invalid installers into the Trash rather than deleting them. This is primarily intended for testing so that the installer isn't removed and has to be downloaded again. Note that the user is prompted to allow the file to be moved into Trash, so it's not suitable for a productive environment.
+- Added a drive space check to `--native` mode when downloading (#569, thanks @anewhouse).
+
+### Bugfixes in 40.4
+
+- Fixed an issue where user language is not respected in the password entry field (addresses #563).
+- The `extras` folder can now be properly overridden (addresses #547).
+- Fixed obtaining the installer icon when downloading a beta installer, and also when running the script locally without installing the package.
+- Improved version comparison when using `--native` or `--pkg` modes so that beta versions are treated as older than production versions (allows upgrade from a beta to a production version).
+- Processes are now successfully killed if there are multiple processes of the same name. Fixes an issue where `caffeinate` would not be killed if multiple `caffeinate` processes were running.
+- Fixed an issue where not all available installers were listed when using `--native` mode.
+
+## [39.1]
+
+23.09.2025
+
+### Bugfixes in 39.1
+
+- Fixed an issue with the `Makefile` which was not setting Dialog.app to be non-relocatable, causing Dialog to potentially be installed over the top of an existing Dialog app bundle elsewhere on disk instead of inside `/Library/Management/erase-install`.
+
+## [39.0]
+
+23.09.2025
+
+### Updates in 39.0
+
+- `--install` is a new option, equivalent to `--reinstall`.
+- Bump mist-cli to v2.2 to address issues with creating installers on macOS 15.6 or newer.
+- Reverted default download behaviour to use mist-cli unless `--native` mode is used. `--native` mode remains as an option for those who require less space for the upgrade/erase process.
+
+### Bugfixes in 39.0
+
+- Removed extraneous code from `Makefile` that was preventing the package from building.
+
 ## [38.0]
 
-No date
+25.08.2025
 
 ### Updates in 38.0
 
@@ -28,6 +80,7 @@ No date
 - Added temporary catalog for macOS 26 betas (updated again 24 August).
 - Bumped swiftDialog version to 2.5.6 except for systems running macOS 11 which still get 2.2.1. Note that the installer package includes both version 2.5.6 and 2.2.1, and the appropriate one will be installed.
 - Added macOS Tahoe icon.
+- `Makefile` no longer requires `munkipkg` to build the package, it uses the native `pkgbuild` command instead.
 
 ### Bugfixes in 38.0
 
@@ -750,7 +803,11 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v36.1...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v40.0...HEAD
+[39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
+[39.0]: https://github.com/grahampugh/erase-install/compare/v38.0...v39.0
+[38.0]: https://github.com/grahampugh/erase-install/compare/v37.0...v38.0
+[37.0]: https://github.com/grahampugh/erase-install/compare/v36.1...v37.0
 [36.1]: https://github.com/grahampugh/erase-install/compare/v36.0...v36.1
 [36.0]: https://github.com/grahampugh/erase-install/compare/v35.0...v36.0
 [35.0]: https://github.com/grahampugh/erase-install/compare/v34.0...v35.0

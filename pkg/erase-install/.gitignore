@@ -6,3 +6,6 @@ build/
 
 # package products
 payload/Library/Management/erase-install/*
+
+# jq downloads
+scripts/jq*
