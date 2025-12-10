@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="40.4"
+version="41.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -59,7 +59,7 @@ mist_tag_required="v2.2"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.6"
+swiftdialog_tag_required="v3.0.0Beta3"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -274,7 +274,10 @@ check_for_mist() {
 check_for_swiftdialog_app() {
     # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
     if [[ -d "$dialog_portable_app" ]]; then
-        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+        dialog_bin="$dialog_portable_app/Contents/MacOS/dialogcli"
+        if [[ ! -f "$dialog_bin" ]]; then
+            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+        fi
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
@@ -287,7 +290,10 @@ check_for_swiftdialog_app() {
 
     # check also for a pre-installed version
     if [[ ! -d "$dialog_portable_app" && -d "$dialog_default_app" ]]; then
-        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
+        dialog_bin="$dialog_default_app/Contents/MacOS/dialogcli"
+        if [[ ! -f "$dialog_bin" ]]; then
+            dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
+        fi
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
         if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
@@ -297,13 +303,13 @@ check_for_swiftdialog_app() {
     fi
 
     # now check for any version of swiftDialog and download if not present
-    if [[ -f "$dialog_bin" && "v$dialog_string" == "$swiftdialog_tag_required"* ]]; then
+    if [[ -f "$dialog_bin" && "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
         writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
         writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
         if [[ ! $no_curl ]]; then
-            if ! is-at-least "12" "$system_version"; then 
-                # we need to get the older version of swiftDialog that is compatible with Big Sur
+            if ! is-at-least "14" "$system_version"; then 
+                # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
                 swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
                 # obtain the download URL
@@ -327,28 +333,22 @@ check_for_swiftdialog_app() {
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
                 # obtain the download URL
                 swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.1.browser_download_url -)
+                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
                 
-                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.dmg" ; then
-                    mount_point=$(/usr/bin/mktemp -d /Users/Shared/swiftDialog.XXX)
-                    mkdir -p "$mount_point"
-                    if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$workdir/swiftDialog.dmg" -mountpoint "$mount_point" ; then
-                        writelog "[check_for_swiftdialog_app] Mounting $workdir/swiftDialog.dmg"
-                        rm -Rf "$workdir/Dialog.app"
-                        if cp -R "$mount_point/Dialog.app" "$workdir"/; then
-                            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
-                            dialog_string=$("$dialog_bin" --version)
-                            dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.pkg" ; then
+                    writelog "[check_for_swiftdialog_app] Expanding swiftDialog package..."
+                    if pkgutil --expand "$workdir/swiftDialog.pkg" "$workdir/swiftDialog_expanded"; then
+                        mkdir -p "$workdir/swiftDialog_payload"
+                        cd "$workdir/swiftDialog_payload" && cat "$workdir/swiftDialog_expanded/tmp-package.pkg/Payload" | gunzip -dc | cpio -i
+                        if cp -r "$workdir/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$workdir"/; then
                             writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
+                            rm -rf "$workdir/swiftDialog_expanded" "$workdir/swiftDialog_payload" "$workdir/swiftDialog.pkg"
                         else
                             writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
                         fi
-                        diskutil unmount force "$mount_point"
-                        rm -rf "$mount_point"
                     else
-                        writelog "[check_for_swiftdialog_app] ERROR: could not mount swiftDialog disk image"
+                        writelog "[check_for_swiftdialog_app] ERROR: could not expand downloaded swiftDialog package"
                     fi
-                    rm "$workdir/swiftDialog.dmg"
                 else
                     writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
                 fi
@@ -477,27 +477,7 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        # if current system is on a beta, we have to assume that this is older than a build number of the same minor version
-        if /usr/bin/grep -e "[a-z]$" <<< "$system_build"; then
-            # system is beta
-            if /usr/bin/grep -e "[a-z]$" <<< "$installer_build"; then
-                if ! is-at-least "$system_build" "$installer_build"; then
-                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (both beta): invalid build."
-                    invalid_installer_found="yes"
-                else
-                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (both beta): valid build."
-                    invalid_installer_found="no"
-                fi
-            else
-                if ! is-at-least "${system_build:0:3}" "${installer_build:0:3}"; then
-                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (beta): invalid build."
-                    invalid_installer_found="yes"
-                else
-                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (beta) : valid build."
-                    invalid_installer_found="no"
-                fi
-            fi
-        elif ! is-at-least "$system_build" "$installer_build"; then
+        if is_build_newer_or_equal "$system_build" "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
@@ -519,8 +499,8 @@ check_installer_is_valid() {
 # with the same base version number
 # -----------------------------------------------------------------------------
 is_build_newer_or_equal() {
-    local version1="$1"
-    local version2="$2"
+    local version1="$1" # system
+    local version2="$2" # installer
     
     # Extract base version (everything except the last character if it's a lowercase letter)
     local base1 base2 suffix1 suffix2
@@ -544,30 +524,44 @@ is_build_newer_or_equal() {
     
     # Compare base versions first
     if [[ "$base1" != "$base2" ]]; then
-        # Use string comparison for build numbers (they're designed to sort lexicographically)
-        [[ "$base1" > "$base2" || "$base1" == "$base2" ]]
+        # Parse macOS build version components: Darwin version (2 digits) + minor letter + patch number
+        # Extract Darwin version (first 2 digits)
+        darwin1="${base1:0:2}"
+        darwin2="${base2:0:2}"
+        
+        # Compare Darwin versions numerically
+        if [[ "$darwin1" != "$darwin2" ]]; then
+            [[ "$darwin1" -ge "$darwin2" ]]
+            return $?
+        fi
+        
+        # Darwin versions are equal, compare minor version letter (3rd character)
+        minor1="${base1:2:1}"
+        minor2="${base2:2:1}"
+        
+        if [[ "$minor1" != "$minor2" ]]; then
+            [[ "$minor1" > "$minor2" ]]
+            return $?
+        fi
+        
+        # Darwin and minor versions are equal, compare patch number (remaining digits)
+        patch1="${base1:3}"
+        patch2="${base2:3}"
+        
+        # Handle fork builds and beta builds (4-digit patch numbers)
+        # For 4-digit numbers, ignore the first digit and use the remaining 3 digits
+        # This applies to both fork builds (e.g., 25A8364) and beta builds (e.g., 25A5362a)
+        if [[ ${#patch1} -eq 4 ]]; then
+            patch1="${patch1:1}"  # Remove first digit for fork builds
+        fi
+        if [[ ${#patch2} -eq 4 ]]; then
+            patch2="${patch2:1}"  # Remove first digit for fork builds
+        fi
+        
+        # Compare patch numbers numerically
+        [[ "$patch1" -ge "$patch2" ]]
         return $?
     fi
-    
-    # Base versions are equal, now handle beta logic
-    # If both are release builds (no suffix), they're equal
-    if [[ -z "$suffix1" && -z "$suffix2" ]]; then
-        return 0  # Equal
-    fi
-    
-    # If version1 is release and version2 is beta, version1 is newer
-    if [[ -z "$suffix1" && -n "$suffix2" ]]; then
-        return 0  # version1 >= version2
-    fi
-    
-    # If version1 is beta and version2 is release, version1 is older
-    if [[ -n "$suffix1" && -z "$suffix2" ]]; then
-        return 1  # version1 < version2
-    fi
-    
-    # Both are beta builds - earlier letter is newer (a > b > c...)
-    [[ "$suffix1" < "$suffix2" || "$suffix1" == "$suffix2" ]]
-    return $?
 }
 
 # -----------------------------------------------------------------------------
@@ -772,22 +766,22 @@ check_newer_available_from_mist() {
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
                 if [[ $installer_pkg_build ]]; then
-                    echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
-                    if ! is-at-least "$available_build" "$installer_pkg_build"; then
+                    echo "Comparing latest available build ($available_build) with cached pkg installer build ($installer_pkg_build)"
+                    if is_build_newer_or_equal "$available_build" "$installer_pkg_build"; then
                         newer_build_found="yes"
                     fi
                 else
-                    echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
-                    if ! is-at-least "$available_build" "$installer_build"; then
+                    echo "Comparing latest available build ($available_build) with cached installer build ($installer_build)"
+                    if is_build_newer_or_equal "$available_build" "$installer_build"; then
                         newer_build_found="yes"
                     fi
                 fi
             fi
             if [[ $newer_build_found == "yes" ]]; then
-                writelog "[check_newer_available_from_mist] Newer installer found."
+                writelog "[check_newer_available_from_mist] Newer installer available."
                 do_overwrite_existing_installer=1
             else 
-                writelog "[check_newer_available_from_mist] No newer builds found"
+                writelog "[check_newer_available_from_mist] No newer builds available"
             fi
         else
             writelog "[check_newer_available_from_mist] ERROR reading output from mist, cannot continue"
@@ -1391,9 +1385,15 @@ get_catalog() {
     catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
     catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    if [[ "$beta" == "yes" ]]; then
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14beta-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15beta-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26beta-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    else
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -1892,7 +1892,7 @@ select_build_from_dialog() {
         version_list=()
         while IFS= read -r line; do
             version_list+=("$line")
-        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not and (.compatible == "True")) | [
+        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | select((.title // "" | test("beta"; "i")) | not) | [
             (.version // ""),
             (.build // "")
         ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
@@ -2475,7 +2475,7 @@ run_fetch_full_installer() {
 
             if [[ $latest_ffi ]]; then
                 # we need to check if this version is older than the current system and abort if so
-                writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
+                # writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
                 if ! is-at-least "$system_version" "$latest_ffi"; then 
                     writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
                     echo
@@ -4146,6 +4146,7 @@ if [[ -f "$workdir/InstallAssistantDownload.pkg" ]]; then
     rm -f "$workdir/InstallAssistantDownload.pkg"
 fi
 
+# look for existing installer app or pkg
 find_existing_installer
 
 # if the user wants to select from a dialog, prompt them now (overrides other options)
@@ -4165,10 +4166,18 @@ if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "
     do_overwrite_existing_installer=1
 fi
 
-if [[ "$prechosen_build" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+# cached installer may be an app or a pkg
+cached_build=""
+if [[ $installer_build ]]; then
+    cached_build="$installer_build"
+elif [[ $installer_pkg_build ]]; then
+    cached_build="$installer_pkg_build"
+fi
+
+if [[ "$prechosen_build" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
-    if [[ "$installer_build" != "$prechosen_build" ]]; then
+    if [[ "$cached_build" != "$prechosen_build" ]]; then
         writelog "[$script_name] Existing installer build $prechosen_build does not match requested build $prechosen_build."
         do_overwrite_existing_installer=1
     else
@@ -4176,14 +4185,10 @@ if [[ "$prechosen_build" && "$installer_build" && $do_overwrite_existing_install
     fi
 fi
 
-if [[ "$prechosen_os" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ "$prechosen_os" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
-    if [[ "$installer_build" ]]; then
-        installer_darwin_version=${installer_build:0:2}
-    elif [[ "$installer_pkg_build" ]]; then
-        installer_darwin_version=${installer_pkg_build:0:2}
-    fi
+    installer_darwin_version=${cached_build:0:2}
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version && ($installer_darwin_version -ne $prechosen_darwin_version) ]]; then
         writelog "[$script_name] Existing installer OS version does not match requested OS ($prechosen_os)."
@@ -4191,7 +4196,7 @@ if [[ "$prechosen_os" && "$installer_build" && $do_overwrite_existing_installer 
     fi
 fi
 
-if [[ $update_installer == "yes" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ $update_installer == "yes" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
     if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
