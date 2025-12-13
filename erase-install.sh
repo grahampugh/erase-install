@@ -302,15 +302,19 @@ check_for_swiftdialog_app() {
         fi
     fi
 
+    # Determine the correct required version based on OS version
+    if ! is-at-least "14" "$system_version"; then
+        # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
+        swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
+    fi
+
     # now check for any version of swiftDialog and download if not present
     if [[ -f "$dialog_bin" && "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
         writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
         writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
         if [[ ! $no_curl ]]; then
-            if ! is-at-least "14" "$system_version"; then 
-                # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
-                swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
+            if ! is-at-least "14" "$system_version"; then
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
                 # obtain the download URL
                 swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
