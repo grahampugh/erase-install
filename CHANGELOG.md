@@ -28,7 +28,7 @@ No date
 
 ### Updates in 41.0
 
-- **Experimental version to test the new swiftDialog v3:** Bumped swiftDialog version to `v3.0.0Beta3` except for systems running macOS 11 which still get `v2.2.1`. Note that the installer package includes both version `v3.0.0Beta3` and `v2.2.1`, and the appropriate one will be installed.
+- **Experimental version to test the new swiftDialog v3:** Bumped swiftDialog version to `v3.0.0Beta3` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.0.0Beta3` and `v2.2.1`, and the appropriate one will be installed.
 - The `Makefile` now extracts the swiftDialog app from the available installer package rather than from a DMG, since a DMG is not always available on the swiftDialog GitHub page.
 - Beta software catalogs are now used if performing searches with the `--beta` argument.
 
