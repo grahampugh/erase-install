@@ -29,12 +29,17 @@ build:
 	echo "## Downloading swiftDialog $$swiftdialog_tag" ;\
 	github_token=$$(cat $(GITHUB_TOKEN_FILE)) ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
-	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.1.browser_download_url' raw -) ;\
+	swiftdialog_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.0.browser_download_url' raw -) ;\
 	echo "## Downloading swiftDialog from $$swiftdialog_url" ;\
-	curl -L "$$swiftdialog_url" -o "/private/tmp/swiftDialog.dmg" ;\
+	curl -L "$$swiftdialog_url" -o "/private/tmp/swiftDialog.pkg" ;\
 	echo "## Downloaded swiftDialog $$swiftdialog_tag" ;\
-	hdiutil attach -quiet -noverify -nobrowse "/private/tmp/swiftDialog.dmg" ;\
-	cp -r /Volumes/Dialog/Dialog.app "$(PKG_ROOT)/Library/Management/erase-install/Dialog.app"
+	\
+	echo "## Extracting Dialog.app from swiftDialog pkg" ;\
+	pkgutil --expand "/private/tmp/swiftDialog.pkg" "/private/tmp/swiftDialog_expanded" ;\
+	mkdir -p "/private/tmp/swiftDialog_payload" ;\
+	cd "/private/tmp/swiftDialog_payload" && cat "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | gunzip -dc | cpio -i ;\
+	cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$(PKG_ROOT)/Library/Management/erase-install/Dialog.app" ;\
+	rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 
 	@echo
 	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\

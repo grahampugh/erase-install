@@ -22,6 +22,22 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
+## [41.0]
+
+No date
+
+### Updates in 41.0
+
+- **Experimental version to test the new swiftDialog v3:** Bumped swiftDialog version to `v3.0.0Beta3` except for systems running macOS 11 which still get `v2.2.1`. Note that the installer package includes both version `v3.0.0Beta3` and `v2.2.1`, and the appropriate one will be installed.
+- The `Makefile` now extracts the swiftDialog app from the available installer package rather than from a DMG, since a DMG is not always available on the swiftDialog GitHub page.
+- Beta software catalogs are now used if performing searches with the `--beta` argument.
+
+### Bugfixes in 41.0
+
+- Version comparison has been improved with a new `is_build_newer_or_equal` function, hopefully now better handling all types of version comparisons including betas and forks.
+- Fixed the output of versions for the `--select` dialog when not specifying `--beta` (addresses #571).
+- Fixed searching for newer installers when using `--update` and an installer pkg is cached (addresses #568).
+
 ## [40.4]
 
 01.12.2025
@@ -803,7 +819,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v40.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v41.0...HEAD
+[41.0]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.0
+[40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
 [39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
 [39.0]: https://github.com/grahampugh/erase-install/compare/v38.0...v39.0
 [38.0]: https://github.com/grahampugh/erase-install/compare/v37.0...v38.0
