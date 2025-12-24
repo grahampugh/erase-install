@@ -69,7 +69,7 @@ swiftdialog_bigsur_tag_required="v2.2.1"
 dialog_portable_app="$workdir/Dialog.app"
 dialog_default_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
-dialog_output="/var/tmp/dialog.json"
+dialog_output=$(/usr/bin/mktemp /var/tmp/dialog.XXX.json)
 
 # swiftDialog icons
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
