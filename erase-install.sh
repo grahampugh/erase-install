@@ -69,7 +69,6 @@ swiftdialog_bigsur_tag_required="v2.2.1"
 dialog_portable_app="$workdir/Dialog.app"
 dialog_default_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
-dialog_output="/var/tmp/dialog.json"
 
 # swiftDialog icons
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
@@ -121,7 +120,7 @@ ask_for_credentials() {
     fi
 
     # run the dialog command (set language for password prompt)
-    "$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null > "$dialog_output"
+    creds_dialog_output=$("$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null)
 }
 
 # -----------------------------------------------------------------------------
@@ -2070,8 +2069,8 @@ get_user_details() {
             fi
 
             # get account name (short name) and password
-            account_shortname=$(ljt '/Username' < "$dialog_output")
-            account_password=$(ljt '/Password' < "$dialog_output")
+            account_shortname=$(ljt '/Username' <<< "$creds_dialog_output")
+            account_password=$(ljt '/Password' <<< "$creds_dialog_output")
         fi
 
         if [[ ! "$account_shortname" ]]; then
@@ -2276,7 +2275,7 @@ fi
 
 # -----------------------------------------------------------------------------
 # ljt v1.0.9
-# This is used only to help obtain the correct version of MacAdmins Python.
+# This is used to read JSON in a few places as the compatibility is higher than either plutil or jq.
 # -----------------------------------------------------------------------------
 : <<-LICENSE_BLOCK
 ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
