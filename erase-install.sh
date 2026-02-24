@@ -1059,7 +1059,7 @@ create_pipe() {
 }
 
 # -----------------------------------------------------------------------------
-# Show progress information in DEPNotify while the installer is being 
+# Show progress information in swiftDialog while the installer is being 
 # downloaded or prepared, or during reboot-delay, thanks to @andredb90.
 # -----------------------------------------------------------------------------
 dialog_progress() {
@@ -3327,7 +3327,16 @@ set_localisations() {
     dialog_enter_button_ua="Гаразд"
     dialog_enter_button=dialog_enter_button_${user_language}
 
-    
+    # Dialogue localizations - buttons - hide
+    dialog_hide_button_en="Hide"
+    dialog_hide_button_de="Verstecken"
+    dialog_hide_button_nl="Verbergen"
+    dialog_hide_button_fr="Masquer"
+    dialog_hide_button_es="Ocultar"
+    dialog_hide_button_pt="Ocultar"
+    dialog_hide_button_ja="非表示"
+    dialog_hide_button_ua="Сховати"
+    dialog_hide_button=dialog_hide_button_${user_language}
 }
 
 # -----------------------------------------------------------------------------
@@ -4277,6 +4286,7 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
                 --iconsize "$iconsize"
                 --message "${(P)dialog_dl_desc}"
                 --progress "100"
+                --button1text "${(P)dialog_hide_button}"
             )
             # run the dialog command
             "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
@@ -4477,6 +4487,7 @@ if [[ $erase == "yes" && ! $silent ]]; then
         --icon "${dialog_install_icon}"
         --message "${(P)dialog_erase_desc}"
         --progress "100"
+        --button1text "${(P)dialog_hide_button}"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
@@ -4493,6 +4504,7 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
         --icon "${dialog_install_icon}"
         --message "${(P)dialog_reinstall_desc}"
         --progress "100"
+        --button1text "${(P)dialog_hide_button}"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1

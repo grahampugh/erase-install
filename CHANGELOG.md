@@ -32,6 +32,7 @@ No date
 - The `Makefile` now extracts the swiftDialog app from the available installer package rather than from a DMG, since a DMG is not always available on the swiftDialog GitHub page.
 - Beta software catalogs are now used if performing searches with the `--beta` argument.
 - Output of credentials dialog now sent to a variable instead of a temporary file to enhance security (addresses #580, thanks @RIMorton).
+- Changed button text on download and preparation dialogs to "Hide" rather than "OK".
 
 ### Bugfixes in 41.1
 
