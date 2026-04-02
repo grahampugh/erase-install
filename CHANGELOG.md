@@ -22,6 +22,38 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
+## [42.1]
+
+No date
+
+### Updates in 42.1
+
+- Bumped swiftDialog version to `v3.0.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.0.1` and `v2.2.1`, and the appropriate one will be installed.
+- If swiftDialog is missing from the workdir, for example if only using the script rather than the package, then install the appropriate version of swiftDialog for the OS into the workdir rather than the default location.
+
+### Bugfixes in 42.1
+
+- Fixed check for swiftDialog version on macOS 14 (addresses #586).
+- Banner is not used when swiftDialog 2.2.1 is used (incompatible dialog arguments).
+
+## [41.1]
+
+24.02.2026
+
+### Updates in 41.1
+
+- Bumped swiftDialog version to `v3.0.0` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.0.0` and `v2.2.1`, and the appropriate one will be installed.
+- The `Makefile` now extracts the swiftDialog app from the available installer package rather than from a DMG, since a DMG is not always available on the swiftDialog GitHub page.
+- Beta software catalogs are now used if performing searches with the `--beta` argument.
+- Output of credentials dialog now sent to a variable instead of a temporary file to enhance security (addresses #580, thanks @RIMorton).
+- Changed button text on download and preparation dialogs to "Hide" rather than "OK".
+
+### Bugfixes in 41.1
+
+- Version comparison has been improved with a new `is_build_newer_or_equal` function, hopefully now better handling all types of version comparisons including betas and forks.
+- Fixed the output of versions for the `--select` dialog when not specifying `--beta` (addresses #571).
+- Fixed searching for newer installers when using `--update` and an installer pkg is cached (addresses #568).
+
 ## [40.4]
 
 01.12.2025
@@ -803,7 +835,10 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v40.0...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v42.0...HEAD
+[42.0]: https://github.com/grahampugh/erase-install/compare/v41.1...v42.0
+[41.1]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.1
+[40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
 [39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
 [39.0]: https://github.com/grahampugh/erase-install/compare/v38.0...v39.0
 [38.0]: https://github.com/grahampugh/erase-install/compare/v37.0...v38.0

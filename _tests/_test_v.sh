@@ -2,10 +2,8 @@
 # shellcheck shell=bash
 
 # -----------------------------------------------------------------------------
-# Compare macOS build versions, handling beta builds correctly
+# Compare macOS build versions, handling beta and forked builds correctly
 # Returns 0 if version1 >= version2, 1 otherwise
-# Beta builds (ending with letter) are considered older than release builds
-# with the same base version number
 # -----------------------------------------------------------------------------
 is_build_newer_or_equal() {
     local version1="$1" # system
@@ -33,31 +31,49 @@ is_build_newer_or_equal() {
     
     # Compare base versions first
     if [[ "$base1" != "$base2" ]]; then
-        # Use string comparison for build numbers (they're designed to sort lexicographically)
-        [[ "$base1" > "$base2" || "$base1" == "$base2" ]]
+        # Parse macOS build version components: Darwin version (2 digits) + minor letter + patch number
+        # Extract Darwin version (first 2 digits)
+        darwin1="${base1:0:2}"
+        darwin2="${base2:0:2}"
+        
+        # Compare Darwin versions numerically
+        if [[ "$darwin1" != "$darwin2" ]]; then
+            [[ "$darwin1" -ge "$darwin2" ]]
+            return $?
+        fi
+        
+        # Darwin versions are equal, compare minor version letter (3rd character)
+        minor1="${base1:2:1}"
+        minor2="${base2:2:1}"
+        
+        if [[ "$minor1" != "$minor2" ]]; then
+            [[ "$minor1" > "$minor2" ]]
+            return $?
+        fi
+        
+        # Darwin and minor versions are equal, compare patch number (remaining digits)
+        patch1="${base1:3}"
+        patch2="${base2:3}"
+        
+        # Handle fork builds and beta builds (4-digit patch numbers)
+        # For 4-digit numbers, ignore the first digit and use the remaining 3 digits
+        # This applies to both fork builds (e.g., 25A8364) and beta builds (e.g., 25A5362a)
+        if [[ ${#patch1} -eq 4 ]]; then
+            patch1="${patch1:1}"  # Remove first digit for fork builds
+        fi
+        if [[ ${#patch2} -eq 4 ]]; then
+            patch2="${patch2:1}"  # Remove first digit for fork builds
+        fi
+        
+        # Compare patch numbers numerically
+        [[ "$patch1" -ge "$patch2" ]]
         return $?
     fi
-    
-    # Base versions are equal, now handle beta logic
-    # If both are release builds (no suffix), they're equal
-    if [[ -z "$suffix1" && -z "$suffix2" ]]; then
-        return 0  # Equal
-    fi
-    
-    # If version1 is release and version2 is beta, version1 is newer
-    if [[ -z "$suffix1" && -n "$suffix2" ]]; then
-        return 0  # version1 >= version2
-    fi
-    
-    # If version1 is beta and version2 is release, version1 is older
-    if [[ -n "$suffix1" && -z "$suffix2" ]]; then
-        return 1  # version1 < version2
-    fi
-    
-    # Both are beta builds - earlier letter is newer (a > b > c...)
-    [[ "$suffix1" < "$suffix2" || "$suffix1" == "$suffix2" ]]
-    return $?
 }
 
 is_build_newer_or_equal "$1" "$2"
-echo $? "(0 = $1 is newer)" # Return the result of the comparison
+if [[ $? -eq 0 ]]; then
+    echo "System Build $1 is newer than or equal to Installer Build $2 (return code 0)"
+else
+    echo "System Build $1 is older than Installer Build $2 (return code 1)"
+fi

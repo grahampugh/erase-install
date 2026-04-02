@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="40.4"
+version="42.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -59,7 +59,7 @@ mist_tag_required="v2.2"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v2.5.6"
+swiftdialog_tag_required="v3.0.1"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -67,9 +67,7 @@ swiftdialog_bigsur_tag_required="v2.2.1"
 
 # swiftDialog variables
 dialog_portable_app="$workdir/Dialog.app"
-dialog_default_app="/Library/Application Support/Dialog/Dialog.app"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
-dialog_output="/var/tmp/dialog.json"
 
 # swiftDialog icons
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
@@ -97,7 +95,7 @@ ask_for_credentials() {
     get_default_dialog_args "utility"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "$dialog_window_title"
+        "$dialog_title_command" "$dialog_window_title"
         --icon "$dialog_confirmation_icon"
         --overlayicon "SF=key.fill"
         --iconsize "$dialog_icon_size"
@@ -121,7 +119,7 @@ ask_for_credentials() {
     fi
 
     # run the dialog command (set language for password prompt)
-    "$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null > "$dialog_output"
+    creds_dialog_output=$("$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null)
 }
 
 # -----------------------------------------------------------------------------
@@ -147,7 +145,7 @@ check_fmm() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${(P)dialog_fmm_title}"
+            "$dialog_title_command" "${(P)dialog_fmm_title}"
             --icon "${dialog_confirmation_icon}"
             --overlayicon "${dialog_fmm_icon}"
             --iconsize "${dialog_icon_size}"
@@ -178,7 +176,7 @@ check_fmm() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${(P)dialog_fmm_title}"
+            "$dialog_title_command" "${(P)dialog_fmm_title}"
             --icon "${dialog_confirmation_icon}"
             --iconsize "${dialog_icon_size}"
             --overlayicon "${dialog_fmm_icon}"
@@ -272,12 +270,15 @@ check_for_mist() {
 # Download dialog if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_swiftdialog_app() {
-    # swiftDialog 2.3 and higher are incompatible with macOS 11. Remove this version if present.
+    # swiftDialog 3.0 is compatible with macOS 15+. Remove this version if present on older OSs
     if [[ -d "$dialog_portable_app" ]]; then
-        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+        dialog_bin="$dialog_portable_app/Contents/MacOS/dialogcli"
+        if [[ ! -f "$dialog_bin" ]]; then
+            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+        fi
         dialog_string=$("$dialog_bin" --version)
         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
+        if [[ $(echo "$dialog_minor_vers >= 3.0" | bc) -eq 1 ]] && ! is-at-least "15" "$system_version"; then 
             writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
             /bin/rm -rf "$dialog_portable_app" 
             /bin/rm -f /var/tmp/dialog.*
@@ -285,34 +286,34 @@ check_for_swiftdialog_app() {
         fi
     fi
 
-    # check also for a pre-installed version
-    if [[ ! -d "$dialog_portable_app" && -d "$dialog_default_app" ]]; then
-        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
-        dialog_string=$("$dialog_bin" --version)
-        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers > 2.2" | bc) -eq 1 ]] && ! is-at-least "12" "$system_version"; then 
-            writelog "[check_for_swiftdialog_app] Preinstalled version of swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version."
-            dialog_bin=""
-        fi
+    # Determine the correct required version based on OS version
+    if ! is-at-least "15" "$system_version"; then
+        # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
+        swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
     fi
 
-    # now check for any version of swiftDialog and download if not present
-    if [[ -f "$dialog_bin" && "v$dialog_string" == "$swiftdialog_tag_required"* ]]; then
+    # now check for correct version of swiftDialog and download if not present
+    if [[ -f "$dialog_bin" && "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
         writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
         writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
         if [[ ! $no_curl ]]; then
-            if ! is-at-least "12" "$system_version"; then 
-                # we need to get the older version of swiftDialog that is compatible with Big Sur
-                swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
+            if ! is-at-least "11" "$system_version"; then
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
                 # obtain the download URL
                 swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
                 dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
                 
-                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/dialog.pkg" ; then
-                    if installer -tgt / -pkg "$workdir/dialog.pkg" ; then
-                        dialog_bin="$dialog_default_app/Contents/MacOS/Dialog"
+                if /usr/bin/curl -L "$dialog_download_url" -o "/private/tmp/swiftDialog.pkg" ; then
+                    echo "[check_for_swiftdialog_app] Extracting Dialog.app from swiftDialog pkg"
+                    pkgutil --expand "/private/tmp/swiftDialog.pkg" "/private/tmp/swiftDialog_expanded"
+                    mkdir -p "/private/tmp/swiftDialog_payload"
+                    cd "/private/tmp/swiftDialog_payload" && gunzip -dc <<< "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | cpio -i
+                    cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$workdir/Dialog.app"
+                    rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
+
+                    if [[ -d "$dialog_portable_app" ]]; then
+                        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
                         dialog_string=$("$dialog_bin" --version)
                         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
                         writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
@@ -324,36 +325,10 @@ check_for_swiftdialog_app() {
                     exit 1
                 fi
             else
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog..."
-                # obtain the download URL
-                swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
-                dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.1.browser_download_url -)
-                
-                if /usr/bin/curl -L "$dialog_download_url" -o "$workdir/swiftDialog.dmg" ; then
-                    mount_point=$(/usr/bin/mktemp -d /Users/Shared/swiftDialog.XXX)
-                    mkdir -p "$mount_point"
-                    if /usr/bin/hdiutil attach -quiet -noverify -nobrowse "$workdir/swiftDialog.dmg" -mountpoint "$mount_point" ; then
-                        writelog "[check_for_swiftdialog_app] Mounting $workdir/swiftDialog.dmg"
-                        rm -Rf "$workdir/Dialog.app"
-                        if cp -R "$mount_point/Dialog.app" "$workdir"/; then
-                            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
-                            dialog_string=$("$dialog_bin" --version)
-                            dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-                            writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
-                        else
-                            writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
-                        fi
-                        diskutil unmount force "$mount_point"
-                        rm -rf "$mount_point"
-                    else
-                        writelog "[check_for_swiftdialog_app] ERROR: could not mount swiftDialog disk image"
-                    fi
-                    rm "$workdir/swiftDialog.dmg"
-                else
-                    writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
-                fi
+                writelog "[check_for_swiftdialog_app] swiftDialog is not compatible with macOS $system_version, so it will not be downloaded. Silent mode is required for use on macOS 10.15, so no dialog will be used on that version of macOS."
             fi
-
+        else
+            writelog "[check_for_swiftdialog_app] swiftDialog v$swiftdialog_tag_required is not installed. Run without --no-curl to download and install it, or run with --silent if you do not want to use dialog windows."
         fi
         # check it did actually get downloaded
         # writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed" # TEMP
@@ -402,7 +377,7 @@ check_free_space() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${dialog_window_title}"
+            "$dialog_title_command" "${dialog_window_title}"
             --icon "${dialog_confirmation_icon}"
             --iconsize "${dialog_icon_size}"
             --overlayicon "SF=externaldrive.fill.badge.xmark,colour=red"
@@ -477,27 +452,7 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        # if current system is on a beta, we have to assume that this is older than a build number of the same minor version
-        if /usr/bin/grep -e "[a-z]$" <<< "$system_build"; then
-            # system is beta
-            if /usr/bin/grep -e "[a-z]$" <<< "$installer_build"; then
-                if ! is-at-least "$system_build" "$installer_build"; then
-                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (both beta): invalid build."
-                    invalid_installer_found="yes"
-                else
-                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (both beta): valid build."
-                    invalid_installer_found="no"
-                fi
-            else
-                if ! is-at-least "${system_build:0:3}" "${installer_build:0:3}"; then
-                    writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build (beta): invalid build."
-                    invalid_installer_found="yes"
-                else
-                    writelog "[check_installer_is_valid] Installer: $installer_build >= System: $system_build (beta) : valid build."
-                    invalid_installer_found="no"
-                fi
-            fi
-        elif ! is-at-least "$system_build" "$installer_build"; then
+        if is_build_newer_or_equal "$system_build" "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
@@ -510,64 +465,6 @@ check_installer_is_valid() {
     fi
 
     working_macos_app="$cached_installer_app"
-}
-
-# -----------------------------------------------------------------------------
-# Compare macOS build versions, handling beta builds correctly
-# Returns 0 if version1 >= version2, 1 otherwise
-# Beta builds (ending with letter) are considered older than release builds
-# with the same base version number
-# -----------------------------------------------------------------------------
-is_build_newer_or_equal() {
-    local version1="$1"
-    local version2="$2"
-    
-    # Extract base version (everything except the last character if it's a lowercase letter)
-    local base1 base2 suffix1 suffix2
-    
-    # Check if version ends with lowercase letter (beta indicator)
-    if [[ "$version1" =~ [a-z]$ ]]; then
-        base1="${version1%?}"  # Remove last character
-        suffix1="${version1: -1}"  # Get last character
-    else
-        base1="$version1"
-        suffix1=""
-    fi
-    
-    if [[ "$version2" =~ [a-z]$ ]]; then
-        base2="${version2%?}"
-        suffix2="${version2: -1}"
-    else
-        base2="$version2"
-        suffix2=""
-    fi
-    
-    # Compare base versions first
-    if [[ "$base1" != "$base2" ]]; then
-        # Use string comparison for build numbers (they're designed to sort lexicographically)
-        [[ "$base1" > "$base2" || "$base1" == "$base2" ]]
-        return $?
-    fi
-    
-    # Base versions are equal, now handle beta logic
-    # If both are release builds (no suffix), they're equal
-    if [[ -z "$suffix1" && -z "$suffix2" ]]; then
-        return 0  # Equal
-    fi
-    
-    # If version1 is release and version2 is beta, version1 is newer
-    if [[ -z "$suffix1" && -n "$suffix2" ]]; then
-        return 0  # version1 >= version2
-    fi
-    
-    # If version1 is beta and version2 is release, version1 is older
-    if [[ -n "$suffix1" && -z "$suffix2" ]]; then
-        return 1  # version1 < version2
-    fi
-    
-    # Both are beta builds - earlier letter is newer (a > b > c...)
-    [[ "$suffix1" < "$suffix2" || "$suffix1" == "$suffix2" ]]
-    return $?
 }
 
 # -----------------------------------------------------------------------------
@@ -600,6 +497,40 @@ check_installer_pkg_is_valid() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Check status of background jobs and log details for debugging
+# -----------------------------------------------------------------------------
+check_job_status() {
+    local job_tracker="$workdir/downloads/job_tracker.tmp"
+    local current_time
+    current_time=$(date +%s)
+    local stuck_threshold=60  # Consider jobs stuck after 60 seconds
+    
+    if [[ -f "$job_tracker" ]]; then
+        while IFS=':' read -r pid product start_time; do
+            if [[ -n "$pid" && -n "$product" && -n "$start_time" ]]; then
+                local elapsed=$((current_time - start_time))
+                if kill -0 "$pid" 2>/dev/null; then
+                    if (( elapsed > stuck_threshold )); then
+                        writelog "[check_job_status] WARNING: Job for product $product (PID $pid) has been running for ${elapsed}s"
+                        # Check if there's a log file for this job
+                        if [[ -f "$workdir/downloads/product_${product}.log" ]]; then
+                            writelog "[check_job_status] Last log entry for $product: $(tail -1 "$workdir/downloads/product_${product}.log")"
+                        fi
+                    fi
+                else
+                    writelog "[check_job_status] Job for product $product (PID $pid) has finished"
+                fi
+            fi
+        done < "$job_tracker"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Check for newer installer availability using a JSON file.
+# This is used with --update to check if a newer installer is available, without having to run mist, which can be slow to run just to check for a newer installer.
+# The JSON file is generated by the function get_installers_list_json, which is called in the function list_installers_from_json, which is called in the function
+# -----------------------------------------------------------------------------
 check_newer_available_from_json_file() {
     # this does not use mist, but instead uses a JSON file that is generated by the function get_installers_list_json
     # this is used to check if a newer installer is available, without having to run mist
@@ -772,22 +703,22 @@ check_newer_available_from_mist() {
             available_build=$( ljt 0.build "$mist_export_file" 2>/dev/null )
             if [[ "$available_build" ]]; then
                 if [[ $installer_pkg_build ]]; then
-                    echo "Comparing latest build found ($available_build) with cached pkg installer build ($installer_pkg_build)"
-                    if ! is-at-least "$available_build" "$installer_pkg_build"; then
+                    echo "Comparing latest available build ($available_build) with cached pkg installer build ($installer_pkg_build)"
+                    if is_build_newer_or_equal "$available_build" "$installer_pkg_build"; then
                         newer_build_found="yes"
                     fi
                 else
-                    echo "Comparing latest build found ($available_build) with cached installer build ($installer_build)"
-                    if ! is-at-least "$available_build" "$installer_build"; then
+                    echo "Comparing latest available build ($available_build) with cached installer build ($installer_build)"
+                    if is_build_newer_or_equal "$available_build" "$installer_build"; then
                         newer_build_found="yes"
                     fi
                 fi
             fi
             if [[ $newer_build_found == "yes" ]]; then
-                writelog "[check_newer_available_from_mist] Newer installer found."
+                writelog "[check_newer_available_from_mist] Newer installer available."
                 do_overwrite_existing_installer=1
             else 
-                writelog "[check_newer_available_from_mist] No newer builds found"
+                writelog "[check_newer_available_from_mist] No newer builds available"
             fi
         else
             writelog "[check_newer_available_from_mist] ERROR reading output from mist, cannot continue"
@@ -859,7 +790,7 @@ check_power_status() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${(P)dialog_power_title}"
+            "$dialog_title_command" "${(P)dialog_power_title}"
             --icon "${dialog_confirmation_icon}"
             --overlayicon "SF=bolt.slash.fill,colour=red"
             --iconsize "${dialog_icon_size}"
@@ -890,7 +821,7 @@ check_power_status() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${(P)dialog_power_title}"
+            "$dialog_title_command" "${(P)dialog_power_title}"
             --icon "${dialog_confirmation_icon}"
             --iconsize "${dialog_icon_size}"
             --overlayicon "SF=powerplug.fill,colour=red"
@@ -924,7 +855,7 @@ confirm() {
     get_default_dialog_args "utility"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "$dialog_title"
+        "$dialog_title_command" "$dialog_title"
         --icon "${dialog_confirmation_icon}"
         --iconsize "${dialog_icon_size}"
         --overlayicon "SF=person.fill.checkmark,colour=red"
@@ -1062,7 +993,7 @@ create_pipe() {
 }
 
 # -----------------------------------------------------------------------------
-# Show progress information in DEPNotify while the installer is being 
+# Show progress information in swiftDialog while the installer is being 
 # downloaded or prepared, or during reboot-delay, thanks to @andredb90.
 # -----------------------------------------------------------------------------
 dialog_progress() {
@@ -1237,1305 +1168,6 @@ dialog_progress() {
             echo "progress: $countdown" >> "$dialog_log"
             ((countdown--))
         done
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Search for an existing downloaded installer.
-# This checks first for an Install macOS X.app in the /Applications folder, 
-# and then for an InstallAssistant.pkg in the working directory.
-# Note that multiple installers left around on the device can cause unexpected
-# results.  
-# -----------------------------------------------------------------------------
-find_existing_installer() {
-    # First let's see if this script has been run before and left an installer
-    cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
-    cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
-    cached_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
-
-    if [[ -d "$cached_installer_app" ]]; then
-        writelog "[find_existing_installer] Installer found at $cached_installer_app."
-        app_is_in_applications_folder="yes"
-        check_installer_is_valid
-    elif [[ -d "$cached_installer_app_in_workdir" ]]; then
-        cached_installer_app="$cached_installer_app_in_workdir"
-        writelog "[find_existing_installer] Installer found at $cached_installer_app_in_workdir."
-        check_installer_is_valid
-    elif [[ -f "$cached_installer_pkg" ]]; then
-        writelog "[find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
-        check_installer_pkg_is_valid
-    else
-        writelog "[find_existing_installer] No valid installer found."
-        if [[ $clear_cache == "yes" ]]; then
-            exit
-        fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Look for packages to install during the startosinstall run.
-# The default location is: $workdir/extras
-# This location can be overridden with the --extras option.
-# -----------------------------------------------------------------------------
-find_extra_packages() {
-    # set install_package_list to blank.
-    if [[ -d "$extras_directory" ]]; then
-        install_package_list=()
-        for file in "$extras_directory"/*.pkg; do
-            if [[ $file != *"/*.pkg" ]]; then
-                writelog "[find_extra_installers] Additional package to install: $file"
-                install_package_list+=("--installpackage")
-                install_package_list+=("$file")
-            fi
-        done
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Things to carry out when the script exits
-# -----------------------------------------------------------------------------
-# shellcheck disable=SC2317
-finish() {
-    local exit_code=${1:-$?}
-    # if we promoted the user then we should demote it again
-    if [[ $promoted_user ]]; then
-        /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
-        writelog "[finish] User $promoted_user was demoted back to standard user"
-    fi
-
-    # remove pipe files
-    [[ -e "${pipe_input}" ]] && /bin/rm -f "${pipe_input}"
-    [[ -e "${pipe_output}" ]] && /bin/rm -f "${pipe_output}"
-
-    # kill caffeinate
-    kill_process "caffeinate"
-
-    # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
-    if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
-        writelog "[finish] sending quit message to dialog ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
-        # delete dialog logfile
-        sleep 0.5
-        # /bin/rm -f "$dialog_log"
-    fi
-
-    # set final exit code and quit, but do not call finish() again
-    writelog "[finish] Script exit code: $exit_code"
-    (exit "$exit_code")
-}
-
-# -----------------------------------------------------------------------------
-# Determine the Darwin number from the macOS version.
-# -----------------------------------------------------------------------------
-get_darwin_from_os_version() {
-    # convert a macOS major version to a darwin version
-    os_major="$1"
-    os_major_check=$(cut -d. -f1 <<< "$os_major")
-    if [[ $os_major_check -eq 10 ]]; then
-        darwin_version=$(cut -d. -f2 <<< "$os_major")
-        darwin_version=$((darwin_version+4))
-    else
-        # for macOS 26 and above, the darwin version is the major version - 1
-        if [[ $os_major_check -ge 26 ]]; then
-            darwin_version=$((os_major_check-1))
-        elif [[ $os_major_check -ge 11 && $os_major_check -le 15 ]]; then
-            # for macOS 11 to 15, the darwin version is the major version + 9
-            # this is because macOS 11 is Darwin 20, macOS 12 is Darwin 21, etc.
-            # so we add 9 to the major version number
-            # e.g. macOS 11 (Big Sur) -> Darwin 20, macOS 12 (Monterey) -> Darwin 21, etc.
-            darwin_version=$((os_major_check+9))
-        else
-            # return zero for unsupported macOS versions
-            darwin_version=0
-        fi
-    fi
-    echo "$darwin_version"
-}
-
-# -----------------------------------------------------------------------------
-# Get a password from keychain
-# This is NOT a recommended method for production workflows for obvious security reasons.
-# Use at your own risk!!
-# -----------------------------------------------------------------------------
-read_from_keychain() {
-    # expects entries from the command line for keychain name, password, service name for the user and service name for the password
-    writelog "[read_from_keychain] Attempting to unlock keychain..."
-    if security unlock-keychain -p "$kc_pass" "$kc"; then
-        writelog "[read_from_keychain] Unlocked keychain..."
-        account_shortname=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "acct" | cut -d \" -f4)
-        if [[ $account_shortname ]]; then
-            writelog "[read_from_keychain] Obtained user $account_shortname..."
-        else
-            writelog "[read_from_keychain] Could not find user in keychain."
-            exit 1
-        fi
-        account_password=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "password" | cut -d \" -f2)
-        if [[ $account_password ]]; then
-            writelog "[read_from_keychain] Obtained password..."
-        else
-            writelog "[read_from_keychain] Could not find password in keychain."
-            exit 1
-        fi
-    else
-        writelog "[read_from_keychain] Could not unlock keychain. Continuing..."
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Set catalog URLs.
-# This provides a shortcut way of obtaining different catalog URLs for different
-# systems.
-# -----------------------------------------------------------------------------
-get_catalog() {
-    catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-}
-
-# -----------------------------------------------------------------------------
-# Default dialog arguments
-# -----------------------------------------------------------------------------
-get_default_dialog_args() {
-    # set the dialog command arguments
-    # $1 - window type
-    default_dialog_args=(
-        --bannerimage "colour=#056AE6"
-        --commandfile "$dialog_log"
-        --ontop
-        --json
-        --ignorednd
-        --position "centre"
-        --quitkey "c"
-    )
-    if [[ "$1" == "fullscreen" ]]; then
-        writelog "[get_default_dialog_args] Invoking fullscreen dialog"
-        default_dialog_args+=(
-            --bannerheight "70"
-            --blurscreen
-            --width "50%"
-            --height "50%"
-            --button1disabled
-            --titlefont "size=32,shadow=1"
-            --messagefont "size=24"
-            --alignment "left"
-        )
-    elif [[ "$1" == "utility" ]]; then
-        writelog "[get_default_dialog_args] Invoking utility dialog"
-        default_dialog_args+=(
-            --bannerheight "40"
-            --moveable
-            --width "600"
-            --height "300"
-            --titlefont "size=20,shadow=1"
-            --messagefont "size=14"
-            --alignment "left"
-        )
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Get the system's device ID (Apple Silicon) or board ID (Intel)
-# -----------------------------------------------------------------------------
-get_device_id() {
-    device_info=$(/usr/sbin/ioreg -c IOPlatformExpertDevice -d 2)
-    board_id=$(grep board-id <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
-    device_id=$(grep target-sub-type <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
-}
-
-# -----------------------------------------------------------------------------
-# Check status of background jobs and log details for debugging
-# -----------------------------------------------------------------------------
-check_job_status() {
-    local job_tracker="$workdir/downloads/job_tracker.tmp"
-    local current_time
-    current_time=$(date +%s)
-    local stuck_threshold=60  # Consider jobs stuck after 60 seconds
-    
-    if [[ -f "$job_tracker" ]]; then
-        while IFS=':' read -r pid product start_time; do
-            if [[ -n "$pid" && -n "$product" && -n "$start_time" ]]; then
-                local elapsed=$((current_time - start_time))
-                if kill -0 "$pid" 2>/dev/null; then
-                    if (( elapsed > stuck_threshold )); then
-                        writelog "[check_job_status] WARNING: Job for product $product (PID $pid) has been running for ${elapsed}s"
-                        # Check if there's a log file for this job
-                        if [[ -f "$workdir/downloads/product_${product}.log" ]]; then
-                            writelog "[check_job_status] Last log entry for $product: $(tail -1 "$workdir/downloads/product_${product}.log")"
-                        fi
-                    fi
-                else
-                    writelog "[check_job_status] Job for product $product (PID $pid) has finished"
-                fi
-            fi
-        done < "$job_tracker"
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Process a single product from the catalog in an asynchronous manner.
-# This function is intended to be run in the background for each product.
-# -----------------------------------------------------------------------------
-process_product_async() {
-    local ia_product="$1"
-    local tmp_json_file="$2"
-    local product_tmp_file="$workdir/downloads/product_${ia_product}.json"
-    local start_time
-    start_time=$(date +%s)
-    
-    # Add error handling and timeout
-    # shellcheck disable=SC2317 
-    {
-        # Redirect stdout and stderr to per-job log file
-        exec 1>"$workdir/downloads/product_${ia_product}.log" 2>&1
-        
-        writelog "[process_product_async] Starting processing product $ia_product (PID: $$)"
-        
-        # Process package extraction with error checking
-        if ! package_plist=$(plutil -extract Products."$ia_product".Packages xml1 -o - "$catalog_plist_path" 2>/dev/null); then
-            writelog "[process_product_async] ERROR: Failed to extract packages for product $ia_product"
-            return 1
-        fi
-        
-        if ! package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null); then
-            writelog "[process_product_async] ERROR: Failed to convert plist to JSON for product $ia_product"
-            return 1
-        fi
-        
-        if ! ia_url=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null); then
-            writelog "[process_product_async] ERROR: Failed to extract URL for product $ia_product"
-            return 1
-        fi
-        
-        if [[ -n "$ia_url" ]]; then
-            # Get basic info without downloading dist file yet
-            ia_post_date=$(plutil -extract Products."$ia_product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
-            if [[ -n "$ia_post_date" ]]; then
-                ia_post_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ia_post_date" "+%Y-%m-%d" 2>/dev/null)
-            fi
-            
-            pkg_size_bytes=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json" 2>/dev/null)
-            
-            if [[ "$pkg_size_bytes" == "empty" || -z "$pkg_size_bytes" || ! "$pkg_size_bytes" =~ ^[0-9]+$ ]]; then
-                ia_pkg_size="0.00"
-            else
-                ia_pkg_size=$(bc <<< "scale=2; $pkg_size_bytes / 1024 / 1024 / 1024" 2>/dev/null || echo "0.00")
-            fi
-            
-            dist_file=$(plutil -extract Products."$ia_product".Distributions.English raw -o - "$catalog_plist_path" 2>/dev/null)
-            if [[ "$dist_file" ]]; then
-                dist_xml="$workdir/downloads/$(basename "$dist_file").xml"
-                
-                # Download dist file if needed with timeout
-                if [[ ! -f "$dist_xml" || $(date -r "$dist_xml" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
-                    writelog "[process_product_async] Downloading dist file for product $ia_product"
-                    # Use curl's built-in timeout options instead of timeout command (not available on macOS)
-                    if ! curl -sL --connect-timeout 10 --max-time 30 "$dist_file" -o "$dist_xml" 2>/dev/null; then
-                        writelog "[process_product_async] ERROR: Failed to download dist file for product $ia_product"
-                        writelog "[process_product_async] URL: $dist_file"
-                        return 1
-                    fi
-                fi
-                
-                if [[ -f "$dist_xml" ]]; then
-                    # Extract info from XML in one pass using multiple xpath calls
-                    ia_title=$(xmllint --xpath 'string(/installer-gui-script/title/text())' "$dist_xml" 2>/dev/null)
-                    ia_build=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='BUILD']/text())" "$dist_xml" 2>/dev/null)
-                    ia_version=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='VERSION']/text())" "$dist_xml" 2>/dev/null)
-                    
-                    # Extract supported IDs more efficiently
-                    ia_supportedBoardIDs=$(awk '/var supportedBoardIDs/ {gsub(/.*\[\s*|\s*\].*/, ""); gsub(/['"'"']/, ""); print}' "$dist_xml" 2>/dev/null)
-                    ia_supportedDeviceIDs=$(awk '/var supportedDeviceIDs/ {gsub(/.*\[\s*|\s*\].*/, ""); gsub(/['"'"']/, ""); print}' "$dist_xml" 2>/dev/null)
-                    
-                    # Check compatibility
-                    if [[ ($device_id && "$ia_supportedDeviceIDs" == *"$device_id"*) || ($board_id && "$ia_supportedBoardIDs" == *"$board_id"*) ]]; then
-                        ia_compatible="True"
-                    else
-                        ia_compatible="False"
-                    fi
-                    
-                    # Write to individual product file (thread-safe)
-                    # Prepare JSON arrays for board and device IDs with error handling
-                    if [[ -n "$ia_supportedBoardIDs" ]]; then
-                        board_ids_json=$(echo "$ia_supportedBoardIDs" | "$jq_bin" -R 'split(",") | map(ltrimstr(" ") | rtrimstr(" "))' 2>/dev/null) || board_ids_json='[]'
-                    else
-                        board_ids_json='[]'
-                    fi
-                    
-                    if [[ -n "$ia_supportedDeviceIDs" ]]; then
-                        device_ids_json=$(echo "$ia_supportedDeviceIDs" | "$jq_bin" -R 'split(",") | map(ltrimstr(" ") | rtrimstr(" "))' 2>/dev/null) || device_ids_json='[]'
-                    else
-                        device_ids_json='[]'
-                    fi
-                    
-                    # Create JSON with better error handling
-                    # shellcheck disable=SC2016
-                    jq_output=$("$jq_bin" -n \
-                        --arg product "$ia_product" \
-                        --arg post_date "${ia_post_date:-}" \
-                        --arg url "${ia_url:-}" \
-                        --arg title "${ia_title:-}" \
-                        --arg build "${ia_build:-}" \
-                        --arg version "${ia_version:-}" \
-                        --arg pkg_size "${ia_pkg_size:-0.00}" \
-                        --arg compatible "${ia_compatible:-False}" \
-                        --argjson supported_board_ids "$board_ids_json" \
-                        --argjson supported_device_ids "$device_ids_json" \
-                        '{
-                            product: $product,
-                            post_date: $post_date,
-                            url: $url,
-                            title: $title,
-                            build: $build,
-                            version: $version,
-                            pkg_size: $pkg_size,
-                            compatible: $compatible,
-                            supported_board_ids: $supported_board_ids,
-                            supported_device_ids: $supported_device_ids
-                        }' 2>&1)
-                    
-                    jq_exit_code=$?
-                    if [[ $jq_exit_code -eq 0 && -n "$jq_output" ]]; then
-                        echo "$jq_output" > "$product_tmp_file"
-                        if [[ -s "$product_tmp_file" ]]; then
-                            writelog "[process_product_async] Successfully created JSON for product $ia_product"
-                        else
-                            writelog "[process_product_async] ERROR: JSON file created but is empty for product $ia_product"
-                            writelog "[process_product_async] Debug: jq_output length: ${#jq_output}"
-                            return 1
-                        fi
-                    else
-                        writelog "[process_product_async] ERROR: Failed to create JSON for product $ia_product (exit code: $jq_exit_code)"
-                        writelog "[process_product_async] jq error output: $jq_output"
-                        writelog "[process_product_async] Debug vars: product=$ia_product, title='$ia_title', build='$ia_build', version='$ia_version'"
-                        writelog "[process_product_async] Debug board_ids: '$ia_supportedBoardIDs' -> $board_ids_json"
-                        writelog "[process_product_async] Debug device_ids: '$ia_supportedDeviceIDs' -> $device_ids_json"
-                        return 1
-                    fi
-                fi
-            fi
-        fi
-        
-        local end_time
-        end_time=$(date +%s)
-        local duration=$((end_time - start_time))
-        writelog "[process_product_async] Completed product $ia_product in ${duration}s"
-        
-        return 0
-        
-    } || {
-        # Error handler - log error
-        writelog "[process_product_async] ERROR: Failed to process product $ia_product after $(($(date +%s) - start_time))s"
-        return 1
-    }
-}
-
-# -----------------------------------------------------------------------------
-# Get the list of products from the catalog and create a JSON file with the
-# product information.
-# The JSON file will contain the product identifier, post date, URL, title,
-# build, version, supported board IDs and supported device IDs.
-# -----------------------------------------------------------------------------
-get_installers_list_json() {
-    catalog_download_path="$workdir/downloads/$(basename "$catalogurl")"
-    catalog_plist_path="$workdir/downloads/$(basename "$catalogurl").plist"
-    installers_list_json_file="$workdir/downloads/$(basename "$catalogurl").products.json"
-
-    # download the catalog if not already present
-    if [[ ! -d "$workdir/downloads" ]]; then
-        mkdir -p "$workdir/downloads"
-    fi
-    if [[ ! -f "$catalog_plist_path" || $(date -r "$catalog_plist_path" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
-        # clear old json file
-        if [[ -f "$installers_list_json_file" ]]; then
-            writelog "[get_installers_list_json] Removing old JSON file..."
-            rm "$installers_list_json_file"
-        fi
-        writelog "[get_installers_list_json] Downloading catalog..."
-        if ! curl -sL "$catalogurl" -o "$catalog_download_path"; then
-            writelog "[get_installers_list_json] Failed to download catalog"
-            return 1
-        fi
-        if [[ "$catalog_download_path" == *.gz ]]; then
-            writelog "[get_installers_list_json] Unzipping catalog..."
-            gunzip -c "$catalog_download_path" > "$catalog_plist_path"
-        else
-            writelog "[get_installers_list_json] Catalog already downloaded, ensure the identifier is .plist"
-            cp "$catalog_download_path" "$catalog_plist_path"
-        fi
-    fi
-
-    # get a list of products from the catalog using plutil
-    products=$(/usr/libexec/PlistBuddy -c "Print :Products:" "$catalog_plist_path" | sed -n 's/^    \([0-9]\{3\}-[0-9]\{5\}\) = Dict {$/\1/p')
-
-    # print the list of products
-    # echo "Available products:" # DEBUG
-    # echo "$products" # DEBUG
-
-    if [[ ! "$products" ]]; then
-        writelog "[get_installers_list_json] No products found in the catalog."
-        exit 1
-    fi
-
-    # if json file exists and was not created today, or has no content (including if it just has an empty list or array), remove it
-    # shellcheck disable=SC2002 
-    if [[ -f "$installers_list_json_file" && ( $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]") ]]; then
-        writelog "[get_installers_list_json] Removing old or empty JSON file..."
-        rm "$installers_list_json_file"
-    fi
-    if [[ ! -f "$installers_list_json_file" ]]; then
-        # for each product, extract the Packages key
-        writelog "[get_installers_list_json] Please wait while we process the catalog..."
-        tmp_json_file="$workdir/downloads/products_tmp.json"
-        echo > "$tmp_json_file"
-        get_device_id
-
-        # Process products in parallel with limited concurrent downloads
-        max_concurrent=8
-        current_jobs=0
-        job_timeout=30  # Timeout for individual jobs in seconds
-        total_products=$(echo "$products" | wc -l | tr -d ' ')
-        processed_count=0
-        
-        writelog "[get_installers_list_json] Processing $total_products products with max $max_concurrent concurrent jobs"
-        
-        while read -r ia_product; do
-            # Limit concurrent background jobs
-            timeout_count=0
-            while (( current_jobs >= max_concurrent )); do
-                sleep 0.1
-                current_jobs=$(jobs -r | wc -l)
-                ((timeout_count++))
-                
-                # Check for stuck jobs every 5 seconds (50 iterations of 0.1s)
-                if (( timeout_count % 50 == 0 )); then
-                    writelog "[get_installers_list_json] Waiting for jobs to complete. Current jobs: $current_jobs, Processed: $processed_count/$total_products"
-                    # Show running job details for debugging
-                    if (( timeout_count >= 500 )); then  # After 50 seconds of waiting
-                        writelog "[get_installers_list_json] WARNING: Jobs may be stuck. Running jobs:"
-                        jobs -l | writelog
-                        # Kill stuck jobs after 60 seconds
-                        if (( timeout_count >= 600 )); then
-                            writelog "[get_installers_list_json] ERROR: Killing stuck background jobs"
-                            jobs -p | xargs kill 2>/dev/null || true
-                            current_jobs=0
-                            break
-                        fi
-                    fi
-                fi
-            done
-            
-            # Process each product in background
-            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)"
-            process_product_async "$ia_product" "$tmp_json_file" &
-            job_pid=$!
-            
-            # Store job info for monitoring
-            echo "$job_pid:$ia_product:$(date +%s)" >> "$workdir/downloads/job_tracker.tmp"
-            ((current_jobs++))
-        done <<< "$products"
-        
-        # Wait for all background jobs to complete with timeout monitoring
-        writelog "[get_installers_list_json] Waiting for all background jobs to complete..."
-        wait_start=$(date +%s)
-        max_wait_time=120  # 2 minutes total timeout
-        last_progress_report=0
-        
-        while true; do
-            current_time=$(date +%s)
-            elapsed=$((current_time - wait_start))
-            
-            # Check timeout first
-            if (( elapsed > max_wait_time )); then
-                writelog "[get_installers_list_json] ERROR: Timeout waiting for jobs. Killing remaining jobs."
-                jobs -p | xargs kill 2>/dev/null || true
-                break
-            fi
-            
-            # Check if any jobs are still running
-            running_jobs=$(jobs -r | wc -l)
-            if (( running_jobs == 0 )); then
-                writelog "[get_installers_list_json] All background jobs completed after ${elapsed}s"
-                break
-            fi
-            
-            # Report progress every 10 seconds
-            if (( elapsed >= last_progress_report + 10 )); then
-                writelog "[get_installers_list_json] Still waiting... $running_jobs jobs running after ${elapsed}s"
-                last_progress_report=$elapsed
-                
-                # Check for stuck jobs every 30 seconds
-                if (( elapsed % 30 == 0 )); then
-                    check_job_status
-                fi
-            fi
-            
-            sleep 1
-        done
-        
-        # Wait for all jobs and give extra time for file I/O to complete
-        sleep 2
-
-        # Clean up job tracker
-        rm -f "$workdir/downloads/job_tracker.tmp"
-    else
-        writelog "[get_installers_list_json] catalog already downloaded."
-    fi
-
-    # Combine all individual product JSON files into final array
-    if ls "$workdir/downloads/product_"*.json 1> /dev/null 2>&1; then
-        # count number of product json files
-        product_json_count=$(find "$workdir/downloads" -name "product_*.json" | wc -l | tr -d ' ')
-        writelog "[get_installers_list_json] Combining $product_json_count product JSON files into $installers_list_json_file"
-        "$jq_bin" -s '[.[] | select(type == "object")]' "$workdir/downloads/product_"*.json > "$installers_list_json_file"
-        # Clean up individual product files
-        # rm "$workdir/downloads/product_"*.json 2>/dev/null
-        writelog "[get_installers_list_json] JSON file created at $installers_list_json_file"
-    else
-        writelog "[get_installers_list_json] No valid products found in the catalog."
-        exit 1
-    fi
-    # remove temp json file
-    if [[ -f "$tmp_json_file" ]]; then
-        writelog "[get_installers_list_json] Removing temporary JSON file $tmp_json_file"
-        rm "$tmp_json_file"
-    fi
-}
-
-list_installers_from_json() {
-    # set alternative catalog if selected
-    get_catalog
-    if [[ $catalogurl ]]; then
-        writelog "[list_installers_from_json] Non-standard catalog URL selected"
-    elif [[ $catalog ]]; then
-        darwin_version=$(get_darwin_from_os_version "$catalog")
-        if [[ $darwin_version -eq 0 ]]; then
-            writelog "[list_installers_from_json] ERROR: Unsupported macOS version $catalog"
-            exit 1
-        fi
-        writelog "[list_installers_from_json] Non-default catalog selected (darwin version $darwin_version)"
-        catalogurl="${catalogs[$darwin_version]}"
-    else
-        writelog "[list_installers_from_json] No catalog URL specified, using default catalog based on Darwin version"
-        darwin_version=$(get_darwin_from_os_version "$system_version")
-        catalogurl="${catalogs[$darwin_version]}"
-    fi
-    get_installers_list_json
-    # check if the JSON file exists and contains any data (such as an empty array)
-    # shellcheck disable=SC2002
-    if [[ ! -f "$installers_list_json_file" || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]" ]]; then
-        writelog "[list_installers_from_json] ERROR: $installers_list_json_file not found or empty"
-        exit 1
-    fi
-
-    if [[ "$beta" == "yes" ]]; then
-        writelog "[list_installers_from_json] Listing all installers including beta versions."
-    else
-        writelog "[list_installers_from_json] Listing stable installers only."
-    fi
-
-    # use jq to list the installers
-    writelog "[list_installers_from_json] Available installers:"
-    echo "┌────────────┬──────────────────┬─────────┬──────────┬──────────┬────────────┬────────────┐"
-    echo "│ PRODUCT ID │ TITLE            │ VERSION │ BUILD    │ SIZE GB  │ DATE       │ COMPATIBLE │"
-    echo "├────────────┼──────────────────┼─────────┼──────────┼──────────┼────────────┼────────────┤"
-
-    if [[ "$beta" == "yes" ]]; then
-        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | [
-            (.product // ""),
-            (.title // ""),
-            (.version // ""),
-            (.build // ""),
-            (.pkg_size // ""),
-            (.post_date // ""),
-            (.compatible // "")
-        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
-            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
-                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
-        done
-    else
-        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not) | [
-            (.product // ""),
-            (.title // ""),
-            (.version // ""),
-            (.build // ""),
-            (.pkg_size // ""),
-            (.post_date // ""),
-            (.compatible // "")
-        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
-            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
-                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
-        done
-    fi
-
-
-    echo "└────────────┴──────────────────┴─────────┴──────────┴──────────┴────────────┴────────────┘"
-}
-
-select_build_from_dialog() {
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    # produce a list of compatible available macOS versions from the JSON file, and format for dialog, showing only version and build
-    version_list=()
-    if [[ "$beta" == "yes" ]]; then
-        version_list=()
-        while IFS= read -r line; do
-            version_list+=("$line")
-        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | [
-            (.version // ""),
-            (.build // "")
-        ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
-    else
-        version_list=()
-        while IFS= read -r line; do
-            version_list+=("$line")
-        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not and (.compatible == "True")) | [
-            (.version // ""),
-            (.build // "")
-        ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
-    fi
-    # temp
-    writelog "[select_version_from_dialog] Available versions for selection: ${version_list[*]}"
-    generic_macos_icon="$workdir/icons/Install macOS.png"
-    if [[ ! -f "$generic_macos_icon" ]]; then
-        generic_macos_icon="/System/Library/CoreServices/Install macOS.app/Contents/Resources/InstallAssistant.icns"
-    fi
-    dialog_args+=(
-        --bannertitle "Select macOS Version"
-        --message "Please select the macOS version you wish to download.\n\nNote: only versions newer than or equal to $system_version ($system_build) can be installed on this machine. It is not possible to downgrade macOS."
-        --icon "${generic_macos_icon}"
-        --iconsize "${dialog_icon_size}"
-        --button1text "Select"
-        --button2text "Cancel"
-        --selecttitle "Available macOS Versions"
-        --selectvalues "$(printf "%s," "${version_list[@]}" | sed 's/,$//')"
-    )
-    writelog "[select_version_from_dialog] Prompting user to select macOS version via dialog"
-    dialog_response=$("$dialog_bin" "${dialog_args[@]}")
-    dialog_exit_code=$?
-    if [[ $dialog_exit_code -eq 0 ]]; then
-        # user clicked Select
-        selected_version_line=$(echo "$dialog_response" | grep 'selectedValue' | cut -d '"' -f4)
-        # exit if no selection made
-        if [[ ! $selected_version_line ]]; then
-            writelog "[select_version_from_dialog] No version selected, exiting..."
-            echo
-            exit 1
-        fi
-        # extract version and build from selected line
-        selected_version=$(echo "$selected_version_line" | awk -F ' \\(' '{print $1}')
-        prechosen_build=$(echo "$selected_version_line" | awk -F '[\\(\\)]' '{print $2}')
-        writelog "[select_version_from_dialog] User selected version: $selected_version, build: $prechosen_build"
-    else
-        # user clicked Cancel or closed the dialog
-        writelog "[select_version_from_dialog] User cancelled the version selection dialog"
-        echo
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Run mist list to get some required output for automation
-# This requires mist, so we first check if it is on the system and download them if not.
-# -----------------------------------------------------------------------------
-get_mist_list() {
-    # Download mist if not present
-    check_for_mist
-
-    # define mist export file location
-    mist_export_file="$workdir/mist-list.json"
-
-    mist_args=()
-    mist_args+=("list")
-    mist_args+=("installer")
-
-    # restrict list as specified
-    if [[ $prechosen_os ]]; then
-        mist_args+=("$prechosen_os")
-    elif [[ $prechosen_version ]]; then
-        mist_args+=("$prechosen_version")
-    elif [[ $prechosen_build ]]; then
-        mist_args+=("$prechosen_build")
-    elif [[ $samebuild == "yes" ]]; then
-        mist_args+=("$system_version")
-    elif [[ $sameos == "yes" ]]; then
-        mist_args+=("${system_version/\.*/}")
-    fi
-
-    if [[ "$skip_validation" != "yes" ]]; then
-        mist_args+=("--compatible")
-    fi
-
-    mist_args+=("--export")
-    mist_args+=("$mist_export_file")
-
-    # set alternative catalog if selected
-    if [[ $catalogurl ]]; then
-        writelog "[get_mist_list] Non-standard catalog URL selected"
-        mist_args+=("--catalog-url")
-        mist_args+=("$catalogurl")
-    elif [[ $catalog ]]; then
-        darwin_version=$(get_darwin_from_os_version "$catalog")
-        if [[ $darwin_version -eq 0 ]]; then
-            writelog "[get_mist_list] ERROR: Unsupported macOS version $catalog"
-            echo
-            exit 1
-        fi
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    fi
-
-    # include betas if selected
-    if [[ $beta == "yes" ]]; then
-        writelog "[get_mist_list] Beta versions included"
-        mist_args+=("--include-betas")
-    fi
-
-    # run in no-ansi mode which is less pretty but better for our logs
-    mist_args+=("--no-ansi")
-
-    # run the command
-    if ! "$mist_bin" "${mist_args[@]}" ; then
-        writelog "[get_mist_list] An error occurred running mist. Cannot continue."
-        echo
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Get the user account name and password.
-# Apple Silicon devices require a username and password to run startosinstall.
-# The current user is determined.
-# The "real name" is also allowed if the user inputs that instead of their
-# account name.
-# The user is checked to see if it is a VolumeOwner, as this is required.
-# The entered password is checked to see if it is correct.
-# The user is given a number of attempts to enter their password (default=5).
-# If --max-password-attempts is set to "infinite" then there is no limit and 
-# no cancel button.
-# Finally, with the --erase option, the user is promoted to admin if required.
-# -----------------------------------------------------------------------------
-get_user_details() {
-    # get password and check that the password is correct
-    password_attempts=1
-    password_check="fail"
-    while [[ "$password_check" != "pass" ]] ; do
-        writelog "[get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
-        # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
-        # recommended for testing only!! 
-        # otherwise, ask via dialog
-        if [[ $password_attempts = 1 && $kc && $kc_pass ]]; then
-            read_from_keychain
-        elif [[ $password_attempts = 1 && $credentials && $very_insecure_mode == "yes" ]]; then
-            credentials_decoded=$(base64 -d <<< "$credentials")
-            if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
-                account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
-                account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
-                if [[ $account_shortname ]]; then
-                    writelog "[get_user_details] Credentials for $account_shortname supplied. Continuing..."
-                else
-                    writelog "[get_user_details] ERROR: No credentials supplied, so exiting..."
-                    exit 1
-                fi
-                if [[ $account_password ]]; then
-                    writelog "[get_user_details] Password supplied. Continuing..."
-                else
-                    writelog "[get_user_details] ERROR: No password supplied, so exiting..."
-                    exit 1
-                fi
-            else
-                writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
-                exit 1
-            fi
-        elif ! pgrep -q Finder ; then
-            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
-            echo
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit 1
-        elif [[ ! $silent ]]; then
-            ask_for_credentials
-            if [[ $? -eq 2 ]]; then
-                writelog "[get_user_details] user cancelled dialog so exiting..."
-                exit 0
-            fi
-
-            # get account name (short name) and password
-            account_shortname=$(ljt '/Username' < "$dialog_output")
-            account_password=$(ljt '/Password' < "$dialog_output")
-        fi
-
-        if [[ ! "$account_shortname" ]]; then
-            if [[ "$current_user" ]]; then
-                account_shortname="$current_user"
-            else
-                writelog "[get_user_details] Current user was not determined."
-                if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
-                    user_is_invalid
-                    echo
-                    exit 1
-                fi
-                ((password_attempts++))
-                continue
-            fi
-        fi
-
-        # check that this user exists
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
-            writelog "[get_user_details] $account_shortname account cannot be found!"
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode == "yes" ]]; then
-                user_is_invalid
-                echo
-                exit 1
-            fi
-            ((password_attempts++))
-            continue
-        fi
-
-        # check that the user is a Volume Owner
-        user_is_volume_owner=0
-        users=$(/usr/sbin/diskutil apfs listUsers /)
-        while read -r line ; do
-            user=$(/usr/bin/cut -d, -f1 <<< "$line")
-            guid=$(/usr/bin/cut -d, -f2 <<< "$line")
-            # passwords are case sensitive, account names are not
-            if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
-                enabled_users+="$user "
-                # The entered username might not match the output of fdesetup, so we compare
-                # all RecordNames for the canonical name given by fdesetup against the entered
-                # username, and then use the canonical version. The entered username might
-                # even be the RealName, and we still would end up here.
-                # Example:
-                # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
-                # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-                user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
-                # loop through recordName array until error (we do not know the size of the array)
-                record_name_index=0
-                while true; do
-                    if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
-                        break
-                    fi
-                    if [[ "${account_shortname:u}" == "${user_record_name:u}" ]]; then
-                        account_shortname="$user"
-                        writelog "[get_user_details] $account_shortname is a Volume Owner"
-                        user_is_volume_owner=1
-                        break
-                    fi
-                    ((record_name_index++))
-                done
-                # if needed, compare the RealName (which might contain spaces)
-                if [[ $user_is_volume_owner -eq 0 ]]; then
-                    user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
-                    if [[ "${account_shortname:u}" == "${user_real_name:u}" ]]; then
-                        account_shortname="$user"
-                        writelog "[get_user_details] $account_shortname is a Volume Owner"
-                        user_is_volume_owner=1
-                    fi
-                fi
-            fi
-        done <<< "$(/usr/bin/fdesetup list)"
-
-        if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
-            writelog "[get_user_details] $account_shortname is not a Volume Owner"
-            user_not_volume_owner
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes" ]]; then
-                password_is_invalid
-                exit 1
-            fi
-            ((password_attempts++))
-            continue
-        fi
-
-        # check that the password is correct
-        check_password "$account_shortname" "$account_password"
-
-        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes")  ]]; then
-            password_is_invalid
-            exit 1
-        fi
-        ((password_attempts++))
-    done
-
-    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
-    if [[ $erase == "yes" ]]; then
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
-            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
-                writelog "[get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
-                promoted_user="$account_shortname"
-            else
-                writelog "[get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                user_is_invalid
-                exit 1
-            fi
-        fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Kill a specified process
-# -----------------------------------------------------------------------------
-kill_process() {
-    process="$1"
-    if process_pids=$(/usr/bin/pgrep "$process" 2>/dev/null) ; then
-        while IFS= read -r process_pid; do
-            if [[ -n "$process_pid" ]]; then
-                writelog "[$script_name] terminating the process '$process' process ($process_pid)..."
-                kill "$process_pid" 2> /dev/null
-            fi
-        done <<< "$process_pids"
-        # Check if any processes are still running
-        if /usr/bin/pgrep "$process" >/dev/null ; then
-            remaining_pids=$(/usr/bin/pgrep "$process" 2>/dev/null)
-            writelog "[$script_name] ERROR: '$process' processes $remaining_pids could not be killed"
-        fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# We launch startosinstall via a LaunchDaemon to allow this script to exit
-# before the computer restarts
-# -----------------------------------------------------------------------------
-launch_startosinstall() {
-    # Prepare pipes for communication with startosinstall
-    pipe_input=$( create_pipe "$script_name.in" )
-    exec 3<> "$pipe_input"
-    pipe_output=$( create_pipe "$script_name.out" )
-    exec 4<> "$pipe_output"
-    /bin/cat <&4 &
-    pipePID=$!
-
-    # set label and file name for LaunchDaemon
-    plist_label="$pkg_label.startosinstall"
-    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
-
-    # reset the existing launchdaemon if present
-    if /bin/launchctl list "$plist_label" >/dev/null 2>&1; then
-        /bin/launchctl bootout system "$launch_daemon"
-        /bin/rm "$launch_daemon"
-    fi
-
-    # prepare command parameters
-    combined_args=()
-    if [[ $test_run == "yes" ]]; then
-        combined_args+=("/bin/zsh")
-        combined_args+=("-c")
-        combined_args+=("echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
-
-        test_args=()
-        test_args+=("$working_macos_app/Contents/Resources/startosinstall")
-        test_args+=("--pidtosignal")
-        test_args+=("$$")
-        test_args+=("--agreetolicense")
-        test_args+=("--nointeraction")
-        if [[ "${#install_args[@]}" -ge 1 ]]; then
-            test_args+=("${install_args[@]}")
-        fi
-        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
-            test_args+=("${install_package_list[@]}")
-        fi
-
-        writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
-        writelog "[launch_startosinstall] $(printf "%q " "${test_args[@]}")"
-    else
-        combined_args+=("$working_macos_app/Contents/Resources/startosinstall")
-        combined_args+=("--pidtosignal")
-        combined_args+=("$$")
-        combined_args+=("--agreetolicense")
-        combined_args+=("--nointeraction")
-        if [[ "${#install_args[@]}" -ge 1 ]]; then
-            combined_args+=("${install_args[@]}")
-        fi
-        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
-            combined_args+=("${install_package_list[@]}")
-        fi
-    
-        writelog "[launch_startosinstall] This is the startosinstall command that will be used:"
-        writelog "[launch_startosinstall] $(printf "%q " "${combined_args[@]}")"
-        writelog "[launch_startosinstall] Launching startosinstall..."
-fi
-
-    # write the launchdaemon
-    create_launchdaemon_to_run_startosinstall
-
-    # Start LaunchDaemon
-    /usr/sbin/chown root:wheel "$launch_daemon"
-    /bin/chmod 644 "$launch_daemon"
-    /bin/launchctl bootstrap system "$launch_daemon"
-    /bin/rm -f "$launch_daemon"
-    return 0
-}
-
-# -----------------------------------------------------------------------------
-# ljt v1.0.9
-# This is used only to help obtain the correct version of MacAdmins Python.
-# -----------------------------------------------------------------------------
-: <<-LICENSE_BLOCK
-ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-LICENSE_BLOCK
-
-ljt() ( #v1.0.9 ljt [query] [file]
-    { set +x; } &> /dev/null; read -r -d '' JSCode <<-'EOT'
-try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
-EOT
-
-    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then echo "$errOut" >&2; return 1; fi
-)
-
-# -----------------------------------------------------------------------------
-# Move the installer to the /Applications folder if not already there.
-# This is called with the --move option.
-# -----------------------------------------------------------------------------
-move_to_applications_folder() {
-    if [[ $app_is_in_applications_folder == "yes" ]]; then
-        writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
-    else
-        writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
-        mv "$working_macos_app" "$installer_directory/"
-        working_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
-        writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Rotate existing log files up to a maximum of 9 log files
-# Older files will be overwritten
-# -----------------------------------------------------------------------------
-log_rotate() {
-    # logs probably cannot be rotated when running as root
-    if [[ $EUID -ne 0 ]]; then
-        writelog "[log_rotate] Not running as root so cannot rotate logs"
-        return
-    fi
-
-    # writelog "[log_rotate] Start rotating logs in $logdir"
-    max_log_keep=9
-
-    # move all logs up one file
-    i="$max_log_keep"
-    while [[ "$i" -gt 0 ]];do
-        current_filename="$LOG_FILE.$((i-1))"
-        new_filename="$LOG_FILE.$i"
-        if [[ -f "$current_filename" ]];then
-            # writelog "[log_rotate] moving $current_filename to $new_filename"
-            mv "$current_filename" "$new_filename"
-        fi
-        ((i--))
-    done
-
-    if [[ -f "$LOG_FILE" ]];then
-        # writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
-        mv "$LOG_FILE" "$LOG_FILE.1"
-    fi
-
-    # now create the new log file
-    echo "" > "$LOG_FILE"
-    exec > >(tee "${LOG_FILE}") 2>&1
-
-    writelog "[log_rotate] Finished rotating logs in $logdir"
-}
-
-# -----------------------------------------------------------------------------
-# Overwrite an existing installer.
-# This is called with the --overwrite option.
-# Note that multiple installers left around on the device can cause unexpected
-# results.  
-# -----------------------------------------------------------------------------
-overwrite_existing_installer() {
-    if [[ -f "$working_installer_pkg" ]]; then
-        writelog "[$script_name] Deleting existing installer package"
-        rm -f "$working_installer_pkg"
-    else
-        writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
-    fi
-    rm -f "$cached_installer_pkg" 
-    rm -rf "$cached_installer_app"
-    app_is_in_applications_folder=""
-    if [[ $clear_cache == "yes" ]]; then
-        writelog "[overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
-        exit
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Things to do after startosinstall has finished preparing
-# -----------------------------------------------------------------------------
-# shellcheck disable=SC2317
-post_prep_work() {
-    # set dialog progress for rebootdelay if set
-    if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
-        # quit an existing window
-        writelog "[post_prep_work] Sending quit message to dialog log ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
-        writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
-
-        window_type="utility"
-        iconsize=$dialog_icon_size
-
-        # set the dialog command arguments
-        get_default_dialog_args "$window_type"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            --bannertitle "${(P)dialog_reinstall_title}"
-            --icon "${dialog_install_icon}"
-            --iconsize "$iconsize"
-            --message "${(P)dialog_rebooting_heading}"
-            --button1disabled
-            --progress "$rebootdelay"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
-
-        dialog_progress reboot-delay >/dev/null 2>&1 &
-    fi
-
-    # run any postinstall commands
-    for command in "${postinstall_command[@]}"; do
-        if [[ $command ]]; then
-            writelog "[post_prep_work] Now running postinstall command: $command"
-            eval "$command"
-        fi
-    done
-
-    if [[ $test_run == "yes" ]]; then
-        writelog "[post_prep_work] Simulating reboot delay of ${rebootdelay}s"
-        sleep "$rebootdelay"
-    else
-        # we need to quit so our management system can report back home before being killed by startosinstall
-        writelog "[post_prep_work] Reboot delay set to ${rebootdelay}s"
-        # then shut everything down
-        kill_process "Self Service"
-    fi
-
-    # set exit code to 0 which will call finish()
-    exit 0
-}
-
-# -----------------------------------------------------------------------------
-# Run softwareupdate --fetch-full-installer
-# Includes some fallbacks, because --list-full-installers might not be 
-# available in some versions of Catalina. 
-# -----------------------------------------------------------------------------
-run_fetch_full_installer() {
-    softwareupdate_args=()
-    run_list_full_installers
-    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
-        if [[ $prechosen_version ]]; then
-            # check that this version is available in the list
-            ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
-            if [[ $ffi_available -ge 1 ]]; then
-                # check that the latest version is compatible with this system
-                if ! is-at-least "$system_version" "$prechosen_version"; then 
-                    writelog "[run_fetch_full_installer] ERROR: version in catalog $prechosen_version is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-
-                # get the chosen version
-                writelog "[run_fetch_full_installer] Found version $prechosen_version"
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$prechosen_version")
-            else
-                writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
-            fi
-        elif [[ $prechosen_os ]]; then
-            # check that this OS is available in the list
-            ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
-            if [[ $ffi_available -ge 1 ]]; then
-                # get the latest version within the chosen OS
-                if [[ "$beta" == "yes" ]]; then
-                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-                else
-                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-                fi
-
-                # check that the latest version is compatible with this system
-                if ! is-at-least "$system_version" "$latest_ffi"; then 
-                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-
-                writelog "[run_fetch_full_installer] Found version $latest_ffi"
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$latest_ffi")
-            else
-                writelog "[run_fetch_full_installer] ERROR: No available version for macOS $prechosen_os found."
-                echo
-                exit 1
-            fi
-        else
-            # if no version is selected, we want to obtain the latest. The list obtained from
-            # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
-            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-
-            if [[ $latest_ffi ]]; then
-                # we need to check if this version is older than the current system and abort if so
-                writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
-                if ! is-at-least "$system_version" "$latest_ffi"; then 
-                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$latest_ffi")
-            else
-                writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
-            fi
-        fi
-    else
-        # if --list-full-installers did not work, then we cannot continue
-        writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate --list-full-installers. Cannot continue."
-        echo
-        exit 1
-    fi
-
-    # now download the installer
-    writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
-    if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
-        # Identify the installer
-        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
-            cached_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-            # if we actually want to use this installer we should check that it's valid
-            if [[ $erase == "yes" || $reinstall == "yes" ]]; then
-                check_installer_is_valid
-                if [[ $invalid_installer_found == "yes" ]]; then
-                    writelog "[run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    exit 1
-                fi
-            fi
-        else
-            writelog "[run_fetch_full_installer] No install app found. I guess nothing got downloaded."
-            exit 1
-        fi
-    else
-        writelog "[run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Run softwareupdate --list-full-installers and output to a file
-# -----------------------------------------------------------------------------
-run_list_full_installers() {
-    if [[ $beta == "yes" ]]; then
-        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
-            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
-                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
-                exit 1
-            fi
-        fi
-    else
-        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" | grep -v "Beta," > "$workdir/ffi-list-full-installers.txt"; then
-            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
-                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
-                exit 1
-            fi
-        fi
     fi
 }
 
@@ -2791,6 +1423,1305 @@ download_install_assistant_pkg() {
 }
 
 # -----------------------------------------------------------------------------
+# Search for an existing downloaded installer.
+# This checks first for an Install macOS X.app in the /Applications folder, 
+# and then for an InstallAssistant.pkg in the working directory.
+# Note that multiple installers left around on the device can cause unexpected
+# results.  
+# -----------------------------------------------------------------------------
+find_existing_installer() {
+    # First let's see if this script has been run before and left an installer
+    cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+    cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+    cached_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
+
+    if [[ -d "$cached_installer_app" ]]; then
+        writelog "[find_existing_installer] Installer found at $cached_installer_app."
+        app_is_in_applications_folder="yes"
+        check_installer_is_valid
+    elif [[ -d "$cached_installer_app_in_workdir" ]]; then
+        cached_installer_app="$cached_installer_app_in_workdir"
+        writelog "[find_existing_installer] Installer found at $cached_installer_app_in_workdir."
+        check_installer_is_valid
+    elif [[ -f "$cached_installer_pkg" ]]; then
+        writelog "[find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
+        check_installer_pkg_is_valid
+    else
+        writelog "[find_existing_installer] No valid installer found."
+        if [[ $clear_cache == "yes" ]]; then
+            exit
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Look for packages to install during the startosinstall run.
+# The default location is: $workdir/extras
+# This location can be overridden with the --extras option.
+# -----------------------------------------------------------------------------
+find_extra_packages() {
+    # set install_package_list to blank.
+    if [[ -d "$extras_directory" ]]; then
+        install_package_list=()
+        for file in "$extras_directory"/*.pkg; do
+            if [[ $file != *"/*.pkg" ]]; then
+                writelog "[find_extra_installers] Additional package to install: $file"
+                install_package_list+=("--installpackage")
+                install_package_list+=("$file")
+            fi
+        done
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Things to carry out when the script exits
+# -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
+finish() {
+    local exit_code=${1:-$?}
+    # if we promoted the user then we should demote it again
+    if [[ $promoted_user ]]; then
+        /usr/sbin/dseditgroup -o edit -d "$promoted_user" admin
+        writelog "[finish] User $promoted_user was demoted back to standard user"
+    fi
+
+    # remove pipe files
+    [[ -e "${pipe_input}" ]] && /bin/rm -f "${pipe_input}"
+    [[ -e "${pipe_output}" ]] && /bin/rm -f "${pipe_output}"
+
+    # kill caffeinate
+    kill_process "caffeinate"
+
+    # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
+    if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
+        writelog "[finish] sending quit message to dialog ($dialog_log)"
+        echo "quit:" >> "$dialog_log"
+        # delete dialog logfile
+        sleep 0.5
+        # /bin/rm -f "$dialog_log"
+    fi
+
+    # set final exit code and quit, but do not call finish() again
+    writelog "[finish] Script exit code: $exit_code"
+    (exit "$exit_code")
+}
+
+# -----------------------------------------------------------------------------
+# Determine the Darwin number from the macOS version.
+# -----------------------------------------------------------------------------
+get_darwin_from_os_version() {
+    # convert a macOS major version to a darwin version
+    os_major="$1"
+    os_major_check=$(cut -d. -f1 <<< "$os_major")
+    if [[ $os_major_check -eq 10 ]]; then
+        darwin_version=$(cut -d. -f2 <<< "$os_major")
+        darwin_version=$((darwin_version+4))
+    else
+        # for macOS 26 and above, the darwin version is the major version - 1
+        if [[ $os_major_check -ge 26 ]]; then
+            darwin_version=$((os_major_check-1))
+        elif [[ $os_major_check -ge 11 && $os_major_check -le 15 ]]; then
+            # for macOS 11 to 15, the darwin version is the major version + 9
+            # this is because macOS 11 is Darwin 20, macOS 12 is Darwin 21, etc.
+            # so we add 9 to the major version number
+            # e.g. macOS 11 (Big Sur) -> Darwin 20, macOS 12 (Monterey) -> Darwin 21, etc.
+            darwin_version=$((os_major_check+9))
+        else
+            # return zero for unsupported macOS versions
+            darwin_version=0
+        fi
+    fi
+    echo "$darwin_version"
+}
+
+# -----------------------------------------------------------------------------
+# Set catalog URLs.
+# This provides a shortcut way of obtaining different catalog URLs for different
+# systems.
+# -----------------------------------------------------------------------------
+get_catalog() {
+    catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    if [[ "$beta" == "yes" ]]; then
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14beta-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15beta-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26beta-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    else
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Default dialog arguments
+# -----------------------------------------------------------------------------
+get_default_dialog_args() {
+    # set the dialog command arguments
+    # $1 - window type
+    default_dialog_args=(
+        --commandfile "$dialog_log"
+        --ontop
+        --json
+        --ignorednd
+        --position "centre"
+        --quitkey "c"
+    )
+    if is-at-least "15" "$system_version"; then
+        default_dialog_args+=(--bannerimage "colour=#056AE6")
+        dialog_title_command="--bannertitle"
+    else
+        dialog_title_command="--title"
+    fi
+    if [[ "$1" == "fullscreen" ]]; then
+        writelog "[get_default_dialog_args] Invoking fullscreen dialog"
+        default_dialog_args+=(
+            --blurscreen
+            --width "50%"
+            --height "50%"
+            --button1disabled
+            --titlefont "size=32,shadow=1"
+            --messagefont "size=24"
+            --alignment "left"
+        )
+        if is-at-least "15" "$system_version"; then
+            default_dialog_args+=(--bannerheight "70")
+        fi
+    elif [[ "$1" == "utility" ]]; then
+        writelog "[get_default_dialog_args] Invoking utility dialog"
+        default_dialog_args+=(
+            --moveable
+            --width "600"
+            --height "300"
+            --titlefont "size=20,shadow=1"
+            --messagefont "size=14"
+            --alignment "left"
+        )
+        if is-at-least "15" "$system_version"; then
+            default_dialog_args+=(--bannerheight "40")
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Get the system's device ID (Apple Silicon) or board ID (Intel)
+# -----------------------------------------------------------------------------
+get_device_id() {
+    device_info=$(/usr/sbin/ioreg -c IOPlatformExpertDevice -d 2)
+    board_id=$(grep board-id <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
+    device_id=$(grep target-sub-type <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
+}
+
+# -----------------------------------------------------------------------------
+# Get the list of products from the catalog and create a JSON file with the
+# product information.
+# The JSON file will contain the product identifier, post date, URL, title,
+# build, version, supported board IDs and supported device IDs.
+# -----------------------------------------------------------------------------
+get_installers_list_json() {
+    catalog_download_path="$workdir/downloads/$(basename "$catalogurl")"
+    catalog_plist_path="$workdir/downloads/$(basename "$catalogurl").plist"
+    installers_list_json_file="$workdir/downloads/$(basename "$catalogurl").products.json"
+
+    # download the catalog if not already present
+    if [[ ! -d "$workdir/downloads" ]]; then
+        mkdir -p "$workdir/downloads"
+    fi
+    if [[ ! -f "$catalog_plist_path" || $(date -r "$catalog_plist_path" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+        # clear old json file
+        if [[ -f "$installers_list_json_file" ]]; then
+            writelog "[get_installers_list_json] Removing old JSON file..."
+            rm "$installers_list_json_file"
+        fi
+        writelog "[get_installers_list_json] Downloading catalog..."
+        if ! curl -sL "$catalogurl" -o "$catalog_download_path"; then
+            writelog "[get_installers_list_json] Failed to download catalog"
+            return 1
+        fi
+        if [[ "$catalog_download_path" == *.gz ]]; then
+            writelog "[get_installers_list_json] Unzipping catalog..."
+            gunzip -c "$catalog_download_path" > "$catalog_plist_path"
+        else
+            writelog "[get_installers_list_json] Catalog already downloaded, ensure the identifier is .plist"
+            cp "$catalog_download_path" "$catalog_plist_path"
+        fi
+    fi
+
+    # get a list of products from the catalog using plutil
+    products=$(/usr/libexec/PlistBuddy -c "Print :Products:" "$catalog_plist_path" | sed -n 's/^    \([0-9]\{3\}-[0-9]\{5\}\) = Dict {$/\1/p')
+
+    # print the list of products
+    # echo "Available products:" # DEBUG
+    # echo "$products" # DEBUG
+
+    if [[ ! "$products" ]]; then
+        writelog "[get_installers_list_json] No products found in the catalog."
+        exit 1
+    fi
+
+    # if json file exists and was not created today, or has no content (including if it just has an empty list or array), remove it
+    # shellcheck disable=SC2002 
+    if [[ -f "$installers_list_json_file" && ( $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]") ]]; then
+        writelog "[get_installers_list_json] Removing old or empty JSON file..."
+        rm "$installers_list_json_file"
+    fi
+    if [[ ! -f "$installers_list_json_file" ]]; then
+        # for each product, extract the Packages key
+        writelog "[get_installers_list_json] Please wait while we process the catalog..."
+        tmp_json_file="$workdir/downloads/products_tmp.json"
+        echo > "$tmp_json_file"
+        get_device_id
+
+        # Process products in parallel with limited concurrent downloads
+        max_concurrent=8
+        current_jobs=0
+        job_timeout=30  # Timeout for individual jobs in seconds
+        total_products=$(echo "$products" | wc -l | tr -d ' ')
+        processed_count=0
+        
+        writelog "[get_installers_list_json] Processing $total_products products with max $max_concurrent concurrent jobs"
+        
+        while read -r ia_product; do
+            # Limit concurrent background jobs
+            timeout_count=0
+            while (( current_jobs >= max_concurrent )); do
+                sleep 0.1
+                current_jobs=$(jobs -r | wc -l)
+                ((timeout_count++))
+                
+                # Check for stuck jobs every 5 seconds (50 iterations of 0.1s)
+                if (( timeout_count % 50 == 0 )); then
+                    writelog "[get_installers_list_json] Waiting for jobs to complete. Current jobs: $current_jobs, Processed: $processed_count/$total_products"
+                    # Show running job details for debugging
+                    if (( timeout_count >= 500 )); then  # After 50 seconds of waiting
+                        writelog "[get_installers_list_json] WARNING: Jobs may be stuck. Running jobs:"
+                        jobs -l | writelog
+                        # Kill stuck jobs after 60 seconds
+                        if (( timeout_count >= 600 )); then
+                            writelog "[get_installers_list_json] ERROR: Killing stuck background jobs"
+                            jobs -p | xargs kill 2>/dev/null || true
+                            current_jobs=0
+                            break
+                        fi
+                    fi
+                fi
+            done
+            
+            # Process each product in background
+            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)"
+            process_product_async "$ia_product" "$tmp_json_file" &
+            job_pid=$!
+            
+            # Store job info for monitoring
+            echo "$job_pid:$ia_product:$(date +%s)" >> "$workdir/downloads/job_tracker.tmp"
+            ((current_jobs++))
+        done <<< "$products"
+        
+        # Wait for all background jobs to complete with timeout monitoring
+        writelog "[get_installers_list_json] Waiting for all background jobs to complete..."
+        wait_start=$(date +%s)
+        max_wait_time=120  # 2 minutes total timeout
+        last_progress_report=0
+        
+        while true; do
+            current_time=$(date +%s)
+            elapsed=$((current_time - wait_start))
+            
+            # Check timeout first
+            if (( elapsed > max_wait_time )); then
+                writelog "[get_installers_list_json] ERROR: Timeout waiting for jobs. Killing remaining jobs."
+                jobs -p | xargs kill 2>/dev/null || true
+                break
+            fi
+            
+            # Check if any jobs are still running
+            running_jobs=$(jobs -r | wc -l)
+            if (( running_jobs == 0 )); then
+                writelog "[get_installers_list_json] All background jobs completed after ${elapsed}s"
+                break
+            fi
+            
+            # Report progress every 10 seconds
+            if (( elapsed >= last_progress_report + 10 )); then
+                writelog "[get_installers_list_json] Still waiting... $running_jobs jobs running after ${elapsed}s"
+                last_progress_report=$elapsed
+                
+                # Check for stuck jobs every 30 seconds
+                if (( elapsed % 30 == 0 )); then
+                    check_job_status
+                fi
+            fi
+            
+            sleep 1
+        done
+        
+        # Wait for all jobs and give extra time for file I/O to complete
+        sleep 2
+
+        # Clean up job tracker
+        rm -f "$workdir/downloads/job_tracker.tmp"
+    else
+        writelog "[get_installers_list_json] catalog already downloaded."
+    fi
+
+    # Combine all individual product JSON files into final array
+    if ls "$workdir/downloads/product_"*.json 1> /dev/null 2>&1; then
+        # count number of product json files
+        product_json_count=$(find "$workdir/downloads" -name "product_*.json" | wc -l | tr -d ' ')
+        writelog "[get_installers_list_json] Combining $product_json_count product JSON files into $installers_list_json_file"
+        "$jq_bin" -s '[.[] | select(type == "object")]' "$workdir/downloads/product_"*.json > "$installers_list_json_file"
+        # Clean up individual product files
+        # rm "$workdir/downloads/product_"*.json 2>/dev/null
+        writelog "[get_installers_list_json] JSON file created at $installers_list_json_file"
+    else
+        writelog "[get_installers_list_json] No valid products found in the catalog."
+        exit 1
+    fi
+    # remove temp json file
+    if [[ -f "$tmp_json_file" ]]; then
+        writelog "[get_installers_list_json] Removing temporary JSON file $tmp_json_file"
+        rm "$tmp_json_file"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run mist list to get some required output for automation
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+get_mist_list() {
+    # Download mist if not present
+    check_for_mist
+
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
+    mist_args=()
+    mist_args+=("list")
+    mist_args+=("installer")
+
+    # restrict list as specified
+    if [[ $prechosen_os ]]; then
+        mist_args+=("$prechosen_os")
+    elif [[ $prechosen_version ]]; then
+        mist_args+=("$prechosen_version")
+    elif [[ $prechosen_build ]]; then
+        mist_args+=("$prechosen_build")
+    elif [[ $samebuild == "yes" ]]; then
+        mist_args+=("$system_version")
+    elif [[ $sameos == "yes" ]]; then
+        mist_args+=("${system_version/\.*/}")
+    fi
+
+    if [[ "$skip_validation" != "yes" ]]; then
+        mist_args+=("--compatible")
+    fi
+
+    mist_args+=("--export")
+    mist_args+=("$mist_export_file")
+
+    # set alternative catalog if selected
+    if [[ $catalogurl ]]; then
+        writelog "[get_mist_list] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[get_mist_list] ERROR: Unsupported macOS version $catalog"
+            echo
+            exit 1
+        fi
+        get_catalog
+        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    fi
+
+    # include betas if selected
+    if [[ $beta == "yes" ]]; then
+        writelog "[get_mist_list] Beta versions included"
+        mist_args+=("--include-betas")
+    fi
+
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
+
+    # run the command
+    if ! "$mist_bin" "${mist_args[@]}" ; then
+        writelog "[get_mist_list] An error occurred running mist. Cannot continue."
+        echo
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Get the user account name and password.
+# Apple Silicon devices require a username and password to run startosinstall.
+# The current user is determined.
+# The "real name" is also allowed if the user inputs that instead of their
+# account name.
+# The user is checked to see if it is a VolumeOwner, as this is required.
+# The entered password is checked to see if it is correct.
+# The user is given a number of attempts to enter their password (default=5).
+# If --max-password-attempts is set to "infinite" then there is no limit and 
+# no cancel button.
+# Finally, with the --erase option, the user is promoted to admin if required.
+# -----------------------------------------------------------------------------
+get_user_details() {
+    # get password and check that the password is correct
+    password_attempts=1
+    password_check="fail"
+    while [[ "$password_check" != "pass" ]] ; do
+        writelog "[get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
+        # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
+        # recommended for testing only!! 
+        # otherwise, ask via dialog
+        if [[ $password_attempts = 1 && $kc && $kc_pass ]]; then
+            read_from_keychain
+        elif [[ $password_attempts = 1 && $credentials && $very_insecure_mode == "yes" ]]; then
+            credentials_decoded=$(base64 -d <<< "$credentials")
+            if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
+                account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
+                account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
+                if [[ $account_shortname ]]; then
+                    writelog "[get_user_details] Credentials for $account_shortname supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No credentials supplied, so exiting..."
+                    exit 1
+                fi
+                if [[ $account_password ]]; then
+                    writelog "[get_user_details] Password supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No password supplied, so exiting..."
+                    exit 1
+                fi
+            else
+                writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
+                exit 1
+            fi
+        elif ! pgrep -q Finder ; then
+            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
+            echo
+            # kill caffeinate
+            kill_process "caffeinate"
+            exit 1
+        elif [[ ! $silent ]]; then
+            ask_for_credentials
+            if [[ $? -eq 2 ]]; then
+                writelog "[get_user_details] user cancelled dialog so exiting..."
+                exit 0
+            fi
+
+            # get account name (short name) and password
+            account_shortname=$(ljt '/Username' <<< "$creds_dialog_output")
+            account_password=$(ljt '/Password' <<< "$creds_dialog_output")
+        fi
+
+        if [[ ! "$account_shortname" ]]; then
+            if [[ "$current_user" ]]; then
+                account_shortname="$current_user"
+            else
+                writelog "[get_user_details] Current user was not determined."
+                if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+                    user_is_invalid
+                    echo
+                    exit 1
+                fi
+                ((password_attempts++))
+                continue
+            fi
+        fi
+
+        # check that this user exists
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
+            writelog "[get_user_details] $account_shortname account cannot be found!"
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode == "yes" ]]; then
+                user_is_invalid
+                echo
+                exit 1
+            fi
+            ((password_attempts++))
+            continue
+        fi
+
+        # check that the user is a Volume Owner
+        user_is_volume_owner=0
+        users=$(/usr/sbin/diskutil apfs listUsers /)
+        while read -r line ; do
+            user=$(/usr/bin/cut -d, -f1 <<< "$line")
+            guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+            # passwords are case sensitive, account names are not
+            if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
+                enabled_users+="$user "
+                # The entered username might not match the output of fdesetup, so we compare
+                # all RecordNames for the canonical name given by fdesetup against the entered
+                # username, and then use the canonical version. The entered username might
+                # even be the RealName, and we still would end up here.
+                # Example:
+                # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
+                # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
+                user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
+                # loop through recordName array until error (we do not know the size of the array)
+                record_name_index=0
+                while true; do
+                    if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
+                        break
+                    fi
+                    if [[ "${account_shortname:u}" == "${user_record_name:u}" ]]; then
+                        account_shortname="$user"
+                        writelog "[get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                        break
+                    fi
+                    ((record_name_index++))
+                done
+                # if needed, compare the RealName (which might contain spaces)
+                if [[ $user_is_volume_owner -eq 0 ]]; then
+                    user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
+                    if [[ "${account_shortname:u}" == "${user_real_name:u}" ]]; then
+                        account_shortname="$user"
+                        writelog "[get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                    fi
+                fi
+            fi
+        done <<< "$(/usr/bin/fdesetup list)"
+
+        if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
+            writelog "[get_user_details] $account_shortname is not a Volume Owner"
+            user_not_volume_owner
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes" ]]; then
+                password_is_invalid
+                exit 1
+            fi
+            ((password_attempts++))
+            continue
+        fi
+
+        # check that the password is correct
+        check_password "$account_shortname" "$account_password"
+
+        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes")  ]]; then
+            password_is_invalid
+            exit 1
+        fi
+        ((password_attempts++))
+    done
+
+    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
+    if [[ $erase == "yes" ]]; then
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
+            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
+                writelog "[get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
+                promoted_user="$account_shortname"
+            else
+                writelog "[get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
+                user_is_invalid
+                exit 1
+            fi
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Compare macOS build versions, handling beta builds correctly
+# Returns 0 if version1 >= version2, 1 otherwise
+# Beta builds (ending with letter) are considered older than release builds
+# with the same base version number
+# -----------------------------------------------------------------------------
+is_build_newer_or_equal() {
+    local version1="$1" # system
+    local version2="$2" # installer
+    
+    # Extract base version (everything except the last character if it's a lowercase letter)
+    local base1 base2 suffix1 suffix2
+    
+    # Check if version ends with lowercase letter (beta indicator)
+    if [[ "$version1" =~ [a-z]$ ]]; then
+        base1="${version1%?}"  # Remove last character
+        suffix1="${version1: -1}"  # Get last character
+    else
+        base1="$version1"
+        suffix1=""
+    fi
+    
+    if [[ "$version2" =~ [a-z]$ ]]; then
+        base2="${version2%?}"
+        suffix2="${version2: -1}"
+    else
+        base2="$version2"
+        suffix2=""
+    fi
+    
+    # Compare base versions first
+    if [[ "$base1" != "$base2" ]]; then
+        # Parse macOS build version components: Darwin version (2 digits) + minor letter + patch number
+        # Extract Darwin version (first 2 digits)
+        darwin1="${base1:0:2}"
+        darwin2="${base2:0:2}"
+        
+        # Compare Darwin versions numerically
+        if [[ "$darwin1" != "$darwin2" ]]; then
+            [[ "$darwin1" -ge "$darwin2" ]]
+            return $?
+        fi
+        
+        # Darwin versions are equal, compare minor version letter (3rd character)
+        minor1="${base1:2:1}"
+        minor2="${base2:2:1}"
+        
+        if [[ "$minor1" != "$minor2" ]]; then
+            [[ "$minor1" > "$minor2" ]]
+            return $?
+        fi
+        
+        # Darwin and minor versions are equal, compare patch number (remaining digits)
+        patch1="${base1:3}"
+        patch2="${base2:3}"
+        
+        # Handle fork builds and beta builds (4-digit patch numbers)
+        # For 4-digit numbers, ignore the first digit and use the remaining 3 digits
+        # This applies to both fork builds (e.g., 25A8364) and beta builds (e.g., 25A5362a)
+        if [[ ${#patch1} -eq 4 ]]; then
+            patch1="${patch1:1}"  # Remove first digit for fork builds
+        fi
+        if [[ ${#patch2} -eq 4 ]]; then
+            patch2="${patch2:1}"  # Remove first digit for fork builds
+        fi
+        
+        # Compare patch numbers numerically
+        [[ "$patch1" -ge "$patch2" ]]
+        return $?
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Kill a specified process
+# -----------------------------------------------------------------------------
+kill_process() {
+    process="$1"
+    if process_pids=$(/usr/bin/pgrep "$process" 2>/dev/null) ; then
+        while IFS= read -r process_pid; do
+            if [[ -n "$process_pid" ]]; then
+                writelog "[$script_name] terminating the process '$process' process ($process_pid)..."
+                kill "$process_pid" 2> /dev/null
+            fi
+        done <<< "$process_pids"
+        # Check if any processes are still running
+        if /usr/bin/pgrep "$process" >/dev/null ; then
+            remaining_pids=$(/usr/bin/pgrep "$process" 2>/dev/null)
+            writelog "[$script_name] ERROR: '$process' processes $remaining_pids could not be killed"
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# We launch startosinstall via a LaunchDaemon to allow this script to exit
+# before the computer restarts
+# -----------------------------------------------------------------------------
+launch_startosinstall() {
+    # Prepare pipes for communication with startosinstall
+    pipe_input=$( create_pipe "$script_name.in" )
+    exec 3<> "$pipe_input"
+    pipe_output=$( create_pipe "$script_name.out" )
+    exec 4<> "$pipe_output"
+    /bin/cat <&4 &
+    pipePID=$!
+
+    # set label and file name for LaunchDaemon
+    plist_label="$pkg_label.startosinstall"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
+
+    # reset the existing launchdaemon if present
+    if /bin/launchctl list "$plist_label" >/dev/null 2>&1; then
+        /bin/launchctl bootout system "$launch_daemon"
+        /bin/rm "$launch_daemon"
+    fi
+
+    # prepare command parameters
+    combined_args=()
+    if [[ $test_run == "yes" ]]; then
+        combined_args+=("/bin/zsh")
+        combined_args+=("-c")
+        combined_args+=("echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+
+        test_args=()
+        test_args+=("$working_macos_app/Contents/Resources/startosinstall")
+        test_args+=("--pidtosignal")
+        test_args+=("$$")
+        test_args+=("--agreetolicense")
+        test_args+=("--nointeraction")
+        if [[ "${#install_args[@]}" -ge 1 ]]; then
+            test_args+=("${install_args[@]}")
+        fi
+        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
+            test_args+=("${install_package_list[@]}")
+        fi
+
+        writelog "[launch_startosinstall] Run without '--test-run' to run this command:"
+        writelog "[launch_startosinstall] $(printf "%q " "${test_args[@]}")"
+    else
+        combined_args+=("$working_macos_app/Contents/Resources/startosinstall")
+        combined_args+=("--pidtosignal")
+        combined_args+=("$$")
+        combined_args+=("--agreetolicense")
+        combined_args+=("--nointeraction")
+        if [[ "${#install_args[@]}" -ge 1 ]]; then
+            combined_args+=("${install_args[@]}")
+        fi
+        if [[ "${#install_package_list[@]}" -ge 1 ]]; then
+            combined_args+=("${install_package_list[@]}")
+        fi
+    
+        writelog "[launch_startosinstall] This is the startosinstall command that will be used:"
+        writelog "[launch_startosinstall] $(printf "%q " "${combined_args[@]}")"
+        writelog "[launch_startosinstall] Launching startosinstall..."
+fi
+
+    # write the launchdaemon
+    create_launchdaemon_to_run_startosinstall
+
+    # Start LaunchDaemon
+    /usr/sbin/chown root:wheel "$launch_daemon"
+    /bin/chmod 644 "$launch_daemon"
+    /bin/launchctl bootstrap system "$launch_daemon"
+    /bin/rm -f "$launch_daemon"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# List the available installers from the JSON file created by get_installers_list_json.
+# This function will read the JSON file and print a formatted list of available installers, including product ID, title, version, build, size, post date and compatibility.
+# -----------------------------------------------------------------------------
+list_installers_from_json() {
+    # set alternative catalog if selected
+    get_catalog
+    if [[ $catalogurl ]]; then
+        writelog "[list_installers_from_json] Non-standard catalog URL selected"
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[list_installers_from_json] ERROR: Unsupported macOS version $catalog"
+            exit 1
+        fi
+        writelog "[list_installers_from_json] Non-default catalog selected (darwin version $darwin_version)"
+        catalogurl="${catalogs[$darwin_version]}"
+    else
+        writelog "[list_installers_from_json] No catalog URL specified, using default catalog based on Darwin version"
+        darwin_version=$(get_darwin_from_os_version "$system_version")
+        catalogurl="${catalogs[$darwin_version]}"
+    fi
+    get_installers_list_json
+    # check if the JSON file exists and contains any data (such as an empty array)
+    # shellcheck disable=SC2002
+    if [[ ! -f "$installers_list_json_file" || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]" ]]; then
+        writelog "[list_installers_from_json] ERROR: $installers_list_json_file not found or empty"
+        exit 1
+    fi
+
+    if [[ "$beta" == "yes" ]]; then
+        writelog "[list_installers_from_json] Listing all installers including beta versions."
+    else
+        writelog "[list_installers_from_json] Listing stable installers only."
+    fi
+
+    # use jq to list the installers
+    writelog "[list_installers_from_json] Available installers:"
+    echo "┌────────────┬──────────────────┬─────────┬──────────┬──────────┬────────────┬────────────┐"
+    echo "│ PRODUCT ID │ TITLE            │ VERSION │ BUILD    │ SIZE GB  │ DATE       │ COMPATIBLE │"
+    echo "├────────────┼──────────────────┼─────────┼──────────┼──────────┼────────────┼────────────┤"
+
+    if [[ "$beta" == "yes" ]]; then
+        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | [
+            (.product // ""),
+            (.title // ""),
+            (.version // ""),
+            (.build // ""),
+            (.pkg_size // ""),
+            (.post_date // ""),
+            (.compatible // "")
+        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
+            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
+                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
+        done
+    else
+        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not) | [
+            (.product // ""),
+            (.title // ""),
+            (.version // ""),
+            (.build // ""),
+            (.pkg_size // ""),
+            (.post_date // ""),
+            (.compatible // "")
+        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
+            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
+                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
+        done
+    fi
+
+
+    echo "└────────────┴──────────────────┴─────────┴──────────┴──────────┴────────────┴────────────┘"
+}
+
+# -----------------------------------------------------------------------------
+# ljt v1.0.9
+# This is used to read JSON in a few places as the compatibility is higher than either plutil or jq.
+# -----------------------------------------------------------------------------
+: <<-LICENSE_BLOCK
+ljt.min - Little JSON Tool (https://github.com/brunerd/ljt) Copyright (c) 2022 Joel Bruner (https://github.com/brunerd). Licensed under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+LICENSE_BLOCK
+
+ljt() ( #v1.0.9 ljt [query] [file]
+    { set +x; } &> /dev/null; read -r -d '' JSCode <<-'EOT'
+try{var query=decodeURIComponent(escape(arguments[0]));var file=decodeURIComponent(escape(arguments[1]));if(query===".")query="";else if(query[0]==="."&&query[1]==="[")query="$"+query.slice(1);if(query[0]==="/"||query===""){if(/~[^0-1]/g.test(query+" "))throw new SyntaxError("JSON Pointer allows ~0 and ~1 only: "+query);query=query.split("/").slice(1).map(function(f){return"["+JSON.stringify(f.replace(/~1/g,"/").replace(/~0/g,"~"))+"]"}).join("")}else if(query[0]==="$"||query[0]==="."&&query[1]!=="."||query[0]==="["){if(/[^A-Za-z_$\d\.\[\]'"]/.test(query.split("").reverse().join("").replace(/(["'])(.*?)\1(?!\\)/g,"")))throw new Error("Invalid path: "+query);}else query=query.replace(/\\\./g,"\uDEAD").split(".").map(function(f){return "["+JSON.stringify(f.replace(/\uDEAD/g,"."))+"]"}).join('');if(query[0]==="$")query=query.slice(1);var data=JSON.parse(readFile(file));try{var result=eval("(data)"+query)}catch(e){}}catch(e){printErr(e);quit()}if(result!==undefined)result!==null&&result.constructor===String?print(result):print(JSON.stringify(result,null,2));else printErr("Path not found.")
+EOT
+
+    queryArg="${1}"; fileArg="${2}"; jsc=$(find "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/" -name 'jsc'); [ -z "${jsc}" ] && jsc=$(which jsc); [[ -f "${queryArg}" && -z "${fileArg}" ]] && fileArg="${queryArg}" && unset queryArg; if [ -f "${fileArg:=/dev/stdin}" ]; then { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "${fileArg}"; } 1>&3 ; } 2>&1); } 3>&1; else [ -t '0' ] && echo -e "ljt (v1.0.9) - Little JSON Tool (https://github.com/brunerd/ljt)\nUsage: ljt [query] [filepath]\n  [query] is optional and can be JSON Pointer, canonical JSONPath (with or without leading $), or plutil-style keypath\n  [filepath] is optional, input can also be via file redirection, piped input, here doc, or here strings" >/dev/stderr && exit 0; { errOut=$( { { "${jsc}" -e "${JSCode}" -- "${queryArg}" "/dev/stdin" <<< "$(cat)"; } 1>&3 ; } 2>&1); } 3>&1; fi; if [ -n "${errOut}" ]; then echo "$errOut" >&2; return 1; fi
+)
+
+# -----------------------------------------------------------------------------
+# Move the installer to the /Applications folder if not already there.
+# This is called with the --move option.
+# -----------------------------------------------------------------------------
+move_to_applications_folder() {
+    if [[ $app_is_in_applications_folder == "yes" ]]; then
+        writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
+    else
+        writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
+        mv "$working_macos_app" "$installer_directory/"
+        working_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Rotate existing log files up to a maximum of 9 log files
+# Older files will be overwritten
+# -----------------------------------------------------------------------------
+log_rotate() {
+    # logs probably cannot be rotated when running as root
+    if [[ $EUID -ne 0 ]]; then
+        writelog "[log_rotate] Not running as root so cannot rotate logs"
+        return
+    fi
+
+    # writelog "[log_rotate] Start rotating logs in $logdir"
+    max_log_keep=9
+
+    # move all logs up one file
+    i="$max_log_keep"
+    while [[ "$i" -gt 0 ]];do
+        current_filename="$LOG_FILE.$((i-1))"
+        new_filename="$LOG_FILE.$i"
+        if [[ -f "$current_filename" ]];then
+            # writelog "[log_rotate] moving $current_filename to $new_filename"
+            mv "$current_filename" "$new_filename"
+        fi
+        ((i--))
+    done
+
+    if [[ -f "$LOG_FILE" ]];then
+        # writelog "[log_rotate] moving $LOG_FILE to $LOG_FILE.1"
+        mv "$LOG_FILE" "$LOG_FILE.1"
+    fi
+
+    # now create the new log file
+    echo "" > "$LOG_FILE"
+    exec > >(tee "${LOG_FILE}") 2>&1
+
+    writelog "[log_rotate] Finished rotating logs in $logdir"
+}
+
+# -----------------------------------------------------------------------------
+# Overwrite an existing installer.
+# This is called with the --overwrite option.
+# Note that multiple installers left around on the device can cause unexpected
+# results.  
+# -----------------------------------------------------------------------------
+overwrite_existing_installer() {
+    if [[ -f "$working_installer_pkg" ]]; then
+        writelog "[$script_name] Deleting existing installer package"
+        rm -f "$working_installer_pkg"
+    else
+        writelog "[overwrite_existing_installer] Overwrite option selected. Deleting existing version."
+    fi
+    rm -f "$cached_installer_pkg" 
+    rm -rf "$cached_installer_app"
+    app_is_in_applications_folder=""
+    if [[ $clear_cache == "yes" ]]; then
+        writelog "[overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
+        exit
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Things to do after startosinstall has finished preparing
+# -----------------------------------------------------------------------------
+# shellcheck disable=SC2317
+post_prep_work() {
+    # set dialog progress for rebootdelay if set
+    if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
+        # quit an existing window
+        writelog "[post_prep_work] Sending quit message to dialog log ($dialog_log)"
+        echo "quit:" >> "$dialog_log"
+        writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
+
+        window_type="utility"
+        iconsize=$dialog_icon_size
+
+        # set the dialog command arguments
+        get_default_dialog_args "$window_type"
+        dialog_args=("${default_dialog_args[@]}")
+        dialog_args+=(
+            "$dialog_title_command" "${(P)dialog_reinstall_title}"
+            --icon "${dialog_install_icon}"
+            --iconsize "$iconsize"
+            --message "${(P)dialog_rebooting_heading}"
+            --button1disabled
+            --progress "$rebootdelay"
+        )
+        # run the dialog command
+        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
+
+        dialog_progress reboot-delay >/dev/null 2>&1 &
+    fi
+
+    # run any postinstall commands
+    for command in "${postinstall_command[@]}"; do
+        if [[ $command ]]; then
+            writelog "[post_prep_work] Now running postinstall command: $command"
+            eval "$command"
+        fi
+    done
+
+    if [[ $test_run == "yes" ]]; then
+        writelog "[post_prep_work] Simulating reboot delay of ${rebootdelay}s"
+        sleep "$rebootdelay"
+    else
+        # we need to quit so our management system can report back home before being killed by startosinstall
+        writelog "[post_prep_work] Reboot delay set to ${rebootdelay}s"
+        # then shut everything down
+        kill_process "Self Service"
+    fi
+
+    # set exit code to 0 which will call finish()
+    exit 0
+}
+
+# -----------------------------------------------------------------------------
+# Process a single product from the catalog in an asynchronous manner.
+# This function is intended to be run in the background for each product.
+# -----------------------------------------------------------------------------
+process_product_async() {
+    local ia_product="$1"
+    local tmp_json_file="$2"
+    local product_tmp_file="$workdir/downloads/product_${ia_product}.json"
+    local start_time
+    start_time=$(date +%s)
+    
+    # Add error handling and timeout
+    # shellcheck disable=SC2317 
+    {
+        # Redirect stdout and stderr to per-job log file
+        exec 1>"$workdir/downloads/product_${ia_product}.log" 2>&1
+        
+        writelog "[process_product_async] Starting processing product $ia_product (PID: $$)"
+        
+        # Process package extraction with error checking
+        if ! package_plist=$(plutil -extract Products."$ia_product".Packages xml1 -o - "$catalog_plist_path" 2>/dev/null); then
+            writelog "[process_product_async] ERROR: Failed to extract packages for product $ia_product"
+            return 1
+        fi
+        
+        if ! package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null); then
+            writelog "[process_product_async] ERROR: Failed to convert plist to JSON for product $ia_product"
+            return 1
+        fi
+        
+        if ! ia_url=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null); then
+            writelog "[process_product_async] ERROR: Failed to extract URL for product $ia_product"
+            return 1
+        fi
+        
+        if [[ -n "$ia_url" ]]; then
+            # Get basic info without downloading dist file yet
+            ia_post_date=$(plutil -extract Products."$ia_product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
+            if [[ -n "$ia_post_date" ]]; then
+                ia_post_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ia_post_date" "+%Y-%m-%d" 2>/dev/null)
+            fi
+            
+            pkg_size_bytes=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json" 2>/dev/null)
+            
+            if [[ "$pkg_size_bytes" == "empty" || -z "$pkg_size_bytes" || ! "$pkg_size_bytes" =~ ^[0-9]+$ ]]; then
+                ia_pkg_size="0.00"
+            else
+                ia_pkg_size=$(bc <<< "scale=2; $pkg_size_bytes / 1024 / 1024 / 1024" 2>/dev/null || echo "0.00")
+            fi
+            
+            dist_file=$(plutil -extract Products."$ia_product".Distributions.English raw -o - "$catalog_plist_path" 2>/dev/null)
+            if [[ "$dist_file" ]]; then
+                dist_xml="$workdir/downloads/$(basename "$dist_file").xml"
+                
+                # Download dist file if needed with timeout
+                if [[ ! -f "$dist_xml" || $(date -r "$dist_xml" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+                    writelog "[process_product_async] Downloading dist file for product $ia_product"
+                    # Use curl's built-in timeout options instead of timeout command (not available on macOS)
+                    if ! curl -sL --connect-timeout 10 --max-time 30 "$dist_file" -o "$dist_xml" 2>/dev/null; then
+                        writelog "[process_product_async] ERROR: Failed to download dist file for product $ia_product"
+                        writelog "[process_product_async] URL: $dist_file"
+                        return 1
+                    fi
+                fi
+                
+                if [[ -f "$dist_xml" ]]; then
+                    # Extract info from XML in one pass using multiple xpath calls
+                    ia_title=$(xmllint --xpath 'string(/installer-gui-script/title/text())' "$dist_xml" 2>/dev/null)
+                    ia_build=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='BUILD']/text())" "$dist_xml" 2>/dev/null)
+                    ia_version=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='VERSION']/text())" "$dist_xml" 2>/dev/null)
+                    
+                    # Extract supported IDs more efficiently
+                    ia_supportedBoardIDs=$(awk '/var supportedBoardIDs/ {gsub(/.*\[\s*|\s*\].*/, ""); gsub(/['"'"']/, ""); print}' "$dist_xml" 2>/dev/null)
+                    ia_supportedDeviceIDs=$(awk '/var supportedDeviceIDs/ {gsub(/.*\[\s*|\s*\].*/, ""); gsub(/['"'"']/, ""); print}' "$dist_xml" 2>/dev/null)
+                    
+                    # Check compatibility
+                    if [[ ($device_id && "$ia_supportedDeviceIDs" == *"$device_id"*) || ($board_id && "$ia_supportedBoardIDs" == *"$board_id"*) ]]; then
+                        ia_compatible="True"
+                    else
+                        ia_compatible="False"
+                    fi
+                    
+                    # Write to individual product file (thread-safe)
+                    # Prepare JSON arrays for board and device IDs with error handling
+                    if [[ -n "$ia_supportedBoardIDs" ]]; then
+                        board_ids_json=$(echo "$ia_supportedBoardIDs" | "$jq_bin" -R 'split(",") | map(ltrimstr(" ") | rtrimstr(" "))' 2>/dev/null) || board_ids_json='[]'
+                    else
+                        board_ids_json='[]'
+                    fi
+                    
+                    if [[ -n "$ia_supportedDeviceIDs" ]]; then
+                        device_ids_json=$(echo "$ia_supportedDeviceIDs" | "$jq_bin" -R 'split(",") | map(ltrimstr(" ") | rtrimstr(" "))' 2>/dev/null) || device_ids_json='[]'
+                    else
+                        device_ids_json='[]'
+                    fi
+                    
+                    # Create JSON with better error handling
+                    # shellcheck disable=SC2016
+                    jq_output=$("$jq_bin" -n \
+                        --arg product "$ia_product" \
+                        --arg post_date "${ia_post_date:-}" \
+                        --arg url "${ia_url:-}" \
+                        --arg title "${ia_title:-}" \
+                        --arg build "${ia_build:-}" \
+                        --arg version "${ia_version:-}" \
+                        --arg pkg_size "${ia_pkg_size:-0.00}" \
+                        --arg compatible "${ia_compatible:-False}" \
+                        --argjson supported_board_ids "$board_ids_json" \
+                        --argjson supported_device_ids "$device_ids_json" \
+                        '{
+                            product: $product,
+                            post_date: $post_date,
+                            url: $url,
+                            title: $title,
+                            build: $build,
+                            version: $version,
+                            pkg_size: $pkg_size,
+                            compatible: $compatible,
+                            supported_board_ids: $supported_board_ids,
+                            supported_device_ids: $supported_device_ids
+                        }' 2>&1)
+                    
+                    jq_exit_code=$?
+                    if [[ $jq_exit_code -eq 0 && -n "$jq_output" ]]; then
+                        echo "$jq_output" > "$product_tmp_file"
+                        if [[ -s "$product_tmp_file" ]]; then
+                            writelog "[process_product_async] Successfully created JSON for product $ia_product"
+                        else
+                            writelog "[process_product_async] ERROR: JSON file created but is empty for product $ia_product"
+                            writelog "[process_product_async] Debug: jq_output length: ${#jq_output}"
+                            return 1
+                        fi
+                    else
+                        writelog "[process_product_async] ERROR: Failed to create JSON for product $ia_product (exit code: $jq_exit_code)"
+                        writelog "[process_product_async] jq error output: $jq_output"
+                        writelog "[process_product_async] Debug vars: product=$ia_product, title='$ia_title', build='$ia_build', version='$ia_version'"
+                        writelog "[process_product_async] Debug board_ids: '$ia_supportedBoardIDs' -> $board_ids_json"
+                        writelog "[process_product_async] Debug device_ids: '$ia_supportedDeviceIDs' -> $device_ids_json"
+                        return 1
+                    fi
+                fi
+            fi
+        fi
+        
+        local end_time
+        end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        writelog "[process_product_async] Completed product $ia_product in ${duration}s"
+        
+        return 0
+        
+    } || {
+        # Error handler - log error
+        writelog "[process_product_async] ERROR: Failed to process product $ia_product after $(($(date +%s) - start_time))s"
+        return 1
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Get a password from keychain
+# This is NOT a recommended method for production workflows for obvious security reasons.
+# Use at your own risk!!
+# -----------------------------------------------------------------------------
+read_from_keychain() {
+    # expects entries from the command line for keychain name, password, service name for the user and service name for the password
+    writelog "[read_from_keychain] Attempting to unlock keychain..."
+    if security unlock-keychain -p "$kc_pass" "$kc"; then
+        writelog "[read_from_keychain] Unlocked keychain..."
+        account_shortname=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "acct" | cut -d \" -f4)
+        if [[ $account_shortname ]]; then
+            writelog "[read_from_keychain] Obtained user $account_shortname..."
+        else
+            writelog "[read_from_keychain] Could not find user in keychain."
+            exit 1
+        fi
+        account_password=$(security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | grep "password" | cut -d \" -f2)
+        if [[ $account_password ]]; then
+            writelog "[read_from_keychain] Obtained password..."
+        else
+            writelog "[read_from_keychain] Could not find password in keychain."
+            exit 1
+        fi
+    else
+        writelog "[read_from_keychain] Could not unlock keychain. Continuing..."
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run softwareupdate --fetch-full-installer
+# Includes some fallbacks, because --list-full-installers might not be 
+# available in some versions of Catalina. 
+# -----------------------------------------------------------------------------
+run_fetch_full_installer() {
+    softwareupdate_args=()
+    run_list_full_installers
+    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
+        if [[ $prechosen_version ]]; then
+            # check that this version is available in the list
+            ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$prechosen_version"; then 
+                    writelog "[run_fetch_full_installer] ERROR: version in catalog $prechosen_version is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
+                # get the chosen version
+                writelog "[run_fetch_full_installer] Found version $prechosen_version"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$prechosen_version")
+            else
+                writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
+            fi
+        elif [[ $prechosen_os ]]; then
+            # check that this OS is available in the list
+            ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # get the latest version within the chosen OS
+                if [[ "$beta" == "yes" ]]; then
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                else
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                fi
+
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
+                writelog "[run_fetch_full_installer] Found version $latest_ffi"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
+            else
+                writelog "[run_fetch_full_installer] ERROR: No available version for macOS $prechosen_os found."
+                echo
+                exit 1
+            fi
+        else
+            # if no version is selected, we want to obtain the latest. The list obtained from
+            # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
+            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+
+            if [[ $latest_ffi ]]; then
+                # we need to check if this version is older than the current system and abort if so
+                # writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
+            else
+                writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
+            fi
+        fi
+    else
+        # if --list-full-installers did not work, then we cannot continue
+        writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate --list-full-installers. Cannot continue."
+        echo
+        exit 1
+    fi
+
+    # now download the installer
+    writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
+    if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
+        # Identify the installer
+        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
+            cached_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+            # if we actually want to use this installer we should check that it's valid
+            if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+                check_installer_is_valid
+                if [[ $invalid_installer_found == "yes" ]]; then
+                    writelog "[run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
+                    exit 1
+                fi
+            fi
+        else
+            writelog "[run_fetch_full_installer] No install app found. I guess nothing got downloaded."
+            exit 1
+        fi
+    else
+        writelog "[run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run softwareupdate --list-full-installers and output to a file
+# -----------------------------------------------------------------------------
+run_list_full_installers() {
+    if [[ $beta == "yes" ]]; then
+        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" > "$workdir/ffi-list-full-installers.txt"; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
+                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
+                exit 1
+            fi
+        fi
+    else
+        if /usr/sbin/softwareupdate --list-full-installers | grep -v "Deferred: YES" | grep -v "Beta," > "$workdir/ffi-list-full-installers.txt"; then
+            if [[ $(grep -c -E "Version:" "$workdir/ffi-list-full-installers.txt") -lt 1 ]]; then
+                writelog "[run_list_full_installers] Could not obtain installer information using softwareupdate."
+                exit 1
+            fi
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Run mist with chosen options.
 # This requires mist, so we first check if it is on the system and download them if not.
 # -----------------------------------------------------------------------------
@@ -2991,6 +2922,71 @@ run_mist() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Prompt the user to select a macOS version from a dialog, using the list of compatible versions from the JSON file.
+# The dialog will show the version and build number for each available installer, and the user can select one. The selected version and build will be stored in variables for later use.
+# -----------------------------------------------------------------------------
+select_build_from_dialog() {
+    get_default_dialog_args "utility"
+    dialog_args=("${default_dialog_args[@]}")
+    # produce a list of compatible available macOS versions from the JSON file, and format for dialog, showing only version and build
+    version_list=()
+    if [[ "$beta" == "yes" ]]; then
+        version_list=()
+        while IFS= read -r line; do
+            version_list+=("$line")
+        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | [
+            (.version // ""),
+            (.build // "")
+        ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
+    else
+        version_list=()
+        while IFS= read -r line; do
+            version_list+=("$line")
+        done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | select((.title // "" | test("beta"; "i")) | not) | [
+            (.version // ""),
+            (.build // "")
+        ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
+    fi
+    # temp
+    writelog "[select_version_from_dialog] Available versions for selection: ${version_list[*]}"
+    generic_macos_icon="$workdir/icons/Install macOS.png"
+    if [[ ! -f "$generic_macos_icon" ]]; then
+        generic_macos_icon="/System/Library/CoreServices/Install macOS.app/Contents/Resources/InstallAssistant.icns"
+    fi
+    dialog_args+=(
+        "$dialog_title_command" "Select macOS Version"
+        --message "Please select the macOS version you wish to download.\n\nNote: only versions newer than or equal to $system_version ($system_build) can be installed on this machine. It is not possible to downgrade macOS."
+        --icon "${generic_macos_icon}"
+        --iconsize "${dialog_icon_size}"
+        --button1text "Select"
+        --button2text "Cancel"
+        --selecttitle "Available macOS Versions"
+        --selectvalues "$(printf "%s," "${version_list[@]}" | sed 's/,$//')"
+    )
+    writelog "[select_version_from_dialog] Prompting user to select macOS version via dialog"
+    dialog_response=$("$dialog_bin" "${dialog_args[@]}")
+    dialog_exit_code=$?
+    if [[ $dialog_exit_code -eq 0 ]]; then
+        # user clicked Select
+        selected_version_line=$(echo "$dialog_response" | grep 'selectedValue' | cut -d '"' -f4)
+        # exit if no selection made
+        if [[ ! $selected_version_line ]]; then
+            writelog "[select_version_from_dialog] No version selected, exiting..."
+            echo
+            exit 1
+        fi
+        # extract version and build from selected line
+        selected_version=$(echo "$selected_version_line" | awk -F ' \\(' '{print $1}')
+        prechosen_build=$(echo "$selected_version_line" | awk -F '[\\(\\)]' '{print $2}')
+        writelog "[select_version_from_dialog] User selected version: $selected_version, build: $prechosen_build"
+    else
+        # user clicked Cancel or closed the dialog
+        writelog "[select_version_from_dialog] User cancelled the version selection dialog"
+        echo
+        exit 1
+    fi
+}
 
 # -----------------------------------------------------------------------------
 # Set localized values for user dialogues 
@@ -3227,7 +3223,7 @@ set_localisations() {
 
     # Dialogue localizations - Find My check failed - description
     dialog_fmmenabled_desc_en="### Find My Mac was not disabled in the specified time.  \n\nPress OK to quit."
-    dialog_fmmenabled_desc_de="### «Meinem Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
+    dialog_fmmenabled_desc_de="### «Meinen Mac suchen» wurde nicht innerhalb der angegebenen Zeit deaktiviert.  \n\nZum Beenden OK drücken."
     dialog_fmmenabled_desc_nl="### Vind mijn Mac was niet uitgeschakeld in de opgegeven tijd.  \n\nDruk op OK om af te sluiten."
     dialog_fmmenabled_desc_fr="### Localiser mon Mac n'a pas été désactivé dans le temps imparti.  \n\nAppuyez sur OK pour quitter."
     dialog_fmmenabled_desc_es="### Buscar mi Mac no se ha desactivado en el tiempo especificado.  \n\nPulsa OK para salir."
@@ -3324,7 +3320,16 @@ set_localisations() {
     dialog_enter_button_ua="Гаразд"
     dialog_enter_button=dialog_enter_button_${user_language}
 
-    
+    # Dialogue localizations - buttons - hide
+    dialog_hide_button_en="Hide"
+    dialog_hide_button_de="Verstecken"
+    dialog_hide_button_nl="Verbergen"
+    dialog_hide_button_fr="Masquer"
+    dialog_hide_button_es="Ocultar"
+    dialog_hide_button_pt="Ocultar"
+    dialog_hide_button_ja="非表示"
+    dialog_hide_button_ua="Сховати"
+    dialog_hide_button=dialog_hide_button_${user_language}
 }
 
 # -----------------------------------------------------------------------------
@@ -3557,7 +3562,7 @@ user_is_invalid() {
     get_default_dialog_args "utility"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "${dialog_window_title}"
+        "$dialog_title_command" "${dialog_window_title}"
         --icon "${dialog_warning_icon}"
         --iconsize "${dialog_icon_size}"
         --overlayicon "SF=person.fill.xmark,colour=red"
@@ -3583,7 +3588,7 @@ password_is_invalid() {
     get_default_dialog_args "utility"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "${dialog_window_title}"
+        "$dialog_title_command" "${dialog_window_title}"
         --icon "${dialog_confirmation_icon}"
         --iconsize "${dialog_icon_size}"
         --overlayicon "SF=person.fill.xmark,colour=red"
@@ -3606,7 +3611,7 @@ user_not_volume_owner() {
         get_default_dialog_args "utility"
         dialog_args=("${default_dialog_args[@]}")
         dialog_args+=(
-            --bannertitle "${dialog_window_title}"
+            "$dialog_title_command" "${dialog_window_title}"
             --icon "${dialog_warning_icon}"
             --iconsize "${dialog_icon_size}"
             --overlayicon "SF=person.fill.xmark,colour=red"
@@ -4146,6 +4151,7 @@ if [[ -f "$workdir/InstallAssistantDownload.pkg" ]]; then
     rm -f "$workdir/InstallAssistantDownload.pkg"
 fi
 
+# look for existing installer app or pkg
 find_existing_installer
 
 # if the user wants to select from a dialog, prompt them now (overrides other options)
@@ -4165,10 +4171,18 @@ if [[ $overwrite == "yes" && (-d "$working_macos_app" || ($pkg_installer && -f "
     do_overwrite_existing_installer=1
 fi
 
-if [[ "$prechosen_build" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+# cached installer may be an app or a pkg
+cached_build=""
+if [[ $installer_build ]]; then
+    cached_build="$installer_build"
+elif [[ $installer_pkg_build ]]; then
+    cached_build="$installer_pkg_build"
+fi
+
+if [[ "$prechosen_build" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # automatically replace a cached installer if it does not match the requested build
     writelog "[$script_name] Checking if the cached installer matches requested build..."
-    if [[ "$installer_build" != "$prechosen_build" ]]; then
+    if [[ "$cached_build" != "$prechosen_build" ]]; then
         writelog "[$script_name] Existing installer build $prechosen_build does not match requested build $prechosen_build."
         do_overwrite_existing_installer=1
     else
@@ -4176,14 +4190,10 @@ if [[ "$prechosen_build" && "$installer_build" && $do_overwrite_existing_install
     fi
 fi
 
-if [[ "$prechosen_os" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ "$prechosen_os" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # check if the cached installer matches the requested OS
     # first, get the OS of the existing installer app or pkg
-    if [[ "$installer_build" ]]; then
-        installer_darwin_version=${installer_build:0:2}
-    elif [[ "$installer_pkg_build" ]]; then
-        installer_darwin_version=${installer_pkg_build:0:2}
-    fi
+    installer_darwin_version=${cached_build:0:2}
     prechosen_darwin_version=$(get_darwin_from_os_version "$prechosen_os")
     if [[ $installer_darwin_version && ($installer_darwin_version -ne $prechosen_darwin_version) ]]; then
         writelog "[$script_name] Existing installer OS version does not match requested OS ($prechosen_os)."
@@ -4191,7 +4201,7 @@ if [[ "$prechosen_os" && "$installer_build" && $do_overwrite_existing_installer 
     fi
 fi
 
-if [[ $update_installer == "yes" && "$installer_build" && $do_overwrite_existing_installer -ne 1 ]]; then
+if [[ $update_installer == "yes" && "$cached_build" && $do_overwrite_existing_installer -ne 1 ]]; then
     # --update option: checks for a newer installer. This operates within the confines of the --sameos, --os, --version and --beta options if present
     if [[ -d "$working_macos_app" || -f "$working_installer_pkg" ]]; then
         writelog "[$script_name] Checking for newer installer"
@@ -4263,12 +4273,13 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
             get_default_dialog_args "$window_type"
             dialog_args=("${default_dialog_args[@]}")
             dialog_args+=(
-                --bannertitle "${(P)dialog_dl_title}"
+                "$dialog_title_command" "${(P)dialog_dl_title}"
                 --icon "${dialog_confirmation_icon}"
                 --overlayicon "SF=arrow.down"
                 --iconsize "$iconsize"
                 --message "${(P)dialog_dl_desc}"
                 --progress "100"
+                --button1text "${(P)dialog_hide_button}"
             )
             # run the dialog command
             "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
@@ -4465,10 +4476,11 @@ if [[ $erase == "yes" && ! $silent ]]; then
     get_default_dialog_args "$window_type"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "${(P)dialog_erase_title}"
+        "$dialog_title_command" "${(P)dialog_erase_title}"
         --icon "${dialog_install_icon}"
         --message "${(P)dialog_erase_desc}"
         --progress "100"
+        --button1text "${(P)dialog_hide_button}"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
@@ -4481,10 +4493,11 @@ elif [[ $reinstall == "yes" && ! $silent ]]; then
     get_default_dialog_args "$window_type"
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
-        --bannertitle "${(P)dialog_reinstall_title}"
+        "$dialog_title_command" "${(P)dialog_reinstall_title}"
         --icon "${dialog_install_icon}"
         --message "${(P)dialog_reinstall_desc}"
         --progress "100"
+        --button1text "${(P)dialog_hide_button}"
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1

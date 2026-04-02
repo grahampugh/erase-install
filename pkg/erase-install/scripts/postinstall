@@ -9,26 +9,30 @@ DIR=$(dirname "$0")
 # swiftDialog - required version depends on macOS version
 system_version=$( /usr/bin/sw_vers -productVersion )
 
-# macOS 12 and greater uses the latest swiftDialog
+# macOS 15 and greater uses the latest swiftDialog
+# macOS 11, 12, 13, and 14 use the older version of swiftDialog that is compatible with those versions of macOS
+# macOS 10.15 can only function in silent mode and does not use the swiftDialog app, so no need to install it on macOS 10
 system_os=$(/usr/bin/cut -d. -f 1 <<< "$system_version")
 
-if [[ $system_os -ge 12 ]]; then
+if [[ $system_os -ge 15 ]]; then
     if [[ -d "/Library/Management/erase-install/Dialog.app" ]]; then
         echo "swiftDialog successfully installed"
     else
         echo "ERROR: swiftDialog was not installed"
         exit 1
     fi
-elif [[ $system_os -eq 11 ]]; then
-    if /usr/sbin/installer -tgt / -pkg "$DIR/swiftDialog-bigsur.pkg"; then
-        echo "swiftDialog (Big Sur version) successfully installed"
+elif [[ $system_os -ge 11 ]]; then
+    rm -rf "/Library/Management/erase-install/Dialog.app" ||:
+    cp -R "$DIR/Dialog-bigsur.app" "/Library/Management/erase-install/Dialog.app"
+    if [[ -d "/Library/Management/erase-install/Dialog.app" ]]; then
+        echo "swiftDialog successfully installed"
     else
         echo "ERROR: swiftDialog was not installed"
         exit 1
     fi
 else
-    echo "ERROR: swiftDialog not compatible with this version of macOS"
-    exit 1
+    echo "swiftDialog not compatible with this version of macOS"
+    rm -rf "/Library/Management/erase-install/Dialog.app" ||:
 fi
 
 # mist-cli
@@ -40,7 +44,7 @@ else
 fi
 
 # jq
-if [[ $system_os -le 14 && ! -f /usr/local/bin/jq ]]; then
+if [[ $system_os -lt 15 && ! -f /usr/local/bin/jq ]]; then
     # check if the mac is arm64 or intel
     arch=$(/usr/bin/uname -m)
     if [[ $arch == "arm64" ]]; then

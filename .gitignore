@@ -113,4 +113,5 @@ temp.sh
 DEPNotify.*
 __MACOSX/*
 *.pkg
+*.app
 
