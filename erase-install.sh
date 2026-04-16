@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="42.1"
+version="42.3"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -276,14 +276,6 @@ check_for_swiftdialog_app() {
         if [[ ! -f "$dialog_bin" ]]; then
             dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
         fi
-        dialog_string=$("$dialog_bin" --version)
-        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
-        if [[ $(echo "$dialog_minor_vers >= 3.0" | bc) -eq 1 ]] && ! is-at-least "15" "$system_version"; then 
-            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but is not compatible with macOS $system_version. Removing v$dialog_string..."
-            /bin/rm -rf "$dialog_portable_app" 
-            /bin/rm -f /var/tmp/dialog.*
-            dialog_bin=""
-        fi
     fi
 
     # Determine the correct required version based on OS version
@@ -293,13 +285,23 @@ check_for_swiftdialog_app() {
     fi
 
     # now check for correct version of swiftDialog and download if not present
-    if [[ -f "$dialog_bin" && "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
+    if [[ -f "$dialog_bin" ]]; then
+        dialog_string=$("$dialog_bin" --version)
+        dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
+    fi
+
+    if [[ "v$dialog_string" == "${swiftdialog_tag_required//Beta*/}"* ]]; then
         writelog "[check_for_swiftdialog_app] swiftDialog binary v$dialog_string is installed ($dialog_bin)"
     else
-        writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
+        if [[ -f "$dialog_bin" ]]; then
+            writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed but the recommended version is $swiftdialog_tag_required."
+            /bin/rm -rf "$dialog_portable_app"
+        else
+            writelog "[check_for_swiftdialog_app] swiftDialog is not installed. Proceeding to install..."
+        fi
         if [[ ! $no_curl ]]; then
-            if ! is-at-least "11" "$system_version"; then
-                writelog "[check_for_swiftdialog_app] Downloading swiftDialog for macOS $system_version..."
+            if is-at-least "11" "$system_version"; then
+                writelog "[check_for_swiftdialog_app] Downloading swiftDialog $swiftdialog_tag_required for macOS $system_version..."
                 # obtain the download URL
                 swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
                 dialog_download_url=$(/usr/bin/curl -sL -H "Accept: application/json" "$swiftdialog_api_url/tags/$swiftdialog_tag_required" | ljt assets.0.browser_download_url -)
@@ -308,7 +310,7 @@ check_for_swiftdialog_app() {
                     echo "[check_for_swiftdialog_app] Extracting Dialog.app from swiftDialog pkg"
                     pkgutil --expand "/private/tmp/swiftDialog.pkg" "/private/tmp/swiftDialog_expanded"
                     mkdir -p "/private/tmp/swiftDialog_payload"
-                    cd "/private/tmp/swiftDialog_payload" && gunzip -dc <<< "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | cpio -i
+                    cd "/private/tmp/swiftDialog_payload" && gunzip -dc "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | cpio -i
                     cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$workdir/Dialog.app"
                     rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 
@@ -318,7 +320,7 @@ check_for_swiftdialog_app() {
                         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
                         writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"
                     else
-                        writelog "[check_for_swiftdialog_app] swiftDialog installation failed"
+                        writelog "[check_for_swiftdialog_app] ERROR: swiftDialog installation failed"
                     fi
                 else
                     writelog "[check_for_swiftdialog_app] ERROR: swiftDialog download failed"
@@ -330,9 +332,9 @@ check_for_swiftdialog_app() {
         else
             writelog "[check_for_swiftdialog_app] swiftDialog v$swiftdialog_tag_required is not installed. Run without --no-curl to download and install it, or run with --silent if you do not want to use dialog windows."
         fi
+
         # check it did actually get downloaded
         # writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed" # TEMP
-    
         if [[ -f "$dialog_bin" ]]; then
             writelog "[check_for_swiftdialog_app] swiftDialog v$dialog_string is installed ($dialog_bin)"
         else
@@ -4032,8 +4034,33 @@ if [[ ! $silent ]]; then
         echo
         exit 1
     fi
-    # get dialog app if not silent mode
-    check_for_swiftdialog_app
+    # Only check for dialog app when it's actually needed
+    dialog_needed="no"
+    
+    # Check if we need dialog for listing with --select option
+    if [[ $list == "yes" && $select == "yes" ]]; then
+        dialog_needed="yes"
+    fi
+    
+    # Check if we need dialog for download progress
+    if [[ $erase == "yes" || $reinstall == "yes" || $dl_dialog == "yes" ]]; then
+        dialog_needed="yes"
+    fi
+    
+    # Check if we need dialog for confirmation
+    if [[ $confirm == "yes" ]]; then
+        dialog_needed="yes"
+    fi
+    
+    # Check if we need dialog for power/FMM checks
+    if [[ $check_power == "yes" || $check_fmm == "yes" ]]; then
+        dialog_needed="yes"
+    fi
+    
+    # Only get dialog if we actually need it
+    if [[ $dialog_needed == "yes" ]]; then
+        check_for_swiftdialog_app
+    fi
 fi
 
 if [[ $native == "yes" ]]; then
@@ -4251,10 +4278,14 @@ if [[ "$arch" == "arm64" && ($erase == "yes" || $reinstall == "yes") ]]; then
 fi
 
 # check for Find My
-[[ "$check_fmm" == "yes"  && ($erase == "yes") ]] && check_fmm
+if [[ "$check_fmm" == "yes"  && ($erase == "yes") ]]; then
+    check_fmm
+fi
 
 # check for power
-[[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") ]] && check_power_status
+if [[ "$check_power" == "yes"  && ($erase == "yes" || $reinstall == "yes") ]]; then
+    check_power_status
+fi
 
 # download dialog
 if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then

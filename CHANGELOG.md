@@ -22,19 +22,22 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [42.1]
+## [42.3]
 
 No date
 
-### Updates in 42.1
+### Updates in 42.3
 
-- Bumped swiftDialog version to `v3.0.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.0.1` and `v2.2.1`, and the appropriate one will be installed.
-- If swiftDialog is missing from the workdir, for example if only using the script rather than the package, then install the appropriate version of swiftDialog for the OS into the workdir rather than the default location.
+- Bumped required swiftDialog version to `v3.0.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.0.1` and `v2.2.1`, and the appropriate one will be installed.
+- swiftDialog check is only made when required, meaning that the `--list` and `--download` (without `--dialog-on-download`) options will work without swiftDialog.
+- If swiftDialog is reqiured but missing from the workdir, for example if only using the script rather than the package, then install the appropriate version of swiftDialog for the OS into the workdir rather than the default location.
 
-### Bugfixes in 42.1
+### Bugfixes in 42.3
 
 - Fixed check for swiftDialog version on macOS 14 (addresses #586).
+- Fixed check for swiftDialog version on macOS 15+ that was introduced in 42.1.
 - Banner is not used when swiftDialog 2.2.1 is used (incompatible dialog arguments).
+- Fixed installing older version of swiftDialog over a newer version (also addresses a comment in #586).
 
 ## [41.1]
 
@@ -835,8 +838,7 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v42.0...HEAD
-[42.0]: https://github.com/grahampugh/erase-install/compare/v41.1...v42.0
+[untagged]: https://github.com/grahampugh/erase-install/compare/v42.2...HEAD
 [41.1]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.1
 [40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
 [39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
