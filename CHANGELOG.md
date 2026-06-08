@@ -22,9 +22,17 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [42.3]
+## [42.4]
 
 No date
+
+### Updates in 42.4
+
+- New catalogs for macOS 27.
+
+## [42.3]
+
+08.04.2026
 
 ### Updates in 42.3
 
