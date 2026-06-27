@@ -114,4 +114,4 @@ DEPNotify.*
 __MACOSX/*
 *.pkg
 *.app
-
+.github/gh_token*
