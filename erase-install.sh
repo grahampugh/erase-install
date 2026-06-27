@@ -898,6 +898,8 @@ convert_os_to_name () {
             ;;
         "26") os_name="Tahoe"
             ;;
+        "27") os_name="Golden Gate"
+            ;;
         *) os_name="$1"
             ;;
     esac
@@ -921,6 +923,8 @@ convert_name_to_os () {
         "Sequoia") os_major_version="15"
             ;;
         "Tahoe") os_major_version="26"
+            ;;
+        "Golden Gate") os_major_version="27"
             ;;
         *) os_major_version="$1"
             ;;
@@ -1214,6 +1218,7 @@ download_install_assistant_pkg() {
             writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for version $prechosen_version at $installer_url"
         fi
     elif [[ $prechosen_os ]]; then
+        prechosen_os=$(convert_name_to_os "$prechosen_os")
         if [[ "$skip_validation" != "yes" ]]; then
             writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for macOS $prechosen_os"
             # check that this OS is available in the list based on the number before the first decimal point of the version, and is compatible with the system
@@ -2629,6 +2634,7 @@ run_fetch_full_installer() {
                 writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
             fi
         elif [[ $prechosen_os ]]; then
+            prechosen_os=$(convert_name_to_os "$prechosen_os")
             # check that this OS is available in the list
             ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
             if [[ $ffi_available -ge 1 ]]; then

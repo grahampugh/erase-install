@@ -14,21 +14,25 @@ Since the package on this site is not signed, if you download this package from 
 
 ## Note about release versioning
 
-I've decided that pre-release tags and release versions should have incremental numbers, rather than removing and recreating the same tag and release. This should make it easier for people testing out beta versions to know what they are running. This means that from now on, the latest "full" release is likely to not be a .0 release, but whichever beta I decide is ready for production. I'll also therefore always increment the "major" version number for any new release (not based on an arbitrary decision about what is major or minor).
+Pre-release tags and release versions have incremental numbers, rather than removing and recreating the same tag and release. This should make it easier for people testing out beta versions to know what they are running. This means that from now on, the latest "full" release is unlikely to be a .0 release, but rather whichever beta I decide is ready for production. I'll also therefore always increment the "major" version number for any new release (not based on an arbitrary decision about what is major or minor).
 
-I have deleted previous beta releases that don't make it to be a latest release. I've also removed all previous full releases, other than v27.3, to tidy things up.
+I have deleted previous beta releases that don't make it to be a latest release. I've also removed all previous full releases, other than v27.3 (needed for people using macOS 10.15 or older), to tidy things up.
 
 ## [Untagged]
 
 No date
 
-## [42.4]
+## [43.0]
 
 No date
 
-### Updates in 42.4
+### Updates in 43.0
 
 - New catalogs for macOS 27.
+
+### Bugfixes in 43.0
+
+- Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
 
 ## [42.3]
 
@@ -846,7 +850,9 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v42.2...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v43.0...HEAD
+[43.0]: https://github.com/grahampugh/erase-install/compare/v42.3...v43.0
+[42.3]: https://github.com/grahampugh/erase-install/compare/v41.1...v42.3
 [41.1]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.1
 [40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
 [39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
