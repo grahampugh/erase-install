@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="42.4"
+version="43.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -55,7 +55,7 @@ mist_bin="/usr/local/bin/mist"
 
 # Required mist-cli version
 # This ensures a compatible mist version is used if not using the package installer
-mist_tag_required="v2.2"
+mist_tag_required="v2.3"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -1719,7 +1719,7 @@ get_installers_list_json() {
             done
             
             # Process each product in background
-            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)"
+            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)" # DEBUG
             process_product_async "$ia_product" "$tmp_json_file" &
             job_pid=$!
             
@@ -1887,9 +1887,9 @@ get_user_details() {
         # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
         # recommended for testing only!! 
         # otherwise, ask via dialog
-        if [[ $password_attempts = 1 && $kc && $kc_pass ]]; then
+        if [[ $password_attempts -eq 1 && $kc && $kc_pass ]]; then
             read_from_keychain
-        elif [[ $password_attempts = 1 && $credentials && $very_insecure_mode == "yes" ]]; then
+        elif [[ $password_attempts -eq 1 && $credentials && $very_insecure_mode == "yes" ]]; then
             credentials_decoded=$(base64 -d <<< "$credentials")
             if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
                 account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
@@ -2236,14 +2236,11 @@ list_installers_from_json() {
         writelog "[list_installers_from_json] Listing stable installers only."
     fi
 
-    # use jq to list the installers
+    # Build a dynamic-width table by first collecting all rows and max column widths.
     writelog "[list_installers_from_json] Available installers:"
-    echo "┌────────────┬──────────────────┬─────────┬──────────┬──────────┬────────────┬────────────┐"
-    echo "│ PRODUCT ID │ TITLE            │ VERSION │ BUILD    │ SIZE GB  │ DATE       │ COMPATIBLE │"
-    echo "├────────────┼──────────────────┼─────────┼──────────┼──────────┼────────────┼────────────┤"
 
     if [[ "$beta" == "yes" ]]; then
-        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | [
+        jq_filter='sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | [
             (.product // ""),
             (.title // ""),
             (.version // ""),
@@ -2251,12 +2248,9 @@ list_installers_from_json() {
             (.pkg_size // ""),
             (.post_date // ""),
             (.compatible // "")
-        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
-            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
-                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
-        done
+        ] | @tsv'
     else
-        "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not) | [
+        jq_filter='sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select((.title // "" | test("beta"; "i")) | not) | [
             (.product // ""),
             (.title // ""),
             (.version // ""),
@@ -2264,14 +2258,69 @@ list_installers_from_json() {
             (.pkg_size // ""),
             (.post_date // ""),
             (.compatible // "")
-        ] | @tsv' "$installers_list_json_file" | while IFS=$'\t' read -r ia_product ia_title ia_version ia_build ia_size ia_date ia_compatible; do
-            printf "│ %-10s │ %-16s │ %-7s │ %-8s │ %-8s │ %-10s │ %-10s │\n" \
-                "$ia_product" "$ia_title" "$ia_version" "$ia_build" "$ia_size" "$ia_date" "$ia_compatible"
-        done
+        ] | @tsv'
     fi
 
+    "$jq_bin" -r "$jq_filter" "$installers_list_json_file" | awk -F '\t' '
+        function repeat(char, count, result, i) {
+            result = ""
+            for (i = 0; i < count; i++) {
+                result = result char
+            }
+            return result
+        }
 
-    echo "└────────────┴──────────────────┴─────────┴──────────┴──────────┴────────────┴────────────┘"
+        function print_border(left, mid, right, i, border) {
+            border = left
+            for (i = 1; i <= 7; i++) {
+                border = border repeat("─", widths[i] + 2)
+                if (i < 7) {
+                    border = border mid
+                }
+            }
+            border = border right
+            print border
+        }
+
+        BEGIN {
+            headers[1] = "PRODUCT ID"
+            headers[2] = "TITLE"
+            headers[3] = "VERSION"
+            headers[4] = "BUILD"
+            headers[5] = "SIZE GB"
+            headers[6] = "DATE"
+            headers[7] = "COMPATIBLE"
+
+            for (i = 1; i <= 7; i++) {
+                widths[i] = length(headers[i])
+            }
+            row_count = 0
+        }
+
+        {
+            row_count++
+            for (i = 1; i <= 7; i++) {
+                rows[row_count, i] = $i
+                if (length($i) > widths[i]) {
+                    widths[i] = length($i)
+                }
+            }
+        }
+
+        END {
+            print_border("┌", "┬", "┐")
+            printf "│ %-*s │ %-*s │ %-*s │ %-*s │ %-*s │ %-*s │ %-*s │\n", \
+                widths[1], headers[1], widths[2], headers[2], widths[3], headers[3], widths[4], headers[4], widths[5], headers[5], widths[6], headers[6], widths[7], headers[7]
+            print_border("├", "┼", "┤")
+
+            for (r = 1; r <= row_count; r++) {
+                printf "│ %-*s │ %-*s │ %-*s │ %-*s │ %*s │ %-*s │ %-*s │\n", \
+                    widths[1], rows[r, 1], widths[2], rows[r, 2], widths[3], rows[r, 3], widths[4], rows[r, 4], widths[5], rows[r, 5], widths[6], rows[r, 6], widths[7], rows[r, 7]
+            }
+
+            print_border("└", "┴", "┘")
+        }
+    '
 }
 
 # -----------------------------------------------------------------------------
@@ -2443,30 +2492,76 @@ process_product_async() {
             writelog "[process_product_async] ERROR: Failed to extract packages for product $ia_product"
             return 1
         fi
+
+        writelog "[process_product_async] Extracted package plist for product $ia_product"
         
         if ! package_json=$(echo "$package_plist" | plutil -convert json -o - - 2>/dev/null); then
             writelog "[process_product_async] ERROR: Failed to convert plist to JSON for product $ia_product"
             return 1
         fi
+
+        writelog "[process_product_async] Extracted package JSON for product $ia_product"
         
-        if ! ia_url=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.URL // empty' <<< "$package_json" 2>/dev/null); then
+        jq_url_err_log="$workdir/downloads/product_${ia_product}_jq_url_error.log"
+        ia_url=$("$jq_bin" -r '
+            [
+                (if type == "array" then .[] else to_entries[].value end)
+                | (.URL // .url // "")
+                | select(
+                    (
+                        (split("?")[0] | split("/")[-1])
+                        | ascii_downcase
+                    ) == "installassistant.pkg"
+                )
+            ]
+            | .[0] // empty
+        ' <<< "$package_json" 2>"$jq_url_err_log")
+        jq_url_exit_code=$?
+
+        if [[ $jq_url_exit_code -ne 0 ]]; then
             writelog "[process_product_async] ERROR: Failed to extract URL for product $ia_product"
+            writelog "[process_product_async] jq URL extraction exit code: $jq_url_exit_code"
+            if [[ -s "$jq_url_err_log" ]]; then
+                writelog "[process_product_async] jq URL extraction stderr:"
+                writelog "$(<"$jq_url_err_log")"
+            fi
+            writelog "[process_product_async] Package JSON for product $ia_product:" # DEBUG
+            writelog "$package_json" # DEBUG
             return 1
         fi
+
+        writelog "[process_product_async] Extracted URL for product $ia_product: $ia_url"
         
         if [[ -n "$ia_url" ]]; then
             # Get basic info without downloading dist file yet
             ia_post_date=$(plutil -extract Products."$ia_product".PostDate raw -o - "$catalog_plist_path" 2>/dev/null)
             if [[ -n "$ia_post_date" ]]; then
                 ia_post_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ia_post_date" "+%Y-%m-%d" 2>/dev/null)
+                writelog "[process_product_async] Extracted post date for product $ia_product: $ia_post_date"
+            else
+                writelog "[process_product_async] No post date found for product $ia_product"
             fi
             
-            pkg_size_bytes=$("$jq_bin" -r 'to_entries | map(select(.value.URL and (.value.URL | endswith("InstallAssistant.pkg")))) | .[0].value.Size // empty' <<< "$package_json" 2>/dev/null)
+            pkg_size_bytes=$("$jq_bin" -r '
+                [
+                    (if type == "array" then .[] else to_entries[].value end)
+                    | select(
+                        (
+                            ((.URL // .url // "") | split("?")[0] | split("/")[-1])
+                            | ascii_downcase
+                        ) == "installassistant.pkg"
+                    )
+                    | (.Size // .size // empty)
+                ]
+                | .[0] // empty
+            ' <<< "$package_json" 2>/dev/null)
             
             if [[ "$pkg_size_bytes" == "empty" || -z "$pkg_size_bytes" || ! "$pkg_size_bytes" =~ ^[0-9]+$ ]]; then
                 ia_pkg_size="0.00"
+                writelog "[process_product_async] ERROR: Invalid package size for product $ia_product: $pkg_size_bytes"
             else
                 ia_pkg_size=$(bc <<< "scale=2; $pkg_size_bytes / 1024 / 1024 / 1024" 2>/dev/null || echo "0.00")
+                writelog "[process_product_async] Extracted package size for product $ia_product: $ia_pkg_size GB"
             fi
             
             dist_file=$(plutil -extract Products."$ia_product".Distributions.English raw -o - "$catalog_plist_path" 2>/dev/null)
@@ -2485,6 +2580,7 @@ process_product_async() {
                 fi
                 
                 if [[ -f "$dist_xml" ]]; then
+                writelog "[process_product_async] Successfully downloaded dist file for product $ia_product: $dist_xml"
                     # Extract info from XML in one pass using multiple xpath calls
                     ia_title=$(xmllint --xpath 'string(/installer-gui-script/title/text())' "$dist_xml" 2>/dev/null)
                     ia_build=$(xmllint --xpath "string(//dict/string[preceding-sibling::key[1]='BUILD']/text())" "$dist_xml" 2>/dev/null)
@@ -4073,12 +4169,31 @@ fi
 
 if [[ $native == "yes" ]]; then
     tmpcurlfile=$(mktemp -t InstallAssistantDownload.XXXXXX)
-    # bail if jq is not installed and --native mode is selected
+    # Select a jq binary that can actually execute on this CPU architecture.
+    jq_bin=""
+    jq_candidates=()
+    [[ -x "/opt/homebrew/bin/jq" ]] && jq_candidates+=("/opt/homebrew/bin/jq")
+    [[ -x "/usr/bin/jq" ]] && jq_candidates+=("/usr/bin/jq")
+    [[ -x "/usr/local/bin/jq" ]] && jq_candidates+=("/usr/local/bin/jq")
     if command -v jq &> /dev/null; then
-        writelog "[$script_name] jq is installed, proceeding with --native mode."
-        jq_bin=$(command -v jq)
+        jq_candidates+=("$(command -v jq)")
+    fi
+
+    for candidate in "${jq_candidates[@]}"; do
+        [[ -n "$candidate" ]] || continue
+        if "$candidate" --version >/dev/null 2>&1; then
+            jq_bin="$candidate"
+            break
+        fi
+        writelog "[$script_name] Skipping unusable jq binary: $candidate"
+    done
+
+    if [[ -n "$jq_bin" ]]; then
+        writelog "[$script_name] jq is installed and executable at $jq_bin, proceeding with --native mode."
     else
-        writelog "[$script_name] This script requires macOS 15 or jq to be installed or newer for native download. Install jq or use --mist or --fetch-full-installer options."
+        writelog "[$script_name] This script requires macOS 15+ or an executable jq for native download."
+        writelog "[$script_name] No runnable jq was found (for example, an Intel-only /usr/local/bin/jq on Apple Silicon can fail with 'bad CPU type in executable')."
+        writelog "[$script_name] Install a native jq binary or use --mist or --fetch-full-installer options."
         echo
         exit 1
     fi
