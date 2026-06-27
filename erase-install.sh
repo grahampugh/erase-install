@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="43.0"
+version="43.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -1437,6 +1437,8 @@ download_install_assistant_pkg() {
 # results.  
 # -----------------------------------------------------------------------------
 find_existing_installer() {
+    app_is_in_applications_folder=""
+
     # First let's see if this script has been run before and left an installer
     cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
     cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
@@ -1449,6 +1451,7 @@ find_existing_installer() {
     elif [[ -d "$cached_installer_app_in_workdir" ]]; then
         cached_installer_app="$cached_installer_app_in_workdir"
         writelog "[find_existing_installer] Installer found at $cached_installer_app_in_workdir."
+        app_is_in_applications_folder="no"
         check_installer_is_valid
     elif [[ -f "$cached_installer_pkg" ]]; then
         writelog "[find_existing_installer] InstallAssistant package found at $cached_installer_pkg."
@@ -2346,10 +2349,13 @@ EOT
 move_to_applications_folder() {
     if [[ $app_is_in_applications_folder == "yes" ]]; then
         writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
+        cached_installer_app="$working_macos_app"
     else
         writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
         mv "$working_macos_app" "$installer_directory/"
-        working_macos_app=$( find "$installer_directory/Install macOS"*.app -maxdepth 1 -type d -print -quit 2>/dev/null )
+        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+        working_macos_app="$cached_installer_app"
+        app_is_in_applications_folder="yes"
         writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
     fi
 }
@@ -2785,20 +2791,30 @@ run_fetch_full_installer() {
     # now download the installer
     writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
     if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
-        # Identify the installer
-        if find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null ; then
-            cached_installer_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-            # if we actually want to use this installer we should check that it's valid
-            if [[ $erase == "yes" || $reinstall == "yes" ]]; then
-                check_installer_is_valid
-                if [[ $invalid_installer_found == "yes" ]]; then
-                    writelog "[run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                    exit 1
-                fi
-            fi
+        # Identify installer only in standard locations
+        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+        cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+
+        if [[ -d "$cached_installer_app" ]]; then
+            app_is_in_applications_folder="yes"
+        elif [[ -d "$cached_installer_app_in_workdir" ]]; then
+            cached_installer_app="$cached_installer_app_in_workdir"
+            app_is_in_applications_folder="no"
+            writelog "[run_fetch_full_installer] Installer found in workdir location: $cached_installer_app"
         else
-            writelog "[run_fetch_full_installer] No install app found. I guess nothing got downloaded."
+            writelog "[run_fetch_full_installer] ERROR: softwareupdate did not provide an installer in $installer_directory or $workdir."
+            writelog "[run_fetch_full_installer] This can happen when softwareupdate reuses an installer cached in a non-standard location."
+            writelog "[run_fetch_full_installer] Remove cached installers outside standard locations, then retry, or use --native/--mist mode."
             exit 1
+        fi
+
+        # if we actually want to use this installer we should check that it's valid
+        if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+            check_installer_is_valid
+            if [[ $invalid_installer_found == "yes" ]]; then
+                writelog "[run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
+                exit 1
+            fi
         fi
     else
         writelog "[run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
@@ -4237,7 +4253,7 @@ if ! is-at-least "13" "$system_version"; then
     dialog_confirmation_icon="/System/Applications/System Preferences.app"
 fi
 
-# /Applications is the only path for fetch-full-installer
+# fetch-full-installer workflows should normalize installers to /Applications
 if [[ $ffi == "yes" ]]; then
     installer_directory="/Applications"
 fi

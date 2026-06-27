@@ -22,21 +22,23 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [43.0]
+## [43.1]
 
 No date
 
-### Updates in 43.0
+### Updates in 43.1
 
 - New catalogs for macOS 27.
 - New icon for macOS 27.
+- Bumped required `mist-cli` version to 2.3.
 
-### Bugfixes in 43.0
+### Bugfixes in 43.1
 
 - Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
 - Fixed an issue where `/usr/local/bin/jq` was being used as the default path when it should be `/usr/bin/jq`, and architecture was not being detected properly if Rosetta 2 was installed, meaning that the package installer was potentially putting the x86_64 version of `jq` into the PATH, and then failing upon upgrade to macOS 27 which removes Rosetta 2.
 - Improved column widths in the native list output to account for the length of `macOS Golden Gate beta`.
 - Fixed an issue in the Makefile where it was assumed that a component of the package component plist already existed.
+- If `softwareupdate --fetch-full-installer` finds an installer in a non-standard location it will fail to redownload it or move it to the correct location. `erase-install.sh` will now check that this has happened and exit with an explicit message to this effect, rather than attempt to find and scavenge that installer which may be legitimately cached elsewhere on disk for other purposes (addresses #531).
 
 ## [42.3]
 
@@ -855,7 +857,6 @@ Thanks to '@ahousseini' for various contributions to this release
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
 [untagged]: https://github.com/grahampugh/erase-install/compare/v43.0...HEAD
-[43.0]: https://github.com/grahampugh/erase-install/compare/v42.3...v43.0
 [42.3]: https://github.com/grahampugh/erase-install/compare/v41.1...v42.3
 [41.1]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.1
 [40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
