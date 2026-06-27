@@ -5,6 +5,8 @@ PKG_SCRIPTS := $(CURDIR)/pkg/erase-install/scripts
 PKG_BUILD := $(CURDIR)/pkg/erase-install/build
 GITHUB_TOKEN_FILE := /Users/Shared/gh_token
 PKG_VERSION :=$(shell awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"')
+RELEASE_TAG := v$(PKG_VERSION)
+PKG_FILE := $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg
 SIGN_ID_PKG ?= Graham Pugh
 
 all: build
@@ -85,9 +87,54 @@ build:
 	@echo
 	@echo "## Making package in '$(PKG_ROOT)' directory"
 	pkgbuild --analyze --root "$(PKG_ROOT)" "$(PKG_BUILD)/erase-install-component.plist"
-	/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable boolean false' "$(PKG_BUILD)/erase-install-component.plist"
-	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" --sign "$(SIGN_ID_PKG)" "$(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg"
+	@component_plist="$(PKG_BUILD)/erase-install-component.plist" ;\
+	/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$$component_plist" >/dev/null 2>&1 || \
+	/usr/libexec/PlistBuddy -c 'Add :0:BundleIsRelocatable bool false' "$$component_plist" >/dev/null 2>&1 || { \
+		/usr/libexec/PlistBuddy -c 'Add :0 dict' "$$component_plist" >/dev/null 2>&1 ; \
+		/usr/libexec/PlistBuddy -c 'Add :0:BundleIsRelocatable bool false' "$$component_plist" ; \
+	}
+	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" --sign "$(SIGN_ID_PKG)" "$(PKG_FILE)"
 	open $(PKG_BUILD)
+
+.PHONY : release release-only publish-release
+release: build publish-release
+
+release-only: publish-release
+
+publish-release:
+	@echo
+	@echo "## Creating pre-release $(RELEASE_TAG) with package $(PKG_FILE)"
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "ERROR: gh command not found. Install GitHub CLI first."; \
+		exit 1; \
+	fi
+	@if [[ ! -f "$(PKG_FILE)" ]]; then \
+		echo "ERROR: package not found at $(PKG_FILE)"; \
+		exit 1; \
+	fi
+	@release_notes_file=$$(mktemp "/tmp/erase-install-release-notes.XXXXXX") ;\
+	if ! awk -v tag="$(PKG_VERSION)" '\
+		$$0 ~ "^## \\[[[:space:]]*" tag "[[:space:]]*\\]" { in_section=1; next } \
+		in_section && $$0 ~ "^## \\[" { exit } \
+		in_section { print; found=1 } \
+		END { if (!found) exit 1 }' "$(CURDIR)/CHANGELOG.md" > "$$release_notes_file"; then \
+		echo "ERROR: could not find CHANGELOG section for [$(PKG_VERSION)]"; \
+		rm -f "$$release_notes_file"; \
+		exit 1; \
+	fi ;\
+	if [[ -f "$(GITHUB_TOKEN_FILE)" ]]; then \
+		export GH_TOKEN=$$(cat "$(GITHUB_TOKEN_FILE)"); \
+	fi ;\
+	if gh release view "$(RELEASE_TAG)" >/dev/null 2>&1; then \
+		echo "## Existing release $(RELEASE_TAG) found. Replacing it..."; \
+		gh release delete "$(RELEASE_TAG)" --yes || exit 1; \
+	fi ;\
+	gh release create "$(RELEASE_TAG)" "$(PKG_FILE)" \
+		--title "$(RELEASE_TAG)" \
+		--notes-file "$$release_notes_file" \
+		--prerelease || { rm -f "$$release_notes_file"; exit 1; } ;\
+	rm -f "$$release_notes_file" ;\
+	echo "## Pre-release $(RELEASE_TAG) created successfully."
 
 .PHONY : clean
 clean :
