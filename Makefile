@@ -4,6 +4,8 @@ PKG_ROOT := $(CURDIR)/pkg/erase-install/payload
 PKG_SCRIPTS := $(CURDIR)/pkg/erase-install/scripts
 PKG_BUILD := $(CURDIR)/pkg/erase-install/build
 GITHUB_TOKEN_FILE := /Users/Shared/gh_token
+GITHUB_RELEASE_TOKEN_FILE := $(CURDIR)/.github/gh_token_eraseinstall
+
 PKG_VERSION :=$(shell awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"')
 RELEASE_TAG := v$(PKG_VERSION)
 PKG_FILE := $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg
@@ -122,8 +124,8 @@ publish-release:
 		rm -f "$$release_notes_file"; \
 		exit 1; \
 	fi ;\
-	if [[ -f "$(GITHUB_TOKEN_FILE)" ]]; then \
-		export GH_TOKEN=$$(cat "$(GITHUB_TOKEN_FILE)"); \
+	if [[ -f "$(GITHUB_RELEASE_TOKEN_FILE)" ]]; then \
+		export GH_TOKEN=$$(cat "$(GITHUB_RELEASE_TOKEN_FILE)"); \
 	fi ;\
 	if gh release view "$(RELEASE_TAG)" >/dev/null 2>&1; then \
 		echo "## Existing release $(RELEASE_TAG) found. Replacing it..."; \
