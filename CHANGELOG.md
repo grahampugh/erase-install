@@ -29,11 +29,14 @@ No date
 ### Updates in 43.0
 
 - New catalogs for macOS 27.
+- New icon for macOS 27.
 
 ### Bugfixes in 43.0
 
 - Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
 - Fixed an issue where `/usr/local/bin/jq` was being used as the default path when it should be `/usr/bin/jq`, and architecture was not being detected properly if Rosetta 2 was installed, meaning that the package installer was potentially putting the x86_64 version of `jq` into the PATH, and then failing upon upgrade to macOS 27 which removes Rosetta 2.
+- Improved column widths in the native list output to account for the length of `macOS Golden Gate beta`.
+- Fixed an issue in the Makefile where it was assumed that a component of the package component plist already existed.
 
 ## [42.3]
 
