@@ -1091,6 +1091,13 @@ dialog_progress() {
     elif [[ "$1" == "native" ]]; then
         writelog "[dialog_progress] Sending to dialog: progresstext: Searching for a valid macOS installer..."
         echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
+        # ia_version/ia_build are resolved by get_install_assistant_pkg_details()
+        # before this process was forked, so they're already available here
+        if [[ -n "$ia_version" ]]; then
+            dialog_download_message="Downloading macOS $ia_version${ia_build:+ ($ia_build)}"
+        else
+            dialog_download_message="Downloading InstallAssistant.pkg"
+        fi
         # Wait for the download to start and set the progress bar to 100 steps
         # this needs to monitor the output of curl
         until grep -q "Found InstallAssistant.pkg" "$LOG_FILE" ; do
@@ -1100,8 +1107,8 @@ dialog_progress() {
         until grep -q "Downloading InstallAssistant.pkg" "$LOG_FILE" ; do
             sleep 2
         done
-        writelog "[dialog_progress] Sending to dialog: progresstext: Downloading InstallAssistant.pkg"
-        echo "progresstext: Downloading InstallAssistant.pkg" >> "$dialog_log"
+        writelog "[dialog_progress] Sending to dialog: progresstext: $dialog_download_message"
+        echo "progresstext: $dialog_download_message" >> "$dialog_log"
         echo "progress: 0" >> "$dialog_log"
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ "$current_progress_value" -ge 100 ]]; do
@@ -1125,7 +1132,7 @@ dialog_progress() {
                 fi
                 sleep 0.5
             done
-            echo "progresstext: Downloading InstallAssistant.pkg ($current_progress_int%)" >> "$dialog_log"
+            echo "progresstext: $dialog_download_message ($current_progress_int%)" >> "$dialog_log"
             echo "progress: $current_progress_int" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
@@ -1174,9 +1181,13 @@ dialog_progress() {
 }
 
 # -----------------------------------------------------------------------------
-# Download the appropriate InstallAssistant.pkg for the chosen options
+# Work out which InstallAssistant.pkg we need (URL, version, build) based on
+# the chosen options. This is split out from download_install_assistant_pkg()
+# so that ia_version/ia_build are resolved *before* dialog_progress is forked,
+# letting the progress dialog show the actual macOS version being downloaded
+# instead of scraping the log for it.
 # -----------------------------------------------------------------------------
-download_install_assistant_pkg() {
+get_install_assistant_pkg_details() {
     # first, if we didn't already check for updates, get the list of available installers using list_installers_json
     list_installers_from_json
 
@@ -1375,21 +1386,28 @@ download_install_assistant_pkg() {
         fi
     fi
 
+    # get the version and build from $latest_installer so dialog_progress can
+    # use them before the download itself starts
+    ia_version=$("$jq_bin" -r ".version" <<< "$latest_installer")
+    ia_build=$("$jq_bin" -r ".build" <<< "$latest_installer")
+
     # check for free disk space if not invoking erase or reinstall options
     if [[ $erase != "yes" && $reinstall != "yes" ]]; then
         installer_size=$(curl -sI "$installer_url" | awk '/^Content-Length:/ {print $2}' | tr -d $'\r')
         if [[ $installer_size ]]; then
             min_drive_space=$((installer_size / 1000000000 + 1))
-            writelog "[download_install_assistant_pkg] $min_drive_space GB disk space required to download"
+            writelog "[get_install_assistant_pkg_details] $min_drive_space GB disk space required to download"
             check_free_space
         fi
     fi
+}
 
+# -----------------------------------------------------------------------------
+# Download the InstallAssistant.pkg resolved by get_install_assistant_pkg_details().
+# -----------------------------------------------------------------------------
+download_install_assistant_pkg() {
     # now download the installer
     writelog "[download_install_assistant_pkg] Downloading InstallAssistant.pkg from $installer_url"
-    # get the version and build from $latest_installer
-    ia_version=$("$jq_bin" -r ".version" <<< "$latest_installer")
-    ia_build=$("$jq_bin" -r ".build" <<< "$latest_installer")
     trap 'rm -f "$tmpcurlfile"' EXIT
     # writelog "[download_install_assistant_pkg] tmpcurlfile created at $tmpcurlfile" # debug
     # download the installer
@@ -4319,6 +4337,9 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
         if [[ $ffi == "yes" ]]; then
             dialog_progress fetch-full-installer >/dev/null 2>&1 &
         elif [[ $native == "yes" ]]; then
+            # resolve which macOS version/build we're downloading *before*
+            # forking the progress dialog, so it can show the real version
+            get_install_assistant_pkg_details
             dialog_progress native >/dev/null 2>&1 &
         else
             dialog_progress mist >/dev/null 2>&1 &
