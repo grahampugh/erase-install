@@ -114,6 +114,10 @@ publish-release:
 		echo "ERROR: package not found at $(PKG_FILE)"; \
 		exit 1; \
 	fi
+	@if ! command -v git >/dev/null 2>&1; then \
+		echo "ERROR: git command not found."; \
+		exit 1; \
+	fi
 	@release_notes_file=$$(mktemp "/tmp/erase-install-release-notes.XXXXXX") ;\
 	if ! awk -v tag="$(PKG_VERSION)" '\
 		$$0 ~ "^## \\[[[:space:]]*" tag "[[:space:]]*\\]" { in_section=1; next } \
@@ -126,6 +130,30 @@ publish-release:
 	fi ;\
 	if [[ -f "$(GITHUB_RELEASE_TOKEN_FILE)" ]]; then \
 		export GH_TOKEN=$$(cat "$(GITHUB_RELEASE_TOKEN_FILE)"); \
+	fi ;\
+	head_commit=$$(git rev-parse HEAD) ;\
+	local_tag_commit=$$(git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)^{}" 2>/dev/null || true) ;\
+	if [[ -n "$$local_tag_commit" && "$$local_tag_commit" != "$$head_commit" ]]; then \
+		echo "## Local tag $(RELEASE_TAG) points to $$local_tag_commit (expected $$head_commit). Recreating local tag..."; \
+		git tag -d "$(RELEASE_TAG)" || exit 1; \
+		local_tag_commit=""; \
+	fi ;\
+	if [[ -z "$$local_tag_commit" ]]; then \
+		git tag "$(RELEASE_TAG)" "$$head_commit" || exit 1; \
+		echo "## Local tag $(RELEASE_TAG) now points to $$head_commit"; \
+	fi ;\
+	remote_tag_commit=$$(git ls-remote --tags origin "refs/tags/$(RELEASE_TAG)^{}" | awk 'NR==1 {print $$1}') ;\
+	if [[ -z "$$remote_tag_commit" ]]; then \
+		remote_tag_commit=$$(git ls-remote --tags origin "refs/tags/$(RELEASE_TAG)" | awk 'NR==1 {print $$1}'); \
+	fi ;\
+	if [[ -n "$$remote_tag_commit" && "$$remote_tag_commit" != "$$head_commit" ]]; then \
+		echo "## Remote tag $(RELEASE_TAG) points to $$remote_tag_commit (expected $$head_commit). Replacing remote tag..."; \
+		git push --delete origin "$(RELEASE_TAG)" || exit 1; \
+		remote_tag_commit=""; \
+	fi ;\
+	if [[ -z "$$remote_tag_commit" ]]; then \
+		git push origin "refs/tags/$(RELEASE_TAG)" || exit 1; \
+		echo "## Remote tag $(RELEASE_TAG) now points to $$head_commit"; \
 	fi ;\
 	if gh release view "$(RELEASE_TAG)" >/dev/null 2>&1; then \
 		echo "## Existing release $(RELEASE_TAG) found. Replacing it..."; \

@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="43.1"
+version="43.2"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -59,7 +59,7 @@ mist_tag_required="v2.3"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v3.0.1"
+swiftdialog_tag_required="v3.1.0"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -1009,6 +1009,7 @@ dialog_progress() {
     writelog "[dialog_progress] Sending to dialog: progresstext:"
     echo "progresstext: " >> "$dialog_log"
     echo  "progress: 0" >> "$dialog_log"
+    sleep 0.1
 
     if [[ "$1" == "startosinstall" ]]; then
         # Wait for the preparing process to start and set the progress bar to 100 steps
@@ -1025,7 +1026,6 @@ dialog_progress() {
             fi
             sleep 2
         done
-        echo "progress: 0" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the preparing progress and move the bar accordingly
         until [[ $current_progress_value -ge 100 ]]; do
@@ -1068,12 +1068,10 @@ dialog_progress() {
             done
             writelog "[dialog_progress] Sending to dialog: progresstext: Downloading $dialog_found_installer"
             echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-            echo  "progress: 0" >> "$dialog_log"
             # Wait for the InstallAssistant package to start downloading
             until grep -q "InstallAssistant.pkg" "$LOG_FILE" ; do
                 sleep 2
             done
-            echo  "progress: 0" >> "$dialog_log"
             sleep 2
             until [[ $current_progress_value -gt 100 ]]; do
                 until [[ $current_progress_value -gt $last_progress_value ]]; do
@@ -1095,7 +1093,7 @@ dialog_progress() {
     elif [[ "$1" == "native" ]]; then
         writelog "[dialog_progress] Sending to dialog: progresstext: Searching for a valid macOS installer..."
         echo "progresstext: Searching for a valid macOS installer..." >> "$dialog_log"
-        # ia_version/ia_build are resolved by get_install_assistant_pkg_details()
+        # ia_version/ia_build are resolved by get_version_for_install_assistant_pkg()
         # before this process was forked, so they're already available here
         if [[ -n "$ia_version" ]]; then
             dialog_download_message="Downloading macOS $ia_version${ia_build:+ ($ia_build)}"
@@ -1113,7 +1111,6 @@ dialog_progress() {
         done
         writelog "[dialog_progress] Sending to dialog: progresstext: $dialog_download_message"
         echo "progresstext: $dialog_download_message" >> "$dialog_log"
-        echo "progress: 0" >> "$dialog_log"
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ "$current_progress_value" -ge 100 ]]; do
             until [ "$current_progress_value" -gt "$last_progress_value" ]; do
@@ -1150,9 +1147,8 @@ dialog_progress() {
         until grep -q "Installing:" "$LOG_FILE" ; do
             sleep 2
         done
-        writelog "[dialog_progress] Sending to dialog: progresstext: Downloading $dialog_found_installer"
-        echo "progresstext: Downloading $dialog_found_installer" >> "$dialog_log"
-        echo "progress: 0" >> "$dialog_log"
+        writelog "[dialog_progress] Sending to dialog: progresstext: Downloading $dialog_display_version"
+        echo "progresstext: Downloading $dialog_display_version" >> "$dialog_log"
 
         # Until at least 100% is reached, calculate the downloading progress and move the bar accordingly
         until [[ "$current_progress_value" -ge 100 ]]; do
@@ -1160,7 +1156,7 @@ dialog_progress() {
                 current_progress_value=$(tail -1 "$LOG_FILE" | awk 'END{print substr($NF, 1, length($NF)-3)}')
                 sleep 2
             done
-            echo "progresstext: Downloading $dialog_found_installer ($current_progress_value%)" >> "$dialog_log"
+            echo "progresstext: Downloading $dialog_display_version ($current_progress_value%)" >> "$dialog_log"
             echo "progress: $current_progress_value" >> "$dialog_log"
             last_progress_value=$current_progress_value
         done
@@ -1185,230 +1181,7 @@ dialog_progress() {
 }
 
 # -----------------------------------------------------------------------------
-# Work out which InstallAssistant.pkg we need (URL, version, build) based on
-# the chosen options. This is split out from download_install_assistant_pkg()
-# so that ia_version/ia_build are resolved *before* dialog_progress is forked,
-# letting the progress dialog show the actual macOS version being downloaded
-# instead of scraping the log for it.
-# -----------------------------------------------------------------------------
-get_install_assistant_pkg_details() {
-    # first, if we didn't already check for updates, get the list of available installers using list_installers_json
-    list_installers_from_json
-
-    # now find the correct installer URL based on the chosen version or OS
-    if [[ $prechosen_version ]]; then
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for version $prechosen_version"
-            # check that this version is available in the list and is compatible with the system
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == \"True\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: $prechosen_version not found in $installers_list_json_file or is not compatible with this system"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for version $prechosen_version at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for version $prechosen_version"
-            # check that this version is available in the list
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: $prechosen_version not found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for version $prechosen_version at $installer_url"
-        fi
-    elif [[ $prechosen_os ]]; then
-        prechosen_os=$(convert_name_to_os "$prechosen_os")
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for macOS $prechosen_os"
-            # check that this OS is available in the list based on the number before the first decimal point of the version, and is compatible with the system
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: No compatible version for macOS $prechosen_os found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for macOS $prechosen_os at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for macOS $prechosen_os"
-            # check that this OS is available in the list based on the number before the first decimal point of the version
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\"))] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: No version for macOS $prechosen_os found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for macOS $prechosen_os at $installer_url"
-        fi
-    elif [[ $sameos ]]; then
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system OS $system_os"
-            # check that the current system OS is available in the list and is compatible with the system
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == \"True\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: Current system OS $system_os not found in $installers_list_json_file or is not compatible with this system"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for current system OS $system_os at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for current system OS $system_os"
-            # check that the current system OS is available in the list
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\"))" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: Current system OS $system_os not found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for current system OS $system_os at $installer_url"
-        fi
-    elif [[ $prechosen_build ]]; then
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for build $prechosen_build"
-            # check that this build is available in the list and is compatible with the system
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: $prechosen_build not found in $installers_list_json_file or is not compatible with this system"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for build $prechosen_build at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for build $prechosen_build"
-            # check that this build is available in the list
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: $prechosen_build not found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for build $prechosen_build at $installer_url"
-        fi
-    elif [[ $samebuild == "yes" ]]; then
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system build $system_build"
-            # check that the current system version is available in the list and is compatible with the system
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: Current system build $system_build not found in $installers_list_json_file or is not compatible with this system"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for current system build $system_build at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for current system build $system_build"
-            # check that the current system version is available in the list
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\")" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: Current system build $system_build not found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for current system build $system_build at $installer_url"
-        fi
-    else
-        if [[ "$skip_validation" != "yes" ]]; then
-            writelog "[download_install_assistant_pkg] No version or OS selected, obtaining the latest compatible InstallAssistant.pkg"
-            # get the latest compatible installer
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e "[.[] | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e "[.[] | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: No compatible version found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for latest compatible version at $installer_url"
-        else
-            writelog "[download_install_assistant_pkg] No version or OS selected, obtaining the latest version"
-            # get the latest installer
-            if [[ "$beta" == "yes" ]]; then
-                latest_installer=$("$jq_bin" -e "sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            else
-                latest_installer=$("$jq_bin" -e "[.[] | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
-            fi
-            # get the installer URL
-            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
-            if [[ $installer_url == null ]]; then
-                writelog "[download_install_assistant_pkg] ERROR: No version found in $installers_list_json_file"
-                exit 1
-            fi
-            writelog "[download_install_assistant_pkg] Found InstallAssistant.pkg for latest version at $installer_url"
-        fi
-    fi
-
-    # get the version and build from $latest_installer so dialog_progress can
-    # use them before the download itself starts
-    ia_version=$("$jq_bin" -r ".version" <<< "$latest_installer")
-    ia_build=$("$jq_bin" -r ".build" <<< "$latest_installer")
-
-    # check for free disk space if not invoking erase or reinstall options
-    if [[ $erase != "yes" && $reinstall != "yes" ]]; then
-        installer_size=$(curl -sI "$installer_url" | awk '/^Content-Length:/ {print $2}' | tr -d $'\r')
-        if [[ $installer_size ]]; then
-            min_drive_space=$((installer_size / 1000000000 + 1))
-            writelog "[get_install_assistant_pkg_details] $min_drive_space GB disk space required to download"
-            check_free_space
-        fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Download the InstallAssistant.pkg resolved by get_install_assistant_pkg_details().
+# Download the InstallAssistant.pkg resolved by get_version_for_install_assistant_pkg().
 # -----------------------------------------------------------------------------
 download_install_assistant_pkg() {
     # now download the installer
@@ -1445,6 +1218,81 @@ download_install_assistant_pkg() {
         fi
     fi
     working_installer_pkg="$workdir/InstallAssistant-$ia_version-$ia_build.pkg"
+}
+
+# -----------------------------------------------------------------------------
+# Run softwareupdate --fetch-full-installer
+# Includes some fallbacks, because --list-full-installers might not be 
+# available in some versions of Catalina. 
+# -----------------------------------------------------------------------------
+download_with_fetch_full_installer() {
+    # now download the installer
+    writelog "[download_with_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
+    if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
+        # Identify installer only in standard locations
+        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+        cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
+
+        if [[ -d "$cached_installer_app" ]]; then
+            app_is_in_applications_folder="yes"
+        elif [[ -d "$cached_installer_app_in_workdir" ]]; then
+            cached_installer_app="$cached_installer_app_in_workdir"
+            app_is_in_applications_folder="no"
+            writelog "[download_with_fetch_full_installer] Installer found in workdir location: $cached_installer_app"
+        else
+            writelog "[download_with_fetch_full_installer] ERROR: softwareupdate did not provide an installer in $installer_directory or $workdir."
+            writelog "[download_with_fetch_full_installer] This can happen when softwareupdate reuses an installer cached in a non-standard location."
+            writelog "[download_with_fetch_full_installer] Remove cached installers outside standard locations, then retry, or use --native/--mist mode."
+            exit 1
+        fi
+
+        # if we actually want to use this installer we should check that it's valid
+        if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+            check_installer_is_valid
+            if [[ $invalid_installer_found == "yes" ]]; then
+                writelog "[download_with_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
+                exit 1
+            fi
+        fi
+    else
+        writelog "[download_with_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run mist with chosen options.
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+download_with_mist() {
+    # now run mist
+    echo
+    writelog "[download_with_mist] This command is now being run:"
+    echo
+    writelog "mist ${mist_args[*]}"
+
+    if ! "$mist_bin" "${mist_args[@]}" ; then
+        writelog "[download_with_mist] An error occurred running mist. Cannot continue."
+        echo
+        exit 1
+    fi
+
+    # Identify the downloaded installer
+    downloaded_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS *.app" -type d -print -quit )
+    downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant-*-*.pkg" -type f -print -quit 2>/dev/null )
+
+    if [[ -d "$downloaded_app" ]]; then
+        downloaded_app_name=$(basename "$downloaded_app")
+        writelog "[download_with_mist] $downloaded_app_name downloaded to $installer_directory."
+        working_macos_app="$downloaded_app"
+    elif [[ -f "$downloaded_installer_pkg" ]]; then
+        downloaded_installer_pkg_name=$(basename "$downloaded_installer_pkg")
+        writelog "[download_with_mist] $downloaded_installer_pkg_name downloaded to $workdir."
+        working_installer_pkg="$downloaded_installer_pkg"
+    else
+        writelog "[download_with_mist] No installer found. I guess nothing got downloaded."
+        exit 1
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -1535,6 +1383,29 @@ finish() {
 }
 
 # -----------------------------------------------------------------------------
+# Set catalog URLs.
+# This provides a shortcut way of obtaining different catalog URLs for different
+# systems.
+# -----------------------------------------------------------------------------
+get_catalog() {
+    catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+    if [[ "$beta" == "yes" ]]; then
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14beta-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15beta-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26beta-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[26]="https://swscan.apple.com/content/catalogs/others/index-27seed-27-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    else
+        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
+        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+        catalogs[26]="https://swscan.apple.com/content/catalogs/others/index-27-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Determine the Darwin number from the macOS version.
 # -----------------------------------------------------------------------------
 get_darwin_from_os_version() {
@@ -1560,29 +1431,6 @@ get_darwin_from_os_version() {
         fi
     fi
     echo "$darwin_version"
-}
-
-# -----------------------------------------------------------------------------
-# Set catalog URLs.
-# This provides a shortcut way of obtaining different catalog URLs for different
-# systems.
-# -----------------------------------------------------------------------------
-get_catalog() {
-    catalogs[19]="https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[20]="https://swscan.apple.com/content/catalogs/others/index-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[21]="https://swscan.apple.com/content/catalogs/others/index-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    catalogs[22]="https://swscan.apple.com/content/catalogs/others/index-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-    if [[ "$beta" == "yes" ]]; then
-        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14beta-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15beta-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26beta-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-        catalogs[26]="https://swscan.apple.com/content/catalogs/others/index-27seed-27-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-    else
-        catalogs[23]="https://swscan.apple.com/content/catalogs/others/index-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-        catalogs[24]="https://swscan.apple.com/content/catalogs/others/index-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog"
-        catalogs[25]="https://swscan.apple.com/content/catalogs/others/index-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-        catalogs[26]="https://swscan.apple.com/content/catalogs/others/index-27-26-15-14-13-12-10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -1642,6 +1490,496 @@ get_device_id() {
     device_info=$(/usr/sbin/ioreg -c IOPlatformExpertDevice -d 2)
     board_id=$(grep board-id <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
     device_id=$(grep target-sub-type <<< "$device_info" | awk -F '<"|">' '{ print $2 }')
+}
+
+# -----------------------------------------------------------------------------
+# Get version for softwareupdate --fetch-full-installer
+# Includes some fallbacks, because --list-full-installers might not be 
+# available in some versions of Catalina. 
+# -----------------------------------------------------------------------------
+get_version_for_fetch_full_installer() {
+    softwareupdate_args=()
+    run_list_full_installers
+    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
+        if [[ $prechosen_version ]]; then
+            # check that this version is available in the list
+            ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$prechosen_version"; then 
+                    writelog "[get_version_for_fetch_full_installer] ERROR: version in catalog $prechosen_version is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
+                # get the chosen version
+                writelog "[get_version_for_fetch_full_installer] Found version $prechosen_version"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$prechosen_version")
+                install_icon_name=$(convert_os_to_name "${prechosen_version%%.*}")
+                dialog_display_version="$prechosen_version"
+            else
+                writelog "[get_version_for_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
+            fi
+        elif [[ $prechosen_os ]]; then
+            prechosen_os=$(convert_name_to_os "$prechosen_os")
+            # check that this OS is available in the list
+            ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
+            if [[ $ffi_available -ge 1 ]]; then
+                # get the latest version within the chosen OS
+                if [[ "$beta" == "yes" ]]; then
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                else
+                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+                fi
+
+                # check that the latest version is compatible with this system
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[get_version_for_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+
+                writelog "[get_version_for_fetch_full_installer] Found version $latest_ffi"
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
+                install_icon_name=$(convert_os_to_name "${latest_ffi%%.*}")
+                dialog_display_version="$latest_ffi"
+            else
+                writelog "[get_version_for_fetch_full_installer] ERROR: No available version for macOS $prechosen_os found."
+                echo
+                exit 1
+            fi
+        else
+            # if no version is selected, we want to obtain the latest. The list obtained from
+            # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
+            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
+
+            if [[ $latest_ffi ]]; then
+                # we need to check if this version is older than the current system and abort if so
+                # writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
+                if ! is-at-least "$system_version" "$latest_ffi"; then 
+                    writelog "[get_version_for_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
+                    echo
+                    exit 1
+                fi
+                softwareupdate_args+=("--full-installer-version")
+                softwareupdate_args+=("$latest_ffi")
+                install_icon_name=$(convert_os_to_name "${latest_ffi%%.*}")
+                dialog_display_version="$latest_ffi"
+            else
+                writelog "[get_version_for_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
+            fi
+        fi
+    else
+        # if --list-full-installers did not work, then we cannot continue
+        writelog "[get_version_for_fetch_full_installer] Could not obtain installer information using softwareupdate --list-full-installers. Cannot continue."
+        echo
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Work out which InstallAssistant.pkg we need (URL, version, build) based on
+# the chosen options. This is split out from download_install_assistant_pkg()
+# so that ia_version/ia_build are resolved *before* dialog_progress is forked,
+# letting the progress dialog show the actual macOS version being downloaded
+# instead of scraping the log for it.
+# -----------------------------------------------------------------------------
+get_version_for_install_assistant_pkg() {
+    # first, if we didn't already check for updates, get the list of available installers using list_installers_json
+    list_installers_from_json
+
+    # now find the correct installer URL based on the chosen version or OS
+    if [[ $prechosen_version ]]; then
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for version $prechosen_version"
+            # check that this version is available in the list and is compatible with the system
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == \"True\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: $prechosen_version not found in $installers_list_json_file or is not compatible with this system"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for version $prechosen_version at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for version $prechosen_version"
+            # check that this version is available in the list
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.version == \"$prechosen_version\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: $prechosen_version not found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for version $prechosen_version at $installer_url"
+        fi
+    elif [[ $prechosen_os ]]; then
+        prechosen_os=$(convert_name_to_os "$prechosen_os")
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for macOS $prechosen_os"
+            # check that this OS is available in the list based on the number before the first decimal point of the version, and is compatible with the system
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: No compatible version for macOS $prechosen_os found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for macOS $prechosen_os at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for macOS $prechosen_os"
+            # check that this OS is available in the list based on the number before the first decimal point of the version
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\"))] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e "[.[] | select(.version | startswith(\"$prechosen_os.\")) | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: No version for macOS $prechosen_os found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for macOS $prechosen_os at $installer_url"
+        fi
+    elif [[ $sameos ]]; then
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system OS $system_os"
+            # check that the current system OS is available in the list and is compatible with the system
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == \"True\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: Current system OS $system_os not found in $installers_list_json_file or is not compatible with this system"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for current system OS $system_os at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for current system OS $system_os"
+            # check that the current system OS is available in the list
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\"))" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.version | startswith(\"$system_os.\")) | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: Current system OS $system_os not found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for current system OS $system_os at $installer_url"
+        fi
+    elif [[ $prechosen_build ]]; then
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for build $prechosen_build"
+            # check that this build is available in the list and is compatible with the system
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: $prechosen_build not found in $installers_list_json_file or is not compatible with this system"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for build $prechosen_build at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for build $prechosen_build"
+            # check that this build is available in the list
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$prechosen_build\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: $prechosen_build not found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for build $prechosen_build at $installer_url"
+        fi
+    elif [[ $samebuild == "yes" ]]; then
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest compatible InstallAssistant.pkg for current system build $system_build"
+            # check that the current system version is available in the list and is compatible with the system
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select(.compatible == \"True\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: Current system build $system_build not found in $installers_list_json_file or is not compatible with this system"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for current system build $system_build at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] Checking for the latest InstallAssistant.pkg for current system build $system_build"
+            # check that the current system version is available in the list
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\")" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e ".[] | select(.build == \"$system_build\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: Current system build $system_build not found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for current system build $system_build at $installer_url"
+        fi
+    else
+        if [[ "$skip_validation" != "yes" ]]; then
+            writelog "[get_version_for_install_assistant_pkg] No version or OS selected, obtaining the latest compatible InstallAssistant.pkg"
+            # get the latest compatible installer
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e "[.[] | select(.compatible == \"True\")] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e "[.[] | select(.compatible == \"True\") | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: No compatible version found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for latest compatible version at $installer_url"
+        else
+            writelog "[get_version_for_install_assistant_pkg] No version or OS selected, obtaining the latest version"
+            # get the latest installer
+            if [[ "$beta" == "yes" ]]; then
+                latest_installer=$("$jq_bin" -e "sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            else
+                latest_installer=$("$jq_bin" -e "[.[] | select((.title // \"\") | test(\"beta\"; \"i\") | not)] | sort_by(.version | split(\".\") | map(tonumber)) | last" "$installers_list_json_file")
+            fi
+            # get the installer URL
+            installer_url=$("$jq_bin" -r ".url" <<< "$latest_installer")
+            if [[ $installer_url == null ]]; then
+                writelog "[get_version_for_install_assistant_pkg] ERROR: No version found in $installers_list_json_file"
+                exit 1
+            fi
+            writelog "[get_version_for_install_assistant_pkg] Found InstallAssistant.pkg for latest version at $installer_url"
+        fi
+    fi
+
+    # get the version and build from $latest_installer so dialog_progress can
+    # use them before the download itself starts
+    ia_version=$("$jq_bin" -r ".version" <<< "$latest_installer")
+    ia_build=$("$jq_bin" -r ".build" <<< "$latest_installer")
+    install_icon_name=$(convert_os_to_name "${ia_version%%.*}")
+
+    # check for free disk space if not invoking erase or reinstall options
+    if [[ $erase != "yes" && $reinstall != "yes" ]]; then
+        installer_size=$(curl -sI "$installer_url" | awk '/^Content-Length:/ {print $2}' | tr -d $'\r')
+        if [[ $installer_size ]]; then
+            min_drive_space=$((installer_size / 1000000000 + 1))
+            writelog "[get_version_for_install_assistant_pkg] $min_drive_space GB disk space required to download"
+            check_free_space
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run mist with chosen options.
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+get_version_for_mist() {
+    # first, if we didn't already check for updates, run mist list to get some needed information about builds
+    get_mist_list
+    # latest_version is the top entry in the filtered list
+    latest_version=$(ljt '0.version' < "$mist_export_file")
+
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
+    # now clear the variables and build the download command
+    mist_args=()
+    mist_args+=("download")
+    mist_args+=("installer")
+
+    # restrict to a particular major OS if selected
+    if [[ $prechosen_os ]]; then
+        # check whether chosen OS is older than the system
+        prechosen_os=$(convert_name_to_os "$prechosen_os")
+
+        if ! is-at-least "${system_version/\.*/}" "$prechosen_os"; then
+            writelog "[get_version_for_mist] ERROR: cannot select an older OS ($prechosen_os) than the system (${system_version/\.*/}), cannot continue."
+            echo
+            exit 1
+        else
+            writelog "[get_version_for_mist] Selected OS ($prechosen_os) is the same as or newer than the system (${system_version/\.*/}), proceeding..."
+            if ! is-at-least "$system_version" "$latest_version"; then
+                writelog "[get_version_for_mist] ERROR: latest version of $prechosen_os in catalog ($latest_version) is older than the system version ($system_version)"
+                echo
+                exit 1
+            else
+                writelog "[get_version_for_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
+            fi
+        fi
+        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
+        prechosen_os_name=$(convert_os_to_name "$prechosen_os")
+        install_icon_name="$prechosen_os_name"
+        writelog "[get_version_for_mist] Restricting to selected OS '$prechosen_os'"
+        mist_args+=("$prechosen_os_name")
+
+    # restrict to a particular version if selected
+    elif [[ $prechosen_version ]]; then
+        if ! is-at-least "$system_version" "$prechosen_version"; then 
+            writelog "[get_version_for_mist] ERROR: cannot select an older version ($prechosen_version) than the system ($system_version)"
+            echo
+            exit 1
+        else
+            writelog "[get_version_for_mist] Selected version ($prechosen_version) is the same as or newer than the system ($system_version), proceeding..."
+        fi
+        writelog "[get_version_for_mist] Checking that selected version $prechosen_version is available"
+        install_icon_name=$(convert_os_to_name "${prechosen_version/\.*/}")
+        mist_args+=("$prechosen_version")
+
+    # restrict to a particular build if selected
+    elif [[ $prechosen_build ]]; then
+        builds_available=$(grep -c build "$mist_export_file")
+        build_found=0
+        i=0
+        while [[ $i -lt $builds_available ]]; do
+            build_check=$(ljt $i.build < "$mist_export_file")
+            if [[ "$build_check" == "$prechosen_build" ]]; then
+                build_found=1
+                break
+            fi
+            ((i++))
+        done
+        if [[ $build_found = 0 ]]; then
+            writelog "[get_version_for_mist] ERROR: build is not available"
+            echo
+            exit 1
+        fi
+        writelog "[get_version_for_mist] Checking that selected build $prechosen_build is available"
+        # get version for this build from the mist export file
+        prechosen_version_from_build=$(ljt $i.version < "$mist_export_file")
+        install_icon_name=$(convert_os_to_name "${prechosen_version_from_build/\.*/}")
+        mist_args+=("$prechosen_build")
+
+    # restrict to the same build as the system if selected
+    elif [[ $samebuild == "yes" ]]; then
+        # temporarily we will just check for the same version
+        writelog "[get_version_for_mist] Checking that current version $system_version is available"
+        install_icon_name=$(convert_os_to_name "${system_version/\.*/}")
+        mist_args+=("$system_version")
+
+    else
+        # if no version was selected, we want the latest available, which is the first in the mist-list
+        if [[ $latest_version ]]; then
+            if ! is-at-least "$system_version" "$latest_version"; then
+                writelog "[get_version_for_mist] ERROR: latest version in catalog ($latest_version) is older than the system version ($system_version)"
+                echo
+                exit 1
+            else
+                writelog "[get_version_for_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
+            fi
+            mist_args+=("$latest_version")
+            install_icon_name=$(convert_os_to_name "${latest_version/\.*/}")
+        else
+            writelog "[get_version_for_mist] ERROR: mist was unable to locate any installers (probably no internet connection)"
+            echo
+            exit 1
+        fi
+    fi
+
+    # grab package if --pkg selected and --move is not selected, otherwise we will grab the app
+    if [[ $pkg_installer && ! $move_to_applications_folder ]]; then
+        mist_args+=("package")
+        mist_args+=("--package-name")
+        mist_args+=("$default_downloaded_pkg_name")
+        mist_args+=("--package-identifier")
+        mist_args+=("$default_downloaded_pkg_id")
+        mist_args+=("--output-directory")
+        mist_args+=("$workdir")
+    else
+        mist_args+=("application")
+        mist_args+=("--application-name")
+        mist_args+=("$default_downloaded_app_name")
+        mist_args+=("--output-directory")
+        mist_args+=("$installer_directory")
+    fi
+
+    if [[ "$skip_validation" != "yes" ]]; then
+        writelog "[get_version_for_mist] Setting mist to only list compatible installers"
+        mist_args+=("--compatible")
+    fi
+
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
+
+    # reduce output if --quiet mode
+    if [[ "$quiet" == "yes" ]]; then
+        writelog "[get_version_for_mist] Setting mist to quiet mode"
+        mist_args+=("--quiet")
+    fi
+
+    # optionally cache downloads to save time when doing repeated tests
+    if [[ "$cache_downloads" == "yes" ]]; then
+        writelog "[get_version_for_mist] Setting mist to cache downloads"
+        mist_args+=("--cache-downloads")
+    fi
+
+    # optionally set mist to use a caching server
+    if [[ "$caching_server" ]]; then
+        writelog "[get_version_for_mist] Setting mist to use Caching Server $caching_server"
+        mist_args+=("--caching-server")
+        mist_args+=("$caching_server")
+    fi
+
+    # force overwrite of existing app or pkg of the same name
+    # mist_args+=("--force")
+
+    # set alternative catalog if selected
+    if [[ $catalogurl ]]; then
+        writelog "[get_version_for_mist] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        # exit if darwin version is 0
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[get_version_for_mist] ERROR: Invalid darwin version for catalog $catalog"
+            echo
+            exit 1
+        fi
+        get_catalog
+        writelog "[get_version_for_mist] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    fi
+
+    # include betas if selected
+    if [[ $beta == "yes" ]]; then
+        writelog "[get_version_for_mist] Beta versions included"
+        mist_args+=("--include-betas")
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -2727,120 +3065,6 @@ read_from_keychain() {
 }
 
 # -----------------------------------------------------------------------------
-# Run softwareupdate --fetch-full-installer
-# Includes some fallbacks, because --list-full-installers might not be 
-# available in some versions of Catalina. 
-# -----------------------------------------------------------------------------
-run_fetch_full_installer() {
-    softwareupdate_args=()
-    run_list_full_installers
-    if [[ -f "$workdir/ffi-list-full-installers.txt" ]]; then
-        if [[ $prechosen_version ]]; then
-            # check that this version is available in the list
-            ffi_available=$(grep -c -E "Version: $prechosen_version," "$workdir/ffi-list-full-installers.txt")
-            if [[ $ffi_available -ge 1 ]]; then
-                # check that the latest version is compatible with this system
-                if ! is-at-least "$system_version" "$prechosen_version"; then 
-                    writelog "[run_fetch_full_installer] ERROR: version in catalog $prechosen_version is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-
-                # get the chosen version
-                writelog "[run_fetch_full_installer] Found version $prechosen_version"
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$prechosen_version")
-            else
-                writelog "[run_fetch_full_installer] WARNING: $prechosen_version not found. Defaulting to latest available version."
-            fi
-        elif [[ $prechosen_os ]]; then
-            prechosen_os=$(convert_name_to_os "$prechosen_os")
-            # check that this OS is available in the list
-            ffi_available=$(grep -c -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt")
-            if [[ $ffi_available -ge 1 ]]; then
-                # get the latest version within the chosen OS
-                if [[ "$beta" == "yes" ]]; then
-                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-                else
-                    latest_ffi=$(grep -E "Version: $prechosen_os." "$workdir/ffi-list-full-installers.txt" | grep -v beta | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-                fi
-
-                # check that the latest version is compatible with this system
-                if ! is-at-least "$system_version" "$latest_ffi"; then 
-                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-
-                writelog "[run_fetch_full_installer] Found version $latest_ffi"
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$latest_ffi")
-            else
-                writelog "[run_fetch_full_installer] ERROR: No available version for macOS $prechosen_os found."
-                echo
-                exit 1
-            fi
-        else
-            # if no version is selected, we want to obtain the latest. The list obtained from
-            # --list-full-installers appears to always be in order of newest to oldest, so we can grab the first one
-            latest_ffi=$(grep -E "Version:" "$workdir/ffi-list-full-installers.txt" | head -n1 | cut -d, -f2 | sed 's|.*Version: ||')
-
-            if [[ $latest_ffi ]]; then
-                # we need to check if this version is older than the current system and abort if so
-                # writelog "is-at-least \"$latest_ffi\" \"$system_version\"" # TEMP
-                if ! is-at-least "$system_version" "$latest_ffi"; then 
-                    writelog "[run_fetch_full_installer] ERROR: latest version in catalog $latest_ffi is older than the system version $system_version"
-                    echo
-                    exit 1
-                fi
-                softwareupdate_args+=("--full-installer-version")
-                softwareupdate_args+=("$latest_ffi")
-            else
-                writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate. Defaulting to no specific version, which should obtain the latest but is not as reliable."
-            fi
-        fi
-    else
-        # if --list-full-installers did not work, then we cannot continue
-        writelog "[run_fetch_full_installer] Could not obtain installer information using softwareupdate --list-full-installers. Cannot continue."
-        echo
-        exit 1
-    fi
-
-    # now download the installer
-    writelog "[run_fetch_full_installer] Running /usr/sbin/softwareupdate --fetch-full-installer $(printf "%q " "${softwareupdate_args[@]}")"
-    if /usr/sbin/softwareupdate --fetch-full-installer "${softwareupdate_args[@]}"; then
-        # Identify installer only in standard locations
-        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-        cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
-
-        if [[ -d "$cached_installer_app" ]]; then
-            app_is_in_applications_folder="yes"
-        elif [[ -d "$cached_installer_app_in_workdir" ]]; then
-            cached_installer_app="$cached_installer_app_in_workdir"
-            app_is_in_applications_folder="no"
-            writelog "[run_fetch_full_installer] Installer found in workdir location: $cached_installer_app"
-        else
-            writelog "[run_fetch_full_installer] ERROR: softwareupdate did not provide an installer in $installer_directory or $workdir."
-            writelog "[run_fetch_full_installer] This can happen when softwareupdate reuses an installer cached in a non-standard location."
-            writelog "[run_fetch_full_installer] Remove cached installers outside standard locations, then retry, or use --native/--mist mode."
-            exit 1
-        fi
-
-        # if we actually want to use this installer we should check that it's valid
-        if [[ $erase == "yes" || $reinstall == "yes" ]]; then
-            check_installer_is_valid
-            if [[ $invalid_installer_found == "yes" ]]; then
-                writelog "[run_fetch_full_installer] The downloaded app is invalid for this computer. Try with --version or without --fetch-full-installer"
-                exit 1
-            fi
-        fi
-    else
-        writelog "[run_fetch_full_installer] softwareupdate --fetch-full-installer failed. Try without --fetch-full-installer option."
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
 # Run softwareupdate --list-full-installers and output to a file
 # -----------------------------------------------------------------------------
 run_list_full_installers() {
@@ -2858,207 +3082,6 @@ run_list_full_installers() {
                 exit 1
             fi
         fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Run mist with chosen options.
-# This requires mist, so we first check if it is on the system and download them if not.
-# -----------------------------------------------------------------------------
-run_mist() {
-    # first, if we didn't already check for updates, run mist list to get some needed information about builds
-    get_mist_list
-    # latest_version is the top entry in the filtered list
-    latest_version=$(ljt '0.version' < "$mist_export_file")
-
-    # define mist export file location
-    mist_export_file="$workdir/mist-list.json"
-
-    # now clear the variables and build the download command
-    mist_args=()
-    mist_args+=("download")
-    mist_args+=("installer")
-
-    # restrict to a particular major OS if selected
-    if [[ $prechosen_os ]]; then
-        # check whether chosen OS is older than the system
-        prechosen_os=$(convert_name_to_os "$prechosen_os")
-
-        if ! is-at-least "${system_version/\.*/}" "$prechosen_os"; then
-            writelog "[run_mist] ERROR: cannot select an older OS ($prechosen_os) than the system (${system_version/\.*/}), cannot continue."
-            echo
-            exit 1
-        else
-            writelog "[run_mist] Selected OS ($prechosen_os) is the same as or newer than the system (${system_version/\.*/}), proceeding..."
-            if ! is-at-least "$system_version" "$latest_version"; then
-                writelog "[run_mist] ERROR: latest version of $prechosen_os in catalog ($latest_version) is older than the system version ($system_version)"
-                echo
-                exit 1
-            else
-                writelog "[run_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
-            fi
-        fi
-        # to avoid a bug where mist-cli does a glob search for the major version, convert it to the name (this is resolved in mist-cli 2.0 but will leave here for now to avoid problems with older installations)
-        prechosen_os_name=$(convert_os_to_name "$prechosen_os")
-        writelog "[run_mist] Restricting to selected OS '$prechosen_os'"
-        mist_args+=("$prechosen_os_name")
-
-    # restrict to a particular version if selected
-    elif [[ $prechosen_version ]]; then
-        if ! is-at-least "$system_version" "$prechosen_version"; then 
-            writelog "[run_mist] ERROR: cannot select an older version ($prechosen_version) than the system ($system_version)"
-            echo
-            exit 1
-        else
-            writelog "[run_mist] Selected version ($prechosen_version) is the same as or newer than the system ($system_version), proceeding..."
-        fi
-        writelog "[run_mist] Checking that selected version $prechosen_version is available"
-        mist_args+=("$prechosen_version")
-
-    # restrict to a particular build if selected
-    elif [[ $prechosen_build ]]; then
-        builds_available=$(grep -c build "$mist_export_file")
-        build_found=0
-        i=0
-        while [[ $i -lt $builds_available ]]; do
-            build_check=$(ljt $i.build < "$mist_export_file")
-            if [[ "$build_check" == "$prechosen_build" ]]; then
-                build_found=1
-                break
-            fi
-            ((i++))
-        done
-        if [[ $build_found = 0 ]]; then
-            writelog "[run_mist] ERROR: build is not available"
-            echo
-            exit 1
-        fi
-        writelog "[run_mist] Checking that selected build $prechosen_build is available"
-        mist_args+=("$prechosen_build")
-
-    # restrict to the same build as the system if selected
-    elif [[ $samebuild == "yes" ]]; then
-        # temporarily we will just check for the same version
-        writelog "[run_mist] Checking that current version $system_version is available"
-        mist_args+=("$system_version")
-
-    else
-        # if no version was selected, we want the latest available, which is the first in the mist-list
-        if [[ $latest_version ]]; then
-            if ! is-at-least "$system_version" "$latest_version"; then
-                writelog "[run_mist] ERROR: latest version in catalog ($latest_version) is older than the system version ($system_version)"
-                echo
-                exit 1
-            else
-                writelog "[run_mist] Latest version ($latest_version) is the same as or newer than the system ($system_version), proceeding..."
-            fi
-            mist_args+=("$latest_version")
-        else
-            writelog "[run_mist] ERROR: mist was unable to locate any installers (probably no internet connection)"
-            echo
-            exit 1
-        fi
-    fi
-
-    # grab package if --pkg selected and --move is not selected, otherwise we will grab the app
-    if [[ $pkg_installer && ! $move_to_applications_folder ]]; then
-        mist_args+=("package")
-        mist_args+=("--package-name")
-        mist_args+=("$default_downloaded_pkg_name")
-        mist_args+=("--package-identifier")
-        mist_args+=("$default_downloaded_pkg_id")
-        mist_args+=("--output-directory")
-        mist_args+=("$workdir")
-    else
-        mist_args+=("application")
-        mist_args+=("--application-name")
-        mist_args+=("$default_downloaded_app_name")
-        mist_args+=("--output-directory")
-        mist_args+=("$installer_directory")
-    fi
-
-    if [[ "$skip_validation" != "yes" ]]; then
-        writelog "[run_mist] Setting mist to only list compatible installers"
-        mist_args+=("--compatible")
-    fi
-
-    # run in no-ansi mode which is less pretty but better for our logs
-    mist_args+=("--no-ansi")
-
-    # reduce output if --quiet mode
-    if [[ "$quiet" == "yes" ]]; then
-        writelog "[run_mist] Setting mist to quiet mode"
-        mist_args+=("--quiet")
-    fi
-
-    # optionally cache downloads to save time when doing repeated tests
-    if [[ "$cache_downloads" == "yes" ]]; then
-        writelog "[run_mist] Setting mist to cache downloads"
-        mist_args+=("--cache-downloads")
-    fi
-
-    # optionally set mist to use a caching server
-    if [[ "$caching_server" ]]; then
-        writelog "[run_mist] Setting mist to use Caching Server $caching_server"
-        mist_args+=("--caching-server")
-        mist_args+=("$caching_server")
-    fi
-
-    # force overwrite of existing app or pkg of the same name
-    # mist_args+=("--force")
-
-    # set alternative catalog if selected
-    if [[ $catalogurl ]]; then
-        writelog "[run_mist] Non-standard catalog URL selected"
-        mist_args+=("--catalog-url")
-        mist_args+=("$catalogurl")
-    elif [[ $catalog ]]; then
-        darwin_version=$(get_darwin_from_os_version "$catalog")
-        # exit if darwin version is 0
-        if [[ $darwin_version -eq 0 ]]; then
-            writelog "[run_mist] ERROR: Invalid darwin version for catalog $catalog"
-            echo
-            exit 1
-        fi
-        get_catalog
-        writelog "[run_mist] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    fi
-
-    # include betas if selected
-    if [[ $beta == "yes" ]]; then
-        writelog "[run_mist] Beta versions included"
-        mist_args+=("--include-betas")
-    fi
-
-    # now run mist
-    echo
-    writelog "[run_mist] This command is now being run:"
-    echo
-    writelog "mist ${mist_args[*]}"
-
-    if ! "$mist_bin" "${mist_args[@]}" ; then
-        writelog "[run_mist] An error occurred running mist. Cannot continue."
-        echo
-        exit 1
-    fi
-
-    # Identify the downloaded installer
-    downloaded_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS *.app" -type d -print -quit )
-    downloaded_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant-*-*.pkg" -type f -print -quit 2>/dev/null )
-
-    if [[ -d "$downloaded_app" ]]; then
-        downloaded_app_name=$(basename "$downloaded_app")
-        writelog "[run_mist] $downloaded_app_name downloaded to $installer_directory."
-        working_macos_app="$downloaded_app"
-    elif [[ -f "$downloaded_installer_pkg" ]]; then
-        downloaded_installer_pkg_name=$(basename "$downloaded_installer_pkg")
-        writelog "[run_mist] $downloaded_installer_pkg_name downloaded to $workdir."
-        working_installer_pkg="$downloaded_installer_pkg"
-    else
-        writelog "[run_mist] No installer found. I guess nothing got downloaded."
-        exit 1
     fi
 }
 
@@ -3736,6 +3759,56 @@ password_is_invalid() {
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
+# Set the icon for dialogs, either from the identified installer version 
+# or a generic icon
+# -----------------------------------------------------------------------------
+set_dialog_install_icon() {
+    # icon for dialogs
+    # macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
+
+    # determine the macOS app name - if not yet downloaded, use the name from the catalog, otherwise use the name from the installer app
+    if [[ -d "$working_macos_app" ]]; then
+        macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
+    elif [[ -n "$install_icon_name" ]]; then
+        # native mode - get name from the ia_version, removing the minor version, e.g. 27.0 becomes 27
+        macos_app_name="Install macOS $install_icon_name"
+    else
+        macos_app_name=""
+    fi
+
+    # look for the image in the workdir
+    if [[ -n "$macos_app_name" ]]; then
+        writelog "[set_dialog_install_icon] Looking for icon for $macos_app_name installer"
+        icon_path="$workdir/icons/${macos_app_name// Beta/}.png"
+        if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
+            writelog "[set_dialog_install_icon] Icon $icon_path not found on disk, downloading icon for $macos_app_name installer"
+            if [[ ! $no_curl == "yes" ]]; then
+                # ensure the icons directory exists
+                /bin/mkdir -p "$workdir/icons"
+                # download the image from github
+                macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/${macos_app_name// /%20}.png?raw=true"
+                if ! curl -L "$macos_installer_icon_url" -o "$icon_path"; then
+                    writelog "[set_dialog_install_icon] Could not download icon for $macos_app_name installer from $macos_installer_icon_url"
+                fi
+            fi
+        fi
+    else
+        writelog "[set_dialog_install_icon] No macOS app name found, using generic warning icon for dialogs"
+    fi
+
+    # check again whether we have the image now or a confirmation icon set, if not, display a generic image
+    if file -b "$icon_path" | grep "PNG image data"; then
+        dialog_install_icon="$icon_path"
+    elif [[ "$custom_icon" == "yes" ]]; then
+        writelog "[set_dialog_install_icon] Using custom confirmation icon for dialogs"
+        dialog_install_icon="$dialog_confirmation_icon"
+    else
+        writelog "[set_dialog_install_icon] Using generic warning icon for dialogs"
+        dialog_install_icon="$dialog_confirmation_icon"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -4462,35 +4535,49 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
             dialog_args=("${default_dialog_args[@]}")
             dialog_args+=(
                 "$dialog_title_command" "${(P)dialog_dl_title}"
-                --icon "${dialog_confirmation_icon}"
-                --overlayicon "SF=arrow.down"
+                --icon "$dialog_confirmation_icon"
                 --iconsize "$iconsize"
                 --message "${(P)dialog_dl_desc}"
                 --progress "100"
                 --button1text "${(P)dialog_hide_button}"
             )
+            if [[ $ffi == "yes" ]]; then
+                dialog_args+=(
+                    --progresstext "Searching for a valid macOS installer"
+                )
+            fi
             # run the dialog command
             "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
         fi
-
-        if [[ $ffi == "yes" ]]; then
-            dialog_progress fetch-full-installer >/dev/null 2>&1 &
-        elif [[ $native == "yes" ]]; then
-            # resolve which macOS version/build we're downloading *before*
-            # forking the progress dialog, so it can show the real version
-            get_install_assistant_pkg_details
-            dialog_progress native >/dev/null 2>&1 &
-        else
-            dialog_progress mist >/dev/null 2>&1 &
-        fi
     fi
+
+    # get the macOS version and build for the installer we are going to download
+    if [[ $ffi == "yes" ]]; then
+        get_version_for_fetch_full_installer
+        dialog_progress fetch-full-installer >/dev/null 2>&1 &
+    elif [[ $native == "yes" ]]; then
+        # resolve which macOS version/build we're downloading *before*
+        # forking the progress dialog, so it can show the real version
+        get_version_for_install_assistant_pkg
+        dialog_progress native >/dev/null 2>&1 &
+    else
+        dialog_progress mist >/dev/null 2>&1 &
+        get_version_for_mist
+    fi
+
+    writelog "[$script_name] Icon for dialogs: $install_icon_name"
+    # set the icon for the progress dialog to the icon of the installer app if it exists, otherwise use the default icon
+    set_dialog_install_icon
+    writelog "[$script_name] Sending to dialog: icon: $dialog_install_icon"
+    echo "icon: $dialog_install_icon" >> "$dialog_log"
+
     # now run mist or softwareupdate to download the installer, showing progress
     if [[ $ffi == "yes" ]]; then
-        run_fetch_full_installer
+        download_with_fetch_full_installer
     elif [[ $native == "yes" ]]; then
         download_install_assistant_pkg
     else
-        run_mist
+        download_with_mist
     fi
 fi
 
@@ -4622,36 +4709,6 @@ if [[ $erase == "yes" && $cloneuser ]]; then
     install_args+=("--cloneuser")
 fi
 
-# icon for dialogs
-# macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
-
-# look for the image in the workdir
-icon_path="$workdir/icons/${macos_app_name// Beta/}.png"
-if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
-    writelog "[$script_name] Icon $icon_path not found on disk, downloading icon for $macos_app_name installer"
-    if [[ ! $no_curl == "yes" ]]; then
-        # ensure the icons directory exists
-        /bin/mkdir -p "$workdir/icons"
-        # download the image from github
-        macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/${macos_app_name// /%20}.png?raw=true"
-        if ! curl -L "$macos_installer_icon_url" -o "$icon_path"; then
-            writelog "[$script_name] Could not download icon for $macos_app_name installer from $macos_installer_icon_url"
-        fi
-    fi
-fi
-
-# check again whether we have the image now or a confirmation icon set, if not, display a generic image
-if file -b "$icon_path" | grep "PNG image data"; then
-    dialog_install_icon="$icon_path"
-elif [[ "$custom_icon" == "yes" ]]; then
-    writelog "[$script_name] Using custom confirmation icon for dialogs"
-    dialog_install_icon="$dialog_confirmation_icon"
-else
-    writelog "[$script_name] Using generic warning icon for dialogs"
-    dialog_install_icon="warning"
-fi
-
 # window type for erase and reinstall dialogs
 if [[ $fs == "yes" || ($erase == "yes" && $no_fs != "yes") || ($reinstall == "yes" && $no_fs != "yes" && $rebootdelay -lt 10) ]]; then
     window_type="fullscreen"
@@ -4660,6 +4717,10 @@ else
     window_type="utility"
     iconsize=$dialog_icon_size
 fi
+
+# ensure the icon for the dialogs is set to the icon of the installer app if it exists, otherwise use the default icon
+set_dialog_install_icon
+writelog "[$script_name] Icon for dialogs: $install_icon_name"
 
 # dialogs for erase
 if [[ $erase == "yes" && ! $silent ]]; then

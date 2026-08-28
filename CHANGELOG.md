@@ -22,17 +22,20 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [43.1]
+## [43.2]
 
 No date
 
-### Updates in 43.1
+### Updates in 43.2
 
 - New catalogs for macOS 27.
 - New icon for macOS 27.
 - Bumped required `mist-cli` version to 2.3.
+- Bumped required swiftDialog version to `v3.1.0` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.0` and `v2.2.1`, and the appropriate one will be installed.
+- Native mode now shows the installer version being downloaded instead of the installer package name (#598, addresses #597, thanks @tomtunney).
+- Download dialogs now show the icon of the macOS installer that is being downloaded instead of a system icon - works in native, mist and fetch-full-installer modes.
 
-### Bugfixes in 43.1
+### Bugfixes in 43.2
 
 - Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
 - Fixed an issue where `/usr/local/bin/jq` was being used as the default path when it should be `/usr/bin/jq`, and architecture was not being detected properly if Rosetta 2 was installed, meaning that the package installer was potentially putting the x86_64 version of `jq` into the PATH, and then failing upon upgrade to macOS 27 which removes Rosetta 2.
