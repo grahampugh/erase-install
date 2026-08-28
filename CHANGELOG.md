@@ -14,17 +14,39 @@ Since the package on this site is not signed, if you download this package from 
 
 ## Note about release versioning
 
-I've decided that pre-release tags and release versions should have incremental numbers, rather than removing and recreating the same tag and release. This should make it easier for people testing out beta versions to know what they are running. This means that from now on, the latest "full" release is likely to not be a .0 release, but whichever beta I decide is ready for production. I'll also therefore always increment the "major" version number for any new release (not based on an arbitrary decision about what is major or minor).
+Pre-release tags and release versions have incremental numbers, rather than removing and recreating the same tag and release. This should make it easier for people testing out beta versions to know what they are running. This means that from now on, the latest "full" release is unlikely to be a .0 release, but rather whichever beta I decide is ready for production. I'll also therefore always increment the "major" version number for any new release (not based on an arbitrary decision about what is major or minor).
 
-I have deleted previous beta releases that don't make it to be a latest release. I've also removed all previous full releases, other than v27.3, to tidy things up.
+I have deleted previous beta releases that don't make it to be a latest release. I've also removed all previous full releases, other than v27.3 (needed for people using macOS 10.15 or older), to tidy things up.
 
 ## [Untagged]
 
 No date
 
-## [42.3]
+## [43.2]
 
 No date
+
+### Updates in 43.2
+
+- New catalogs for macOS 27.
+- New icon for macOS 27.
+- Bumped required `mist-cli` version to 2.3.
+- Bumped required swiftDialog version to `v3.1.0` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.0` and `v2.2.1`, and the appropriate one will be installed.
+- Native mode now shows the installer version being downloaded instead of the installer package name (#598, addresses #597, thanks @tomtunney).
+- Download dialogs now show the icon of the macOS installer that is being downloaded instead of a system icon - works in native, mist and fetch-full-installer modes.
+- New `--select-valid` option, shows a selection dialog similar to `--select`, but only shows installers that are newer than or the same as the system version (addresses #578).
+
+### Bugfixes in 43.2
+
+- Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
+- Fixed an issue where `/usr/local/bin/jq` was being used as the default path when it should be `/usr/bin/jq`, and architecture was not being detected properly if Rosetta 2 was installed, meaning that the package installer was potentially putting the x86_64 version of `jq` into the PATH, and then failing upon upgrade to macOS 27 which removes Rosetta 2.
+- Improved column widths in the native list output to account for the length of `macOS Golden Gate beta`.
+- Fixed an issue in the Makefile where it was assumed that a component of the package component plist already existed.
+- If `softwareupdate --fetch-full-installer` finds an installer in a non-standard location it will fail to redownload it or move it to the correct location. `erase-install.sh` will now check that this has happened and exit with an explicit message to this effect, rather than attempt to find and scavenge that installer which may be legitimately cached elsewhere on disk for other purposes (addresses #531).
+
+## [42.3]
+
+08.04.2026
 
 ### Updates in 42.3
 
@@ -838,7 +860,8 @@ Thanks to '@ahousseini' for various contributions to this release
 
 - Initial version. Expects a manual choice of installer from `installinstallmacos.py`.
 
-[untagged]: https://github.com/grahampugh/erase-install/compare/v42.2...HEAD
+[untagged]: https://github.com/grahampugh/erase-install/compare/v43.0...HEAD
+[42.3]: https://github.com/grahampugh/erase-install/compare/v41.1...v42.3
 [41.1]: https://github.com/grahampugh/erase-install/compare/v40.4...v41.1
 [40.4]: https://github.com/grahampugh/erase-install/compare/v39.1...v40.4
 [39.1]: https://github.com/grahampugh/erase-install/compare/v39.0...v39.1
