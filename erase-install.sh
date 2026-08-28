@@ -3095,17 +3095,31 @@ select_build_from_dialog() {
     # produce a list of compatible available macOS versions from the JSON file, and format for dialog, showing only version and build
     version_list=()
     if [[ "$beta" == "yes" ]]; then
-        version_list=()
         while IFS= read -r line; do
-            version_list+=("$line")
+            # if --select-valid is set, only show versions that are newer than or equal to the current system build
+            if [[ "$select_valid" == "yes" ]]; then
+                line_build=$(echo "$line" | awk -F '[\\(\\)]' '{print $2}')
+                if is_build_newer_or_equal "$line_build" "$system_build"; then
+                    version_list+=("$line")
+                fi
+            else
+                version_list+=("$line")
+            fi
         done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | [
             (.version // ""),
             (.build // "")
         ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
     else
-        version_list=()
         while IFS= read -r line; do
-            version_list+=("$line")
+            # if --select-valid is set, only show versions that are newer than or equal to the current system build
+            if [[ "$select_valid" == "yes" ]]; then
+                line_build=$(echo "$line" | awk -F '[\\(\\)]' '{print $2}')
+                if is_build_newer_or_equal "$line_build" "$system_build"; then
+                    version_list+=("$line")
+                fi
+            else
+                version_list+=("$line")
+            fi
         done < <( "$jq_bin" -r 'sort_by(.version | split(".") | map(tonumber)) | reverse | .[] | select(.compatible == "True") | select((.title // "" | test("beta"; "i")) | not) | [
             (.version // ""),
             (.build // "")
@@ -3128,6 +3142,11 @@ select_build_from_dialog() {
         --selectvalues "$(printf "%s," "${version_list[@]}" | sed 's/,$//')"
     )
     writelog "[select_version_from_dialog] Prompting user to select macOS version via dialog"
+    if [[ -z "${dialog_bin:-}" || ! -x "$dialog_bin" ]]; then
+        echo "dialog_bin is not a valid executable: [$dialog_bin]" >&2
+        exit 1
+    fi
+
     dialog_response=$("$dialog_bin" "${dialog_args[@]}")
     dialog_exit_code=$?
     if [[ $dialog_exit_code -eq 0 ]]; then
@@ -3557,8 +3576,10 @@ show_help() {
                         existing system version, downloads it. Most useful with --erase.
     --samebuild         Finds the build of macOS that matches the
                         existing system version, downloads it. Most useful with --erase.
-    --select           Presents a dialog to select from available macOS versions
+    --select            Presents a dialog to select from all macOS versions
                         to download.
+    --select-valid      Presents a dialog to select from available macOS versions
+                        that are newer than or equal to the current system build.
     --update            Checks that an existing installer on the system is still the most current
                         valid build, and if not, it will delete it and download the current installer.
     --replace-invalid   Checks that an existing installer on the system is still valid
@@ -3901,6 +3922,8 @@ while test $# -gt 0 ; do
         -t|--sameos) sameos="yes"
             ;;
         --select) select="yes"
+            ;;
+        --select-valid) select_valid="yes"
             ;;
         -o|--overwrite) overwrite="yes"
             ;;
@@ -4249,7 +4272,7 @@ if [[ ! $silent ]]; then
     dialog_needed="no"
     
     # Check if we need dialog for listing with --select option
-    if [[ $list == "yes" && $select == "yes" ]]; then
+    if [[ $list != "yes" && ($select == "yes" || $select_valid == "yes") ]]; then
         dialog_needed="yes"
     fi
     
@@ -4413,7 +4436,7 @@ find_existing_installer
 
 # if the user wants to select from a dialog, prompt them now (overrides other options)
 # only available in native mode
-if [[ $native == "yes" && $select == "yes" ]]; then
+if [[ $native == "yes" && ( $select == "yes" || $select_valid == "yes" ) ]]; then
     list_installers_from_json
     select_build_from_dialog
     writelog "[download_install_assistant_pkg] User selected InstallAssistant.pkg for build $prechosen_build"

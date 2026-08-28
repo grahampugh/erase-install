@@ -34,6 +34,7 @@ No date
 - Bumped required swiftDialog version to `v3.1.0` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.0` and `v2.2.1`, and the appropriate one will be installed.
 - Native mode now shows the installer version being downloaded instead of the installer package name (#598, addresses #597, thanks @tomtunney).
 - Download dialogs now show the icon of the macOS installer that is being downloaded instead of a system icon - works in native, mist and fetch-full-installer modes.
+- New `--select-valid` option, shows a selection dialog similar to `--select`, but only shows installers that are newer than or the same as the system version (addresses #578).
 
 ### Bugfixes in 43.2
 
