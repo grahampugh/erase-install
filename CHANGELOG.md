@@ -22,11 +22,11 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [43.2]
+## [43.3]
 
-No date
+2026.09.09
 
-### Updates in 43.2
+### Updates in 43.3
 
 - New catalogs for macOS 27.
 - New icon for macOS 27.
@@ -36,13 +36,14 @@ No date
 - Download dialogs now show the icon of the macOS installer that is being downloaded instead of a system icon - works in native, mist and fetch-full-installer modes.
 - New `--select-valid` option, shows a selection dialog similar to `--select`, but only shows installers that are newer than or the same as the system version (addresses #578).
 
-### Bugfixes in 43.2
+### Bugfixes in 43.3
 
 - Allow use of OS marketing name (e.g. Tahoe, Golden Gate) with `--os` in native and `--fetch-full-installer` modes (fixes #577).
 - Fixed an issue where `/usr/local/bin/jq` was being used as the default path when it should be `/usr/bin/jq`, and architecture was not being detected properly if Rosetta 2 was installed, meaning that the package installer was potentially putting the x86_64 version of `jq` into the PATH, and then failing upon upgrade to macOS 27 which removes Rosetta 2.
 - Improved column widths in the native list output to account for the length of `macOS Golden Gate beta`.
 - Fixed an issue in the Makefile where it was assumed that a component of the package component plist already existed.
 - If `softwareupdate --fetch-full-installer` finds an installer in a non-standard location it will fail to redownload it or move it to the correct location. `erase-install.sh` will now check that this has happened and exit with an explicit message to this effect, rather than attempt to find and scavenge that installer which may be legitimately cached elsewhere on disk for other purposes (addresses #531).
+- Fixed a version-check-logic error in the `check_installer_is_valid` function.
 
 ## [42.3]
 

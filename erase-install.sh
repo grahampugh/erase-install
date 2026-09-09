@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="43.2"
+version="43.3"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -454,7 +454,7 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        if is_build_newer_or_equal "$system_build" "$installer_build"; then
+        if ! is_build_newer_or_equal "$installer_build" "$system_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
@@ -4743,7 +4743,7 @@ fi
 
 # ensure the icon for the dialogs is set to the icon of the installer app if it exists, otherwise use the default icon
 set_dialog_install_icon
-writelog "[$script_name] Icon for dialogs: $install_icon_name"
+writelog "[$script_name] Icon for dialogs: $dialog_install_icon"
 
 # dialogs for erase
 if [[ $erase == "yes" && ! $silent ]]; then
