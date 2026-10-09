@@ -22,6 +22,18 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
+## [44.0]
+
+No date
+
+### Updates in 44.0
+
+- New `--fake-installer` option to simulate a workflow without having to download a real installer. Automatically switches on the existing `--test-run` option. `--test-run` remains for those who want to test the actual download.
+
+### Bugfixes in 44.0
+
+- Improvements to handling unrecognized system languages.
+
 ## [43.3]
 
 2026.09.09

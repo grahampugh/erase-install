@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="43.3"
+version="44.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -120,6 +120,24 @@ ask_for_credentials() {
 
     # run the dialog command (set language for password prompt)
     creds_dialog_output=$("$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null)
+    local creds_dialog_exit=$?
+
+    # the output should be JSON, but anything else written to stdout would break parsing,
+    # so keep only the part from the first { to the last }
+    if [[ "$creds_dialog_output" == *"{"*"}"* ]]; then
+        if [[ "$creds_dialog_output" != "{"* ]]; then
+            # log only the first line of the unexpected text as it comes before the JSON, so cannot contain the password
+            writelog "[ask_for_credentials] WARNING: ignoring unexpected dialog output: ${${creds_dialog_output%%\{*}%%$'\n'*}"
+        fi
+        creds_dialog_output="{${creds_dialog_output#*\{}"
+        creds_dialog_output="${creds_dialog_output%\}*}}"
+    else
+        if [[ $creds_dialog_exit -ne 2 ]]; then
+            writelog "[ask_for_credentials] ERROR: dialog did not return JSON output (exit code $creds_dialog_exit)"
+        fi
+        creds_dialog_output=""
+    fi
+    return $creds_dialog_exit
 }
 
 # -----------------------------------------------------------------------------
@@ -933,6 +951,50 @@ convert_name_to_os () {
 }
 
 # -----------------------------------------------------------------------------
+# Create a fake installer app for --fake-installer test runs.
+# The app contains just enough for the validity checks (Info.plist DTSDKBuild)
+# and a stub startosinstall, so no real installer needs to be downloaded.
+# -----------------------------------------------------------------------------
+create_fake_installer_app() {
+    local fake_version="$1"
+    local fake_build="$2"
+    local fake_app_name fake_app
+
+    fake_app_name=$(get_installer_app_name "${fake_version%%.*}")
+    fake_app="$installer_directory/$fake_app_name.app"
+    writelog "[create_fake_installer_app] Creating fake installer at $fake_app (version $fake_version, build $fake_build)"
+
+    rm -rf "$fake_app"
+    /bin/mkdir -p "$fake_app/Contents/Resources"
+    /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string '$fake_app_name'" "$fake_app/Contents/Info.plist" >/dev/null
+    /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '$fake_version'" "$fake_app/Contents/Info.plist" >/dev/null
+    /usr/libexec/PlistBuddy -c "Add :DTSDKBuild string '$fake_build'" "$fake_app/Contents/Info.plist" >/dev/null
+    /bin/cat > "$fake_app/Contents/Resources/startosinstall" <<'FAKESTARTOSINSTALL'
+#!/bin/zsh
+echo "Fake startosinstall called with: $*"
+exit 0
+FAKESTARTOSINSTALL
+    /bin/chmod 755 "$fake_app/Contents/Resources/startosinstall"
+
+    cached_installer_app="$fake_app"
+    working_macos_app="$fake_app"
+}
+
+# -----------------------------------------------------------------------------
+# Create a fake InstallAssistant pkg for --fake-installer test runs.
+# check_installer_pkg_is_valid only reads the filename, so an empty file is enough.
+# -----------------------------------------------------------------------------
+create_fake_installer_pkg() {
+    local fake_version="$1"
+    local fake_build="$2"
+
+    cached_installer_pkg="$installer_pkg_directory/InstallAssistant-$fake_version-$fake_build.pkg"
+    writelog "[create_fake_installer_pkg] Creating fake installer package at $cached_installer_pkg"
+    /usr/bin/touch "$cached_installer_pkg"
+    working_installer_pkg="$cached_installer_pkg"
+}
+
+# -----------------------------------------------------------------------------
 # Create a LaunchDaemon that runs startosinstall.
 # -----------------------------------------------------------------------------
 create_launchdaemon_to_run_startosinstall () {
@@ -1296,6 +1358,55 @@ download_with_mist() {
 }
 
 # -----------------------------------------------------------------------------
+# Simulate an installer download for --fake-installer test runs.
+# Uses the version/build resolved by the real catalog lookups, shows a short
+# simulated progress, then creates a fake pkg or app as the real tool would.
+# -----------------------------------------------------------------------------
+fake_download_installer() {
+    local fake_version fake_build fake_major fake_darwin progress_step
+
+    fake_version="${ia_version:-${prechosen_version:-${prechosen_version_from_build:-${dialog_display_version:-${latest_version:-$system_version}}}}}"
+    fake_build="${ia_build:-$prechosen_build}"
+    if [[ ! $fake_build ]]; then
+        # no build known, so use the system build for the same OS, otherwise make one up for the right darwin version
+        fake_major="${fake_version%%.*}"
+        if [[ "$fake_major" == "${system_version%%.*}" ]]; then
+            fake_build="$system_build"
+        else
+            fake_darwin=$(get_darwin_from_os_version "$fake_major")
+            fake_build="${fake_darwin}A100"
+        fi
+    fi
+
+    writelog "[fake_download_installer] Simulating download of macOS $fake_version ($fake_build)"
+    for progress_step in 0 20 40 60 80 100; do
+        writelog "[fake_download_installer] Simulated download progress: $progress_step%"
+        echo "progresstext: Downloading macOS $fake_version (fake) ($progress_step%)" >> "$dialog_log"
+        echo "progress: $progress_step" >> "$dialog_log"
+        sleep 1
+    done
+    echo "progress: complete" >> "$dialog_log"
+
+    if [[ $native == "yes" || ($ffi != "yes" && $pkg_installer) ]]; then
+        create_fake_installer_pkg "$fake_version" "$fake_build"
+        check_installer_pkg_is_valid
+    else
+        create_fake_installer_app "$fake_version" "$fake_build"
+        app_is_in_applications_folder="yes"
+        if [[ $erase == "yes" || $reinstall == "yes" ]]; then
+            check_installer_is_valid
+        fi
+    fi
+
+    if [[ $invalid_installer_found == "yes" && $skip_validation != "yes" ]]; then
+        writelog "[fake_download_installer] The fake installer is invalid for this computer"
+        # mirror download_install_assistant_pkg, which deletes an invalid package
+        [[ -f "$working_installer_pkg" ]] && rm -f "$working_installer_pkg"
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Search for an existing downloaded installer.
 # This checks first for an Install macOS X.app in the /Applications folder, 
 # and then for an InstallAssistant.pkg in the working directory.
@@ -1307,8 +1418,8 @@ find_existing_installer() {
 
     # First let's see if this script has been run before and left an installer
     cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
-    cached_installer_app_in_workdir=$( find "$workdir" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
-    cached_installer_pkg=$( find "$workdir" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
+    cached_installer_app_in_workdir=$( find "$installer_pkg_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+    cached_installer_pkg=$( find "$installer_pkg_directory" -maxdepth 1 -name "InstallAssistant*.pkg" -type f -print -quit 2>/dev/null )
 
     if [[ -d "$cached_installer_app" ]]; then
         writelog "[find_existing_installer] Installer found at $cached_installer_app."
@@ -1983,6 +2094,22 @@ get_version_for_mist() {
 }
 
 # -----------------------------------------------------------------------------
+# Get the installer app name (without .app) for a macOS major version or name.
+# From macOS 27 the major version is part of the name,
+# e.g. "Install macOS Sequoia" but "Install macOS 27 Golden Gate".
+# -----------------------------------------------------------------------------
+get_installer_app_name() {
+    local os_major os_name
+    os_major=$(convert_name_to_os "$1")
+    os_name=$(convert_os_to_name "$os_major")
+    if [[ "$os_major" =~ ^[0-9]+$ && $os_major -ge 27 && "$os_name" != "$os_major" ]]; then
+        echo "Install macOS $os_major $os_name"
+    else
+        echo "Install macOS $os_name"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Get the list of products from the catalog and create a JSON file with the
 # product information.
 # The JSON file will contain the product identifier, post date, URL, title,
@@ -2283,8 +2410,23 @@ get_user_details() {
             fi
 
             # get account name (short name) and password
-            account_shortname=$(ljt '/Username' <<< "$creds_dialog_output")
-            account_password=$(ljt '/Password' <<< "$creds_dialog_output")
+            if [[ "$creds_dialog_output" ]] \
+                && account_shortname=$(ljt '/Username' <<< "$creds_dialog_output" 2>/dev/null) \
+                && account_password=$(ljt '/Password' <<< "$creds_dialog_output" 2>/dev/null); then
+                :
+            else
+                # count this as a failed attempt rather than checking an empty password
+                writelog "[get_user_details] ERROR: could not read the credentials from the dialog output"
+                account_shortname=""
+                account_password=""
+                if [[ $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
+                    user_is_invalid
+                    echo
+                    exit 1
+                fi
+                ((password_attempts++))
+                continue
+            fi
         fi
 
         if [[ ! "$account_shortname" ]]; then
@@ -2513,7 +2655,7 @@ launch_startosinstall() {
     if [[ $test_run == "yes" ]]; then
         combined_args+=("/bin/zsh")
         combined_args+=("-c")
-        combined_args+=("echo \"Simulating startosinstall.\"; sleep 5; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
+        combined_args+=("echo \"Simulating startosinstall.\"; echo \"Preparing to run macOS Installer...\"; for p in 25 50 75 100; do sleep 1; echo \"Preparing: \$p.00\"; done; echo \"Sending USR1 to PID $$.\"; kill -s USR1 $$")
 
         test_args=()
         test_args+=("$working_macos_app/Contents/Resources/startosinstall")
@@ -3183,11 +3325,16 @@ set_localisations() {
     # us from detecting the language
     current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
     # detect the user's language
-    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
+    language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist" 2>/dev/null)
+    # only accept a language code (e.g. en, en-GB, zh-Hans), as this is passed to swiftDialog
+    if [[ ! "$language" =~ ^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$ ]]; then
+        writelog "[set_localisations] WARNING: could not read a valid language for $current_user ('${language%%$'\n'*}'), defaulting to en"
+        language="en"
+    fi
     # set accent colour
     accent_colour=$(/usr/bin/sudo -u "$current_user" /usr/bin/defaults read -g AppleAccentColor 2>/dev/null)
-    if [ $? -ne 0 ]; then
-        # nil result, default to blue
+    if [[ $? -ne 0 || ! "$accent_colour" =~ ^-?[0-6]$ ]]; then
+        # nil or unexpected result, default to blue
         accent_colour=4 
     fi
     # override language if specified in arguments
@@ -3689,6 +3836,10 @@ show_help() {
     --test-run          Run through the script right to the end, but do not actually
                         run the 'startosinstall' command. The command that would be
                         run is shown in stdout.
+    --fake-installer    Implies --test-run. Skips the installer download and uses a fake
+                        installer app or pkg in <workdir>/fake-installer instead of
+                        /Applications. Run again to test the existing-installer workflow.
+                        Remove <workdir>/fake-installer to reset.
     --workdir /path/to  Supply an alternative working directory. The default is the same
                         directory in which erase-install.sh is saved.
     --cache-downloads   Caches mist downloads in a temporary directory in /private/tmp/com.ninxsoft.mist
@@ -3715,6 +3866,18 @@ terminate() {
 unpack_pkg_to_applications_folder() {
     # if dealing with a package we now have to extract it and check it's valid
     if [[ -f "$working_installer_pkg" ]]; then
+        if [[ $fake_installer == "yes" ]]; then
+            # fake pkg: create the fake app from the version and build in the pkg filename
+            writelog "[unpack_pkg_to_applications_folder] Simulating unpacking of $working_installer_pkg into $installer_directory"
+            fake_pkg_name=$(basename "$working_installer_pkg" | sed 's|.pkg||')
+            create_fake_installer_app "$(cut -d'-' -f2 <<< "$fake_pkg_name")" "$(cut -d'-' -f3 <<< "$fake_pkg_name")"
+            if [[ "$keep_pkg" != "yes" ]]; then
+                writelog "[unpack_pkg_to_applications_folder] Deleting $working_installer_pkg"
+                rm -f "$working_installer_pkg"
+                working_installer_pkg=""
+            fi
+            return
+        fi
         writelog "[unpack_pkg_to_applications_folder] Unpacking $working_installer_pkg into /Applications folder"
         if /usr/sbin/installer -pkg "$working_installer_pkg" -tgt / ; then
             working_macos_app=$( find /Applications -maxdepth 1 -name 'Install macOS*.app' -type d -print -quit 2>/dev/null )
@@ -3795,7 +3958,7 @@ set_dialog_install_icon() {
         macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
     elif [[ -n "$install_icon_name" ]]; then
         # native mode - get name from the ia_version, removing the minor version, e.g. 27.0 becomes 27
-        macos_app_name="Install macOS $install_icon_name"
+        macos_app_name=$(get_installer_app_name "${install_icon_name// Beta/}")
     else
         macos_app_name=""
     fi
@@ -3992,6 +4155,9 @@ while test $# -gt 0 ; do
             fi
             ;;
         --test-run) test_run="yes"
+            ;;
+        --fake-installer) fake_installer="yes"
+            test_run="yes"
             ;;
         --caching-server)
             shift
@@ -4230,6 +4396,9 @@ if [[ $erase == "yes" || $reinstall == "yes" ]]; then
         writelog "* This script will perform all tasks up to the point of erase or reinstall,"
         writelog "* but will not actually erase or reinstall."
         writelog "* Remove the --test-run argument to perform the erase or reinstall."
+        if [[ $fake_installer == "yes" ]]; then
+            writelog "* --fake-installer: the installer download and installer app are faked."
+        fi
         writelog "**********************"
         echo
     fi
@@ -4370,6 +4539,17 @@ fi
 # fetch-full-installer workflows should normalize installers to /Applications
 if [[ $ffi == "yes" ]]; then
     installer_directory="/Applications"
+fi
+
+# cached InstallAssistant pkgs are looked for in the working directory
+installer_pkg_directory="$workdir"
+
+# fake-installer test runs keep everything in a sandbox in the working directory
+if [[ $fake_installer == "yes" ]]; then
+    fake_installer_dir="$workdir/fake-installer"
+    installer_directory="$fake_installer_dir/Applications"
+    installer_pkg_directory="$fake_installer_dir"
+    writelog "[$script_name] FAKE INSTALLER MODE: using $installer_directory in place of /Applications"
 fi
 
 # ensure installer_directory (--path) exists
@@ -4575,16 +4755,17 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     fi
 
     # get the macOS version and build for the installer we are going to download
+    # the progress monitors wait for real download output, so skip them for a fake download
     if [[ $ffi == "yes" ]]; then
         get_version_for_fetch_full_installer
-        dialog_progress fetch-full-installer >/dev/null 2>&1 &
+        [[ $fake_installer != "yes" ]] && dialog_progress fetch-full-installer >/dev/null 2>&1 &
     elif [[ $native == "yes" ]]; then
         # resolve which macOS version/build we're downloading *before*
         # forking the progress dialog, so it can show the real version
         get_version_for_install_assistant_pkg
-        dialog_progress native >/dev/null 2>&1 &
+        [[ $fake_installer != "yes" ]] && dialog_progress native >/dev/null 2>&1 &
     else
-        dialog_progress mist >/dev/null 2>&1 &
+        [[ $fake_installer != "yes" ]] && dialog_progress mist >/dev/null 2>&1 &
         get_version_for_mist
     fi
 
@@ -4595,7 +4776,9 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     echo "icon: $dialog_install_icon" >> "$dialog_log"
 
     # now run mist or softwareupdate to download the installer, showing progress
-    if [[ $ffi == "yes" ]]; then
+    if [[ $fake_installer == "yes" ]]; then
+        fake_download_installer
+    elif [[ $ffi == "yes" ]]; then
         download_with_fetch_full_installer
     elif [[ $native == "yes" ]]; then
         download_install_assistant_pkg
