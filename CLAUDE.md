@@ -35,6 +35,8 @@ For a brand-new full release, the major version is always incremented.
 - Script is zsh (`#!/bin/zsh`), uses `writelog "[function_name] message"` for logging to `/Library/Management/erase-install/log/erase-install.log`.
 - Dialogs: always invoke via `"$dialog_bin" "${dialog_args[@]}"`. `dialog_bin` must be the `dialogcli` binary in `Dialog.app/Contents/MacOS/` where it exists. The raw `Dialog` binary does not display when launched from a root context. `check_for_swiftdialog_app` must select `dialogcli` both for an existing install and after a fresh download (this was the cause of #604).
 - swiftDialog is installed as a portable app into `$workdir/Dialog.app` (`/Library/Management/erase-install` by default), not to the system default location. The required version is `swiftdialog_tag_required` (macOS 14 and older get the `swiftdialog_bigsur_tag_required` version).
+- Always call external commands by full path (e.g. `/usr/bin/grep`, `/bin/rm`, `/bin/sleep`, `/usr/sbin/diskutil`) so the script does not depend on `$PATH`. zsh built-ins (`echo`, `printf`, `kill`, `which`, `cd`, `jobs`, etc.) are used without a path. The vendored `ljt` function is left as upstream provides it.
+- Functions are kept in alphabetical (ASCII) order; put new functions in the right place.
 - The script needs to support macOS 11+, so avoid features unavailable in older zsh/macOS tools.
 
 ## Testing
