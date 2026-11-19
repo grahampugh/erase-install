@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="44.0"
+version="44.1"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
@@ -334,7 +334,11 @@ check_for_swiftdialog_app() {
                     rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 
                     if [[ -d "$dialog_portable_app" ]]; then
-                        dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+                        # prefer dialogcli, as the raw Dialog binary does not display when run from a root context
+                        dialog_bin="$dialog_portable_app/Contents/MacOS/dialogcli"
+                        if [[ ! -f "$dialog_bin" ]]; then
+                            dialog_bin="$dialog_portable_app/Contents/MacOS/Dialog"
+                        fi
                         dialog_string=$("$dialog_bin" --version)
                         dialog_minor_vers=$(cut -d. -f1,2 <<< "$dialog_string")
                         writelog "[check_for_swiftdialog_app] swiftDialog installation succeeded"

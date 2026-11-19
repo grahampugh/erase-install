@@ -22,18 +22,19 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
-## [44.0]
+## [44.1]
 
 No date
 
-### Updates in 44.0
+### Updates in 44.1
 
 - New `--fake-installer` option to simulate a workflow without having to download a real installer. Automatically switches on the existing `--test-run` option. `--test-run` remains for those who want to test the actual download.
 - Bumped required swiftDialog version to `v3.1.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.1` and `v2.2.1`, and the appropriate one will be installed.
 
-### Bugfixes in 44.0
+### Bugfixes in 44.1
 
 - Improvements to handling unrecognized system languages.
+- Fixed an issue where the swiftDialog dialog would not appear on the first run after swiftDialog had been downloaded (e.g. when `Dialog.app` was missing from the workdir or was outdated), causing the script to hang waiting for user input. After a fresh download, the script used the `Dialog` binary rather than `dialogcli`, which does not display when run from a root context (fixes #604).
 
 ## [43.3]
 
