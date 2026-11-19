@@ -477,7 +477,7 @@ check_installer_is_valid() {
     # bail out if we did not obtain a build number
     if [[ $installer_build ]]; then
         # compare the local system's build number with that of the installer app 
-        if ! is_build_newer_or_equal "$installer_build" "$system_build"; then
+        if ! is_installer_build_acceptable "$installer_build"; then
             writelog "[check_installer_is_valid] Installer: $installer_build < System: $system_build : invalid build."
             invalid_installer_found="yes"
         else
@@ -511,7 +511,7 @@ check_installer_pkg_is_valid() {
     installer_pkg_build=$(basename "$cached_installer_pkg" | sed 's|.pkg||' | cut -d'-' -f3)
 
     # compare the local system's build number with that of InstallAssistant.pkg 
-    if ! is_build_newer_or_equal "$installer_pkg_build" "$system_build"; then
+    if ! is_installer_build_acceptable "$installer_pkg_build"; then
         writelog "[check_installer_pkg_is_valid] Installer: $installer_pkg_build < System: $system_build : invalid build."
         working_installer_pkg="$cached_installer_pkg"
         invalid_installer_found="yes"
@@ -1908,6 +1908,13 @@ get_version_for_install_assistant_pkg() {
     ia_build=$("$jq_bin" -r ".build" <<< "$latest_installer")
     install_icon_name=$(convert_os_to_name "${ia_version%%.*}")
 
+    # with --upgrade, quit cleanly before downloading anything if the installer is not newer than the system
+    if [[ $upgrade == "yes" ]] && ! is_installer_build_acceptable "$ia_build"; then
+        writelog "[get_version_for_install_assistant_pkg] No upgrade available: the latest matching installer ($ia_version, build $ia_build) is not newer than the current system ($system_version, build $system_build). Nothing to do."
+        echo
+        exit 0
+    fi
+
     # check for free disk space if not invoking erase or reinstall options
     if [[ $erase != "yes" && $reinstall != "yes" ]]; then
         installer_size=$(curl -sI "$installer_url" | awk '/^Content-Length:/ {print $2}' | tr -d $'\r')
@@ -2538,6 +2545,20 @@ get_user_details() {
             fi
         fi
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Check whether an installer build is acceptable for this system.
+# Normally the installer must be newer than or the same as the system build.
+# With --upgrade, it must be strictly newer than the system build.
+# Returns 0 if acceptable, 1 otherwise
+# -----------------------------------------------------------------------------
+is_installer_build_acceptable() {
+    local installer_build_to_check="$1"
+    if [[ $upgrade == "yes" && "$installer_build_to_check" == "$system_build" ]]; then
+        return 1
+    fi
+    is_build_newer_or_equal "$installer_build_to_check" "$system_build"
 }
 
 # -----------------------------------------------------------------------------
@@ -3243,10 +3264,10 @@ select_build_from_dialog() {
     version_list=()
     if [[ "$beta" == "yes" ]]; then
         while IFS= read -r line; do
-            # if --select-valid is set, only show versions that are newer than or equal to the current system build
+            # if --select-valid is set, only show versions that are newer than or equal to the current system build (newer only, if --upgrade is set)
             if [[ "$select_valid" == "yes" ]]; then
                 line_build=$(echo "$line" | awk -F '[\\(\\)]' '{print $2}')
-                if is_build_newer_or_equal "$line_build" "$system_build"; then
+                if is_installer_build_acceptable "$line_build"; then
                     version_list+=("$line")
                 fi
             else
@@ -3258,10 +3279,10 @@ select_build_from_dialog() {
         ] | "\(.[0]) (\(.[1]))"' "$installers_list_json_file" )
     else
         while IFS= read -r line; do
-            # if --select-valid is set, only show versions that are newer than or equal to the current system build
+            # if --select-valid is set, only show versions that are newer than or equal to the current system build (newer only, if --upgrade is set)
             if [[ "$select_valid" == "yes" ]]; then
                 line_build=$(echo "$line" | awk -F '[\\(\\)]' '{print $2}')
-                if is_build_newer_or_equal "$line_build" "$system_build"; then
+                if is_installer_build_acceptable "$line_build"; then
                     version_list+=("$line")
                 fi
             else
@@ -3700,6 +3721,10 @@ show_help() {
                         if it is cached in the working directory $workdir.
     --install | --reinstall
                         After download, reinstalls macOS without erasing the current system
+    --upgrade           Same as --install, but only proceeds if the chosen installer is
+                        newer than the current system. If the system is already at the
+                        same build as the latest matching installer, the script quits
+                        without downloading or showing any dialog (exit code 0).
     --erase             After download, erases the current system and reinstalls macOS.
     --confirm           Displays a confirmation dialog prior to erasing or reinstalling macOS.
     --check-power       Checks for AC power if set.
@@ -4051,6 +4076,7 @@ trap "post_prep_work" SIGUSR1
 # Safety mechanism to prevent unwanted wipe while testing
 erase="no"
 reinstall="no"
+upgrade="no"
 
 # set default mode to "native"
 native="yes"
@@ -4079,6 +4105,11 @@ all_args="$*"
 while test $# -gt 0 ; do
     case "$1" in
         -i|--install|-r|--reinstall) 
+            reinstall="yes"
+            ;;
+        --upgrade)
+            # same as --install, but only proceeds if the installer is newer than the system
+            upgrade="yes"
             reinstall="yes"
             ;;
         -e|--erase) erase="yes"
@@ -4526,7 +4557,7 @@ fi
 
 # exit out or correct for incompatible options
 if [[ $erase == "yes" && $reinstall == "yes" ]]; then
-    writelog "[$script_name] ERROR: Choose either --erase or --install/--reinstall options, but not both!"
+    writelog "[$script_name] ERROR: Choose either --erase or --install/--reinstall/--upgrade options, but not both!"
     exit 1
 elif [[ ($prechosen_os && $prechosen_version) || ($prechosen_os && $prechosen_build) || ($prechosen_version && $prechosen_build) || ($sameos && $prechosen_version) || ($sameos && $prechosen_build) ]]; then
     writelog "[$script_name] ERROR: Choose a maximum of one of the --os, --version, --build, or --sameos options at the same time!"
