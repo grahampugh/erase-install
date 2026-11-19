@@ -211,35 +211,6 @@ check_fmm() {
 }
 
 # -----------------------------------------------------------------------------
-# Checks for active meetings.
-# Function taken from installomator, function hasDisplaySleepAssertion
-# Called when --check-activty option is used.
-# -----------------------------------------------------------------------------
-check_for_presentation_activity() {
-    # Get the names of all apps with active display sleep assertions
-    local apps
-    apps="$(/usr/bin/pmset -g assertions | /usr/bin/awk '/NoDisplaySleepAssertion | PreventUserIdleDisplaySleep/ && match($0,/\(.+\)/) && ! /coreaudiod/ {gsub(/^.*\(/,"",$0); gsub(/\).*$/,"",$0); print};')"
-
-    if [[ ! "$apps" ]]; then
-        # No display sleep assertions detected
-        writelog "[check_for_presentation_activity] No active meetings detected. Continuing."
-        return
-    fi
-
-    # Create an array of apps that need to be ignored
-    IGNORE_DND_APPS="caffeinate"
-    local ignore_array=("${(@s/,/)IGNORE_DND_APPS}")
-
-    for app in ${(f)apps}; do
-        if (( ! ${ignore_array[(Ie)${app}]} )); then
-            # Relevant app with display sleep assertion detected
-            writelog "[check_for_presentation_activity] Active meeting detected (${app}). Exiting."
-            exit 0
-        fi
-    done    
-}
-
-# -----------------------------------------------------------------------------
 # Download mist if not present and not --silent mode
 # -----------------------------------------------------------------------------
 check_for_mist() {
@@ -283,6 +254,35 @@ check_for_mist() {
             exit 1
         fi
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Checks for active meetings.
+# Function taken from installomator, function hasDisplaySleepAssertion
+# Called when --check-activty option is used.
+# -----------------------------------------------------------------------------
+check_for_presentation_activity() {
+    # Get the names of all apps with active display sleep assertions
+    local apps
+    apps="$(/usr/bin/pmset -g assertions | /usr/bin/awk '/NoDisplaySleepAssertion | PreventUserIdleDisplaySleep/ && match($0,/\(.+\)/) && ! /coreaudiod/ {gsub(/^.*\(/,"",$0); gsub(/\).*$/,"",$0); print};')"
+
+    if [[ ! "$apps" ]]; then
+        # No display sleep assertions detected
+        writelog "[check_for_presentation_activity] No active meetings detected. Continuing."
+        return
+    fi
+
+    # Create an array of apps that need to be ignored
+    IGNORE_DND_APPS="caffeinate"
+    local ignore_array=("${(@s/,/)IGNORE_DND_APPS}")
+
+    for app in ${(f)apps}; do
+        if (( ! ${ignore_array[(Ie)${app}]} )); then
+            # Relevant app with display sleep assertion detected
+            writelog "[check_for_presentation_activity] Active meeting detected (${app}). Exiting."
+            exit 0
+        fi
+    done    
 }
 
 # -----------------------------------------------------------------------------
@@ -906,32 +906,6 @@ confirm() {
 # -----------------------------------------------------------------------------
 # convert OS major version to name
 # -----------------------------------------------------------------------------
-convert_os_to_name () {
-    local os_name
-    case "$1" in
-        "11") os_name="Big Sur"
-            ;;
-        "12") os_name="Monterey"
-            ;;
-        "13") os_name="Ventura"
-            ;;
-        "14") os_name="Sonoma"
-            ;;
-        "15") os_name="Sequoia"
-            ;;
-        "26") os_name="Tahoe"
-            ;;
-        "27") os_name="Golden Gate"
-            ;;
-        *) os_name="$1"
-            ;;
-    esac
-    echo "$os_name"
-}
-
-# -----------------------------------------------------------------------------
-# convert OS major version to name
-# -----------------------------------------------------------------------------
 convert_name_to_os () {
     local os_major_version
     case "$1" in
@@ -953,6 +927,32 @@ convert_name_to_os () {
             ;;
     esac
     echo "$os_major_version"
+}
+
+# -----------------------------------------------------------------------------
+# convert OS major version to name
+# -----------------------------------------------------------------------------
+convert_os_to_name () {
+    local os_name
+    case "$1" in
+        "11") os_name="Big Sur"
+            ;;
+        "12") os_name="Monterey"
+            ;;
+        "13") os_name="Ventura"
+            ;;
+        "14") os_name="Sonoma"
+            ;;
+        "15") os_name="Sequoia"
+            ;;
+        "26") os_name="Tahoe"
+            ;;
+        "27") os_name="Golden Gate"
+            ;;
+        *) os_name="$1"
+            ;;
+    esac
+    echo "$os_name"
 }
 
 # -----------------------------------------------------------------------------
@@ -1000,6 +1000,29 @@ create_fake_installer_pkg() {
 }
 
 # -----------------------------------------------------------------------------
+# Create a LaunchDaemon that removes the working directory after a reboot.
+# This is used with the --cleanup-after-use option.
+# -----------------------------------------------------------------------------
+create_launchdaemon_to_remove_workdir () {
+    # Name of LaunchDaemon
+    plist_label="$pkg_label.remove"
+    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
+
+    # Create the plist
+    /usr/libexec/PlistBuddy -c "Add :Label string '$plist_label'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :LaunchOnlyOnce bool YES" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:0 string '/bin/rm'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:1 string '-Rf'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:2 string '$workdir'" "$launch_daemon"
+    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:3 string '$launch_daemon'" "$launch_daemon"
+
+    /usr/sbin/chown root:wheel "$launch_daemon"
+    /bin/chmod 644 "$launch_daemon"
+}
+
+# -----------------------------------------------------------------------------
 # Create a LaunchDaemon that runs startosinstall.
 # -----------------------------------------------------------------------------
 create_launchdaemon_to_run_startosinstall () {
@@ -1028,29 +1051,6 @@ create_launchdaemon_to_run_startosinstall () {
         /usr/libexec/PlistBuddy -c "Add :ProgramArguments:$i string '$install_arg'" "$launch_daemon"
         (( i++ ))
     done
-}
-
-# -----------------------------------------------------------------------------
-# Create a LaunchDaemon that removes the working directory after a reboot.
-# This is used with the --cleanup-after-use option.
-# -----------------------------------------------------------------------------
-create_launchdaemon_to_remove_workdir () {
-    # Name of LaunchDaemon
-    plist_label="$pkg_label.remove"
-    launch_daemon="/Library/LaunchDaemons/$plist_label.plist"
-
-    # Create the plist
-    /usr/libexec/PlistBuddy -c "Add :Label string '$plist_label'" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool YES" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :LaunchOnlyOnce bool YES" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:0 string '/bin/rm'" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:1 string '-Rf'" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:2 string '$workdir'" "$launch_daemon"
-    /usr/libexec/PlistBuddy -c "Add :ProgramArguments:3 string '$launch_daemon'" "$launch_daemon"
-
-    /usr/sbin/chown root:wheel "$launch_daemon"
-    /bin/chmod 644 "$launch_daemon"
 }
 
 # -----------------------------------------------------------------------------
@@ -1609,6 +1609,448 @@ get_device_id() {
 }
 
 # -----------------------------------------------------------------------------
+# Get the installer app name (without .app) for a macOS major version or name.
+# From macOS 27 the major version is part of the name,
+# e.g. "Install macOS Sequoia" but "Install macOS 27 Golden Gate".
+# -----------------------------------------------------------------------------
+get_installer_app_name() {
+    local os_major os_name
+    os_major=$(convert_name_to_os "$1")
+    os_name=$(convert_os_to_name "$os_major")
+    if [[ "$os_major" =~ ^[0-9]+$ && $os_major -ge 27 && "$os_name" != "$os_major" ]]; then
+        echo "Install macOS $os_major $os_name"
+    else
+        echo "Install macOS $os_name"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Get the list of products from the catalog and create a JSON file with the
+# product information.
+# The JSON file will contain the product identifier, post date, URL, title,
+# build, version, supported board IDs and supported device IDs.
+# -----------------------------------------------------------------------------
+get_installers_list_json() {
+    catalog_download_path="$workdir/downloads/$(basename "$catalogurl")"
+    catalog_plist_path="$workdir/downloads/$(basename "$catalogurl").plist"
+    installers_list_json_file="$workdir/downloads/$(basename "$catalogurl").products.json"
+
+    # download the catalog if not already present
+    if [[ ! -d "$workdir/downloads" ]]; then
+        mkdir -p "$workdir/downloads"
+    fi
+    if [[ ! -f "$catalog_plist_path" || $(date -r "$catalog_plist_path" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
+        # clear old json file
+        if [[ -f "$installers_list_json_file" ]]; then
+            writelog "[get_installers_list_json] Removing old JSON file..."
+            rm "$installers_list_json_file"
+        fi
+        writelog "[get_installers_list_json] Downloading catalog..."
+        if ! curl -sL "$catalogurl" -o "$catalog_download_path"; then
+            writelog "[get_installers_list_json] Failed to download catalog"
+            return 1
+        fi
+        if [[ "$catalog_download_path" == *.gz ]]; then
+            writelog "[get_installers_list_json] Unzipping catalog..."
+            gunzip -c "$catalog_download_path" > "$catalog_plist_path"
+        else
+            writelog "[get_installers_list_json] Catalog already downloaded, ensure the identifier is .plist"
+            cp "$catalog_download_path" "$catalog_plist_path"
+        fi
+    fi
+
+    # get a list of products from the catalog using plutil
+    products=$(/usr/libexec/PlistBuddy -c "Print :Products:" "$catalog_plist_path" | sed -n 's/^    \([0-9]\{3\}-[0-9]\{5\}\) = Dict {$/\1/p')
+
+    # print the list of products
+    # echo "Available products:" # DEBUG
+    # echo "$products" # DEBUG
+
+    if [[ ! "$products" ]]; then
+        writelog "[get_installers_list_json] No products found in the catalog."
+        exit 1
+    fi
+
+    # if json file exists and was not created today, or has no content (including if it just has an empty list or array), remove it
+    # shellcheck disable=SC2002 
+    if [[ -f "$installers_list_json_file" && ( $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]") ]]; then
+        writelog "[get_installers_list_json] Removing old or empty JSON file..."
+        rm "$installers_list_json_file"
+    fi
+    if [[ ! -f "$installers_list_json_file" ]]; then
+        # for each product, extract the Packages key
+        writelog "[get_installers_list_json] Please wait while we process the catalog..."
+        tmp_json_file="$workdir/downloads/products_tmp.json"
+        echo > "$tmp_json_file"
+        get_device_id
+
+        # Process products in parallel with limited concurrent downloads
+        max_concurrent=8
+        current_jobs=0
+        job_timeout=30  # Timeout for individual jobs in seconds
+        total_products=$(echo "$products" | wc -l | tr -d ' ')
+        processed_count=0
+        
+        writelog "[get_installers_list_json] Processing $total_products products with max $max_concurrent concurrent jobs"
+        
+        while read -r ia_product; do
+            # Limit concurrent background jobs
+            timeout_count=0
+            while (( current_jobs >= max_concurrent )); do
+                sleep 0.1
+                current_jobs=$(jobs -r | wc -l)
+                ((timeout_count++))
+                
+                # Check for stuck jobs every 5 seconds (50 iterations of 0.1s)
+                if (( timeout_count % 50 == 0 )); then
+                    writelog "[get_installers_list_json] Waiting for jobs to complete. Current jobs: $current_jobs, Processed: $processed_count/$total_products"
+                    # Show running job details for debugging
+                    if (( timeout_count >= 500 )); then  # After 50 seconds of waiting
+                        writelog "[get_installers_list_json] WARNING: Jobs may be stuck. Running jobs:"
+                        jobs -l | writelog
+                        # Kill stuck jobs after 60 seconds
+                        if (( timeout_count >= 600 )); then
+                            writelog "[get_installers_list_json] ERROR: Killing stuck background jobs"
+                            jobs -p | xargs kill 2>/dev/null || true
+                            current_jobs=0
+                            break
+                        fi
+                    fi
+                fi
+            done
+            
+            # Process each product in background
+            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)" # DEBUG
+            process_product_async "$ia_product" "$tmp_json_file" &
+            job_pid=$!
+            
+            # Store job info for monitoring
+            echo "$job_pid:$ia_product:$(date +%s)" >> "$workdir/downloads/job_tracker.tmp"
+            ((current_jobs++))
+        done <<< "$products"
+        
+        # Wait for all background jobs to complete with timeout monitoring
+        writelog "[get_installers_list_json] Waiting for all background jobs to complete..."
+        wait_start=$(date +%s)
+        max_wait_time=120  # 2 minutes total timeout
+        last_progress_report=0
+        
+        while true; do
+            current_time=$(date +%s)
+            elapsed=$((current_time - wait_start))
+            
+            # Check timeout first
+            if (( elapsed > max_wait_time )); then
+                writelog "[get_installers_list_json] ERROR: Timeout waiting for jobs. Killing remaining jobs."
+                jobs -p | xargs kill 2>/dev/null || true
+                break
+            fi
+            
+            # Check if any jobs are still running
+            running_jobs=$(jobs -r | wc -l)
+            if (( running_jobs == 0 )); then
+                writelog "[get_installers_list_json] All background jobs completed after ${elapsed}s"
+                break
+            fi
+            
+            # Report progress every 10 seconds
+            if (( elapsed >= last_progress_report + 10 )); then
+                writelog "[get_installers_list_json] Still waiting... $running_jobs jobs running after ${elapsed}s"
+                last_progress_report=$elapsed
+                
+                # Check for stuck jobs every 30 seconds
+                if (( elapsed % 30 == 0 )); then
+                    check_job_status
+                fi
+            fi
+            
+            sleep 1
+        done
+        
+        # Wait for all jobs and give extra time for file I/O to complete
+        sleep 2
+
+        # Clean up job tracker
+        rm -f "$workdir/downloads/job_tracker.tmp"
+    else
+        writelog "[get_installers_list_json] catalog already downloaded."
+    fi
+
+    # Combine all individual product JSON files into final array
+    if ls "$workdir/downloads/product_"*.json 1> /dev/null 2>&1; then
+        # count number of product json files
+        product_json_count=$(find "$workdir/downloads" -name "product_*.json" | wc -l | tr -d ' ')
+        writelog "[get_installers_list_json] Combining $product_json_count product JSON files into $installers_list_json_file"
+        "$jq_bin" -s '[.[] | select(type == "object")]' "$workdir/downloads/product_"*.json > "$installers_list_json_file"
+        # Clean up individual product files
+        # rm "$workdir/downloads/product_"*.json 2>/dev/null
+        writelog "[get_installers_list_json] JSON file created at $installers_list_json_file"
+    else
+        writelog "[get_installers_list_json] No valid products found in the catalog."
+        exit 1
+    fi
+    # remove temp json file
+    if [[ -f "$tmp_json_file" ]]; then
+        writelog "[get_installers_list_json] Removing temporary JSON file $tmp_json_file"
+        rm "$tmp_json_file"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run mist list to get some required output for automation
+# This requires mist, so we first check if it is on the system and download them if not.
+# -----------------------------------------------------------------------------
+get_mist_list() {
+    # Download mist if not present
+    check_for_mist
+
+    # define mist export file location
+    mist_export_file="$workdir/mist-list.json"
+
+    mist_args=()
+    mist_args+=("list")
+    mist_args+=("installer")
+
+    # restrict list as specified
+    if [[ $prechosen_os ]]; then
+        mist_args+=("$prechosen_os")
+    elif [[ $prechosen_version ]]; then
+        mist_args+=("$prechosen_version")
+    elif [[ $prechosen_build ]]; then
+        mist_args+=("$prechosen_build")
+    elif [[ $samebuild == "yes" ]]; then
+        mist_args+=("$system_version")
+    elif [[ $sameos == "yes" ]]; then
+        mist_args+=("${system_version/\.*/}")
+    fi
+
+    if [[ "$skip_validation" != "yes" ]]; then
+        mist_args+=("--compatible")
+    fi
+
+    mist_args+=("--export")
+    mist_args+=("$mist_export_file")
+
+    # set alternative catalog if selected
+    if [[ $catalogurl ]]; then
+        writelog "[get_mist_list] Non-standard catalog URL selected"
+        mist_args+=("--catalog-url")
+        mist_args+=("$catalogurl")
+    elif [[ $catalog ]]; then
+        darwin_version=$(get_darwin_from_os_version "$catalog")
+        if [[ $darwin_version -eq 0 ]]; then
+            writelog "[get_mist_list] ERROR: Unsupported macOS version $catalog"
+            echo
+            exit 1
+        fi
+        get_catalog
+        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
+        mist_args+=("--catalog-url")
+        mist_args+=("${catalogs[$darwin_version]}")
+    fi
+
+    # include betas if selected
+    if [[ $beta == "yes" ]]; then
+        writelog "[get_mist_list] Beta versions included"
+        mist_args+=("--include-betas")
+    fi
+
+    # run in no-ansi mode which is less pretty but better for our logs
+    mist_args+=("--no-ansi")
+
+    # run the command
+    if ! "$mist_bin" "${mist_args[@]}" ; then
+        writelog "[get_mist_list] An error occurred running mist. Cannot continue."
+        echo
+        exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Get the user account name and password.
+# Apple Silicon devices require a username and password to run startosinstall.
+# The current user is determined.
+# The "real name" is also allowed if the user inputs that instead of their
+# account name.
+# The user is checked to see if it is a VolumeOwner, as this is required.
+# The entered password is checked to see if it is correct.
+# The user is given a number of attempts to enter their password (default=5).
+# If --max-password-attempts is set to "infinite" then there is no limit and 
+# no cancel button.
+# Finally, with the --erase option, the user is promoted to admin if required.
+# -----------------------------------------------------------------------------
+get_user_details() {
+    # get password and check that the password is correct
+    password_attempts=1
+    password_check="fail"
+    while [[ "$password_check" != "pass" ]] ; do
+        writelog "[get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
+        # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
+        # recommended for testing only!! 
+        # otherwise, ask via dialog
+        if [[ $password_attempts -eq 1 && $kc && $kc_pass ]]; then
+            read_from_keychain
+        elif [[ $password_attempts -eq 1 && $credentials && $very_insecure_mode == "yes" ]]; then
+            credentials_decoded=$(base64 -d <<< "$credentials")
+            if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
+                account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
+                account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
+                if [[ $account_shortname ]]; then
+                    writelog "[get_user_details] Credentials for $account_shortname supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No credentials supplied, so exiting..."
+                    exit 1
+                fi
+                if [[ $account_password ]]; then
+                    writelog "[get_user_details] Password supplied. Continuing..."
+                else
+                    writelog "[get_user_details] ERROR: No password supplied, so exiting..."
+                    exit 1
+                fi
+            else
+                writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
+                exit 1
+            fi
+        elif ! pgrep -q Finder ; then
+            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
+            echo
+            # kill caffeinate
+            kill_process "caffeinate"
+            exit 1
+        elif [[ ! $silent ]]; then
+            ask_for_credentials
+            if [[ $? -eq 2 ]]; then
+                writelog "[get_user_details] user cancelled dialog so exiting..."
+                exit 0
+            fi
+
+            # get account name (short name) and password
+            if [[ "$creds_dialog_output" ]] \
+                && account_shortname=$(ljt '/Username' <<< "$creds_dialog_output" 2>/dev/null) \
+                && account_password=$(ljt '/Password' <<< "$creds_dialog_output" 2>/dev/null); then
+                :
+            else
+                # count this as a failed attempt rather than checking an empty password
+                writelog "[get_user_details] ERROR: could not read the credentials from the dialog output"
+                account_shortname=""
+                account_password=""
+                if [[ $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
+                    user_is_invalid
+                    echo
+                    exit 1
+                fi
+                ((password_attempts++))
+                continue
+            fi
+        fi
+
+        if [[ ! "$account_shortname" ]]; then
+            if [[ "$current_user" ]]; then
+                account_shortname="$current_user"
+            else
+                writelog "[get_user_details] Current user was not determined."
+                if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
+                    user_is_invalid
+                    echo
+                    exit 1
+                fi
+                ((password_attempts++))
+                continue
+            fi
+        fi
+
+        # check that this user exists
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
+            writelog "[get_user_details] $account_shortname account cannot be found!"
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode == "yes" ]]; then
+                user_is_invalid
+                echo
+                exit 1
+            fi
+            ((password_attempts++))
+            continue
+        fi
+
+        # check that the user is a Volume Owner
+        user_is_volume_owner=0
+        users=$(/usr/sbin/diskutil apfs listUsers /)
+        while read -r line ; do
+            user=$(/usr/bin/cut -d, -f1 <<< "$line")
+            guid=$(/usr/bin/cut -d, -f2 <<< "$line")
+            # passwords are case sensitive, account names are not
+            if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
+                enabled_users+="$user "
+                # The entered username might not match the output of fdesetup, so we compare
+                # all RecordNames for the canonical name given by fdesetup against the entered
+                # username, and then use the canonical version. The entered username might
+                # even be the RealName, and we still would end up here.
+                # Example:
+                # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
+                # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
+                user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
+                # loop through recordName array until error (we do not know the size of the array)
+                record_name_index=0
+                while true; do
+                    if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
+                        break
+                    fi
+                    if [[ "${account_shortname:u}" == "${user_record_name:u}" ]]; then
+                        account_shortname="$user"
+                        writelog "[get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                        break
+                    fi
+                    ((record_name_index++))
+                done
+                # if needed, compare the RealName (which might contain spaces)
+                if [[ $user_is_volume_owner -eq 0 ]]; then
+                    user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
+                    if [[ "${account_shortname:u}" == "${user_real_name:u}" ]]; then
+                        account_shortname="$user"
+                        writelog "[get_user_details] $account_shortname is a Volume Owner"
+                        user_is_volume_owner=1
+                    fi
+                fi
+            fi
+        done <<< "$(/usr/bin/fdesetup list)"
+
+        if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
+            writelog "[get_user_details] $account_shortname is not a Volume Owner"
+            user_not_volume_owner
+            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes" ]]; then
+                password_is_invalid
+                exit 1
+            fi
+            ((password_attempts++))
+            continue
+        fi
+
+        # check that the password is correct
+        check_password "$account_shortname" "$account_password"
+
+        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes")  ]]; then
+            password_is_invalid
+            exit 1
+        fi
+        ((password_attempts++))
+    done
+
+    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
+    if [[ $erase == "yes" ]]; then
+        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
+            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
+                writelog "[get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
+                promoted_user="$account_shortname"
+            else
+                writelog "[get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
+                user_is_invalid
+                exit 1
+            fi
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Get version for softwareupdate --fetch-full-installer
 # Includes some fallbacks, because --list-full-installers might not be 
 # available in some versions of Catalina. 
@@ -2106,462 +2548,6 @@ get_version_for_mist() {
 }
 
 # -----------------------------------------------------------------------------
-# Get the installer app name (without .app) for a macOS major version or name.
-# From macOS 27 the major version is part of the name,
-# e.g. "Install macOS Sequoia" but "Install macOS 27 Golden Gate".
-# -----------------------------------------------------------------------------
-get_installer_app_name() {
-    local os_major os_name
-    os_major=$(convert_name_to_os "$1")
-    os_name=$(convert_os_to_name "$os_major")
-    if [[ "$os_major" =~ ^[0-9]+$ && $os_major -ge 27 && "$os_name" != "$os_major" ]]; then
-        echo "Install macOS $os_major $os_name"
-    else
-        echo "Install macOS $os_name"
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Get the list of products from the catalog and create a JSON file with the
-# product information.
-# The JSON file will contain the product identifier, post date, URL, title,
-# build, version, supported board IDs and supported device IDs.
-# -----------------------------------------------------------------------------
-get_installers_list_json() {
-    catalog_download_path="$workdir/downloads/$(basename "$catalogurl")"
-    catalog_plist_path="$workdir/downloads/$(basename "$catalogurl").plist"
-    installers_list_json_file="$workdir/downloads/$(basename "$catalogurl").products.json"
-
-    # download the catalog if not already present
-    if [[ ! -d "$workdir/downloads" ]]; then
-        mkdir -p "$workdir/downloads"
-    fi
-    if [[ ! -f "$catalog_plist_path" || $(date -r "$catalog_plist_path" +%Y-%m-%d) != $(date +%Y-%m-%d) ]]; then
-        # clear old json file
-        if [[ -f "$installers_list_json_file" ]]; then
-            writelog "[get_installers_list_json] Removing old JSON file..."
-            rm "$installers_list_json_file"
-        fi
-        writelog "[get_installers_list_json] Downloading catalog..."
-        if ! curl -sL "$catalogurl" -o "$catalog_download_path"; then
-            writelog "[get_installers_list_json] Failed to download catalog"
-            return 1
-        fi
-        if [[ "$catalog_download_path" == *.gz ]]; then
-            writelog "[get_installers_list_json] Unzipping catalog..."
-            gunzip -c "$catalog_download_path" > "$catalog_plist_path"
-        else
-            writelog "[get_installers_list_json] Catalog already downloaded, ensure the identifier is .plist"
-            cp "$catalog_download_path" "$catalog_plist_path"
-        fi
-    fi
-
-    # get a list of products from the catalog using plutil
-    products=$(/usr/libexec/PlistBuddy -c "Print :Products:" "$catalog_plist_path" | sed -n 's/^    \([0-9]\{3\}-[0-9]\{5\}\) = Dict {$/\1/p')
-
-    # print the list of products
-    # echo "Available products:" # DEBUG
-    # echo "$products" # DEBUG
-
-    if [[ ! "$products" ]]; then
-        writelog "[get_installers_list_json] No products found in the catalog."
-        exit 1
-    fi
-
-    # if json file exists and was not created today, or has no content (including if it just has an empty list or array), remove it
-    # shellcheck disable=SC2002 
-    if [[ -f "$installers_list_json_file" && ( $(date -r "$installers_list_json_file" +%Y-%m-%d) != $(date +%Y-%m-%d) || ! -s "$installers_list_json_file" || "$(cat "$installers_list_json_file" | tr -d '[:space:]')" == "[]") ]]; then
-        writelog "[get_installers_list_json] Removing old or empty JSON file..."
-        rm "$installers_list_json_file"
-    fi
-    if [[ ! -f "$installers_list_json_file" ]]; then
-        # for each product, extract the Packages key
-        writelog "[get_installers_list_json] Please wait while we process the catalog..."
-        tmp_json_file="$workdir/downloads/products_tmp.json"
-        echo > "$tmp_json_file"
-        get_device_id
-
-        # Process products in parallel with limited concurrent downloads
-        max_concurrent=8
-        current_jobs=0
-        job_timeout=30  # Timeout for individual jobs in seconds
-        total_products=$(echo "$products" | wc -l | tr -d ' ')
-        processed_count=0
-        
-        writelog "[get_installers_list_json] Processing $total_products products with max $max_concurrent concurrent jobs"
-        
-        while read -r ia_product; do
-            # Limit concurrent background jobs
-            timeout_count=0
-            while (( current_jobs >= max_concurrent )); do
-                sleep 0.1
-                current_jobs=$(jobs -r | wc -l)
-                ((timeout_count++))
-                
-                # Check for stuck jobs every 5 seconds (50 iterations of 0.1s)
-                if (( timeout_count % 50 == 0 )); then
-                    writelog "[get_installers_list_json] Waiting for jobs to complete. Current jobs: $current_jobs, Processed: $processed_count/$total_products"
-                    # Show running job details for debugging
-                    if (( timeout_count >= 500 )); then  # After 50 seconds of waiting
-                        writelog "[get_installers_list_json] WARNING: Jobs may be stuck. Running jobs:"
-                        jobs -l | writelog
-                        # Kill stuck jobs after 60 seconds
-                        if (( timeout_count >= 600 )); then
-                            writelog "[get_installers_list_json] ERROR: Killing stuck background jobs"
-                            jobs -p | xargs kill 2>/dev/null || true
-                            current_jobs=0
-                            break
-                        fi
-                    fi
-                fi
-            done
-            
-            # Process each product in background
-            # writelog "[get_installers_list_json] Starting job for product $ia_product ($(( ++processed_count ))/$total_products)" # DEBUG
-            process_product_async "$ia_product" "$tmp_json_file" &
-            job_pid=$!
-            
-            # Store job info for monitoring
-            echo "$job_pid:$ia_product:$(date +%s)" >> "$workdir/downloads/job_tracker.tmp"
-            ((current_jobs++))
-        done <<< "$products"
-        
-        # Wait for all background jobs to complete with timeout monitoring
-        writelog "[get_installers_list_json] Waiting for all background jobs to complete..."
-        wait_start=$(date +%s)
-        max_wait_time=120  # 2 minutes total timeout
-        last_progress_report=0
-        
-        while true; do
-            current_time=$(date +%s)
-            elapsed=$((current_time - wait_start))
-            
-            # Check timeout first
-            if (( elapsed > max_wait_time )); then
-                writelog "[get_installers_list_json] ERROR: Timeout waiting for jobs. Killing remaining jobs."
-                jobs -p | xargs kill 2>/dev/null || true
-                break
-            fi
-            
-            # Check if any jobs are still running
-            running_jobs=$(jobs -r | wc -l)
-            if (( running_jobs == 0 )); then
-                writelog "[get_installers_list_json] All background jobs completed after ${elapsed}s"
-                break
-            fi
-            
-            # Report progress every 10 seconds
-            if (( elapsed >= last_progress_report + 10 )); then
-                writelog "[get_installers_list_json] Still waiting... $running_jobs jobs running after ${elapsed}s"
-                last_progress_report=$elapsed
-                
-                # Check for stuck jobs every 30 seconds
-                if (( elapsed % 30 == 0 )); then
-                    check_job_status
-                fi
-            fi
-            
-            sleep 1
-        done
-        
-        # Wait for all jobs and give extra time for file I/O to complete
-        sleep 2
-
-        # Clean up job tracker
-        rm -f "$workdir/downloads/job_tracker.tmp"
-    else
-        writelog "[get_installers_list_json] catalog already downloaded."
-    fi
-
-    # Combine all individual product JSON files into final array
-    if ls "$workdir/downloads/product_"*.json 1> /dev/null 2>&1; then
-        # count number of product json files
-        product_json_count=$(find "$workdir/downloads" -name "product_*.json" | wc -l | tr -d ' ')
-        writelog "[get_installers_list_json] Combining $product_json_count product JSON files into $installers_list_json_file"
-        "$jq_bin" -s '[.[] | select(type == "object")]' "$workdir/downloads/product_"*.json > "$installers_list_json_file"
-        # Clean up individual product files
-        # rm "$workdir/downloads/product_"*.json 2>/dev/null
-        writelog "[get_installers_list_json] JSON file created at $installers_list_json_file"
-    else
-        writelog "[get_installers_list_json] No valid products found in the catalog."
-        exit 1
-    fi
-    # remove temp json file
-    if [[ -f "$tmp_json_file" ]]; then
-        writelog "[get_installers_list_json] Removing temporary JSON file $tmp_json_file"
-        rm "$tmp_json_file"
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Run mist list to get some required output for automation
-# This requires mist, so we first check if it is on the system and download them if not.
-# -----------------------------------------------------------------------------
-get_mist_list() {
-    # Download mist if not present
-    check_for_mist
-
-    # define mist export file location
-    mist_export_file="$workdir/mist-list.json"
-
-    mist_args=()
-    mist_args+=("list")
-    mist_args+=("installer")
-
-    # restrict list as specified
-    if [[ $prechosen_os ]]; then
-        mist_args+=("$prechosen_os")
-    elif [[ $prechosen_version ]]; then
-        mist_args+=("$prechosen_version")
-    elif [[ $prechosen_build ]]; then
-        mist_args+=("$prechosen_build")
-    elif [[ $samebuild == "yes" ]]; then
-        mist_args+=("$system_version")
-    elif [[ $sameos == "yes" ]]; then
-        mist_args+=("${system_version/\.*/}")
-    fi
-
-    if [[ "$skip_validation" != "yes" ]]; then
-        mist_args+=("--compatible")
-    fi
-
-    mist_args+=("--export")
-    mist_args+=("$mist_export_file")
-
-    # set alternative catalog if selected
-    if [[ $catalogurl ]]; then
-        writelog "[get_mist_list] Non-standard catalog URL selected"
-        mist_args+=("--catalog-url")
-        mist_args+=("$catalogurl")
-    elif [[ $catalog ]]; then
-        darwin_version=$(get_darwin_from_os_version "$catalog")
-        if [[ $darwin_version -eq 0 ]]; then
-            writelog "[get_mist_list] ERROR: Unsupported macOS version $catalog"
-            echo
-            exit 1
-        fi
-        get_catalog
-        writelog "[get_mist_list] Non-default catalog selected (darwin version $darwin_version)"
-        mist_args+=("--catalog-url")
-        mist_args+=("${catalogs[$darwin_version]}")
-    fi
-
-    # include betas if selected
-    if [[ $beta == "yes" ]]; then
-        writelog "[get_mist_list] Beta versions included"
-        mist_args+=("--include-betas")
-    fi
-
-    # run in no-ansi mode which is less pretty but better for our logs
-    mist_args+=("--no-ansi")
-
-    # run the command
-    if ! "$mist_bin" "${mist_args[@]}" ; then
-        writelog "[get_mist_list] An error occurred running mist. Cannot continue."
-        echo
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Get the user account name and password.
-# Apple Silicon devices require a username and password to run startosinstall.
-# The current user is determined.
-# The "real name" is also allowed if the user inputs that instead of their
-# account name.
-# The user is checked to see if it is a VolumeOwner, as this is required.
-# The entered password is checked to see if it is correct.
-# The user is given a number of attempts to enter their password (default=5).
-# If --max-password-attempts is set to "infinite" then there is no limit and 
-# no cancel button.
-# Finally, with the --erase option, the user is promoted to admin if required.
-# -----------------------------------------------------------------------------
-get_user_details() {
-    # get password and check that the password is correct
-    password_attempts=1
-    password_check="fail"
-    while [[ "$password_check" != "pass" ]] ; do
-        writelog "[get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
-        # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
-        # recommended for testing only!! 
-        # otherwise, ask via dialog
-        if [[ $password_attempts -eq 1 && $kc && $kc_pass ]]; then
-            read_from_keychain
-        elif [[ $password_attempts -eq 1 && $credentials && $very_insecure_mode == "yes" ]]; then
-            credentials_decoded=$(base64 -d <<< "$credentials")
-            if [[ $(awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
-                account_shortname=$(awk -F: '{print $1}' <<< "$credentials_decoded")
-                account_password=$(awk -F: '{print $NF}' <<< "$credentials_decoded")
-                if [[ $account_shortname ]]; then
-                    writelog "[get_user_details] Credentials for $account_shortname supplied. Continuing..."
-                else
-                    writelog "[get_user_details] ERROR: No credentials supplied, so exiting..."
-                    exit 1
-                fi
-                if [[ $account_password ]]; then
-                    writelog "[get_user_details] Password supplied. Continuing..."
-                else
-                    writelog "[get_user_details] ERROR: No password supplied, so exiting..."
-                    exit 1
-                fi
-            else
-                writelog "[get_user_details] ERROR: Supplied credentials are in the incorrect form, so exiting..."
-                exit 1
-            fi
-        elif ! pgrep -q Finder ; then
-            writelog "[get_user_details] ERROR! The startosinstall binary requires a user to be logged in."
-            echo
-            # kill caffeinate
-            kill_process "caffeinate"
-            exit 1
-        elif [[ ! $silent ]]; then
-            ask_for_credentials
-            if [[ $? -eq 2 ]]; then
-                writelog "[get_user_details] user cancelled dialog so exiting..."
-                exit 0
-            fi
-
-            # get account name (short name) and password
-            if [[ "$creds_dialog_output" ]] \
-                && account_shortname=$(ljt '/Username' <<< "$creds_dialog_output" 2>/dev/null) \
-                && account_password=$(ljt '/Password' <<< "$creds_dialog_output" 2>/dev/null); then
-                :
-            else
-                # count this as a failed attempt rather than checking an empty password
-                writelog "[get_user_details] ERROR: could not read the credentials from the dialog output"
-                account_shortname=""
-                account_password=""
-                if [[ $max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts ]]; then
-                    user_is_invalid
-                    echo
-                    exit 1
-                fi
-                ((password_attempts++))
-                continue
-            fi
-        fi
-
-        if [[ ! "$account_shortname" ]]; then
-            if [[ "$current_user" ]]; then
-                account_shortname="$current_user"
-            else
-                writelog "[get_user_details] Current user was not determined."
-                if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent ]]; then
-                    user_is_invalid
-                    echo
-                    exit 1
-                fi
-                ((password_attempts++))
-                continue
-            fi
-        fi
-
-        # check that this user exists
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" everyone ; then
-            writelog "[get_user_details] $account_shortname account cannot be found!"
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode == "yes" ]]; then
-                user_is_invalid
-                echo
-                exit 1
-            fi
-            ((password_attempts++))
-            continue
-        fi
-
-        # check that the user is a Volume Owner
-        user_is_volume_owner=0
-        users=$(/usr/sbin/diskutil apfs listUsers /)
-        while read -r line ; do
-            user=$(/usr/bin/cut -d, -f1 <<< "$line")
-            guid=$(/usr/bin/cut -d, -f2 <<< "$line")
-            # passwords are case sensitive, account names are not
-            if [[ $(/usr/bin/grep -A2 "$guid" <<< "$users" | /usr/bin/tail -n1 | /usr/bin/awk '{print $NF}') == "Yes" ]]; then
-                enabled_users+="$user "
-                # The entered username might not match the output of fdesetup, so we compare
-                # all RecordNames for the canonical name given by fdesetup against the entered
-                # username, and then use the canonical version. The entered username might
-                # even be the RealName, and we still would end up here.
-                # Example:
-                # RecordNames for user are "John.Doe@pretendco.com" and "John.Doe", fdesetup
-                # says "John.Doe@pretendco.com", and account_shortname is "john.doe" or "Doe, John"
-                user_record_names_xml=$(/usr/bin/dscl -plist /Search -read "Users/$user" RecordName dsAttrTypeStandard:RecordName)
-                # loop through recordName array until error (we do not know the size of the array)
-                record_name_index=0
-                while true; do
-                    if ! user_record_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RecordName:${record_name_index}" /dev/stdin 2>/dev/null <<< "$user_record_names_xml") ; then
-                        break
-                    fi
-                    if [[ "${account_shortname:u}" == "${user_record_name:u}" ]]; then
-                        account_shortname="$user"
-                        writelog "[get_user_details] $account_shortname is a Volume Owner"
-                        user_is_volume_owner=1
-                        break
-                    fi
-                    ((record_name_index++))
-                done
-                # if needed, compare the RealName (which might contain spaces)
-                if [[ $user_is_volume_owner -eq 0 ]]; then
-                    user_real_name=$(/usr/libexec/PlistBuddy -c "print :dsAttrTypeStandard\:RealName:0" /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "Users/$user" RealName)")
-                    if [[ "${account_shortname:u}" == "${user_real_name:u}" ]]; then
-                        account_shortname="$user"
-                        writelog "[get_user_details] $account_shortname is a Volume Owner"
-                        user_is_volume_owner=1
-                    fi
-                fi
-            fi
-        done <<< "$(/usr/bin/fdesetup list)"
-
-        if [[ $enabled_users != "" && $user_is_volume_owner -eq 0 ]]; then
-            writelog "[get_user_details] $account_shortname is not a Volume Owner"
-            user_not_volume_owner
-            if [[ ($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes" ]]; then
-                password_is_invalid
-                exit 1
-            fi
-            ((password_attempts++))
-            continue
-        fi
-
-        # check that the password is correct
-        check_password "$account_shortname" "$account_password"
-
-        if [[ "$password_check" != "pass" && (($max_password_attempts != "infinite" && $password_attempts -ge $max_password_attempts) || $silent || $very_insecure_mode  == "yes")  ]]; then
-            password_is_invalid
-            exit 1
-        fi
-        ((password_attempts++))
-    done
-
-    # if we are performing eraseinstall the user needs to be an admin so let's promote the user
-    if [[ $erase == "yes" ]]; then
-        if ! /usr/sbin/dseditgroup -o checkmember -m "$account_shortname" admin ; then
-            if /usr/sbin/dseditgroup -o edit -a "$account_shortname" admin ; then
-                writelog "[get_user_details] $account_shortname account has been promoted to admin so that eraseinstall can proceed"
-                promoted_user="$account_shortname"
-            else
-                writelog "[get_user_details] $account_shortname account could not be promoted to admin so eraseinstall cannot proceed"
-                user_is_invalid
-                exit 1
-            fi
-        fi
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# Check whether an installer build is acceptable for this system.
-# Normally the installer must be newer than or the same as the system build.
-# With --upgrade, it must be strictly newer than the system build.
-# Returns 0 if acceptable, 1 otherwise
-# -----------------------------------------------------------------------------
-is_installer_build_acceptable() {
-    local installer_build_to_check="$1"
-    if [[ $upgrade == "yes" && "$installer_build_to_check" == "$system_build" ]]; then
-        return 1
-    fi
-    is_build_newer_or_equal "$installer_build_to_check" "$system_build"
-}
-
-# -----------------------------------------------------------------------------
 # Compare macOS build versions, handling beta builds correctly
 # Returns 0 if version1 >= version2, 1 otherwise
 # Beta builds (ending with letter) are considered older than release builds
@@ -2631,6 +2617,20 @@ is_build_newer_or_equal() {
         [[ "$patch1" -ge "$patch2" ]]
         return $?
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Check whether an installer build is acceptable for this system.
+# Normally the installer must be newer than or the same as the system build.
+# With --upgrade, it must be strictly newer than the system build.
+# Returns 0 if acceptable, 1 otherwise
+# -----------------------------------------------------------------------------
+is_installer_build_acceptable() {
+    local installer_build_to_check="$1"
+    if [[ $upgrade == "yes" && "$installer_build_to_check" == "$system_build" ]]; then
+        return 1
+    fi
+    is_build_newer_or_equal "$installer_build_to_check" "$system_build"
 }
 
 # -----------------------------------------------------------------------------
@@ -2867,24 +2867,6 @@ EOT
 )
 
 # -----------------------------------------------------------------------------
-# Move the installer to the /Applications folder if not already there.
-# This is called with the --move option.
-# -----------------------------------------------------------------------------
-move_to_applications_folder() {
-    if [[ $app_is_in_applications_folder == "yes" ]]; then
-        writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
-        cached_installer_app="$working_macos_app"
-    else
-        writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
-        mv "$working_macos_app" "$installer_directory/"
-        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
-        working_macos_app="$cached_installer_app"
-        app_is_in_applications_folder="yes"
-        writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
-    fi
-}
-
-# -----------------------------------------------------------------------------
 # Rotate existing log files up to a maximum of 9 log files
 # Older files will be overwritten
 # -----------------------------------------------------------------------------
@@ -2923,6 +2905,24 @@ log_rotate() {
 }
 
 # -----------------------------------------------------------------------------
+# Move the installer to the /Applications folder if not already there.
+# This is called with the --move option.
+# -----------------------------------------------------------------------------
+move_to_applications_folder() {
+    if [[ $app_is_in_applications_folder == "yes" ]]; then
+        writelog "[move_to_applications_folder] Valid installer already in $installer_directory folder"
+        cached_installer_app="$working_macos_app"
+    else
+        writelog "[move_to_applications_folder] Moving $working_macos_app to $installer_directory folder"
+        mv "$working_macos_app" "$installer_directory/"
+        cached_installer_app=$( find "$installer_directory" -maxdepth 1 -name "Install macOS*.app" -type d -print -quit 2>/dev/null )
+        working_macos_app="$cached_installer_app"
+        app_is_in_applications_folder="yes"
+        writelog "[move_to_applications_folder] Installer moved to $installer_directory folder"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Overwrite an existing installer.
 # This is called with the --overwrite option.
 # Note that multiple installers left around on the device can cause unexpected
@@ -2942,6 +2942,32 @@ overwrite_existing_installer() {
         writelog "[overwrite_existing_installer] Cached installers have been removed. Quitting script as --clear-cache-only option was selected"
         exit
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Open dialog to show that the password is not valid
+# This is required on Apple Silicon Mac
+# -----------------------------------------------------------------------------
+password_is_invalid() {
+    # required for Silicon Macs
+    writelog "[password_is_invalid] ERROR - password is invalid."
+    if [[ $silent || $very_insecure_mode ]]; then
+        writelog "[password_is_invalid] ERROR - password is invalid."
+        # exit with error code
+        exit 1
+    fi
+    # set the dialog command arguments
+    get_default_dialog_args "utility"
+    dialog_args=("${default_dialog_args[@]}")
+    dialog_args+=(
+        "$dialog_title_command" "${dialog_window_title}"
+        --icon "${dialog_confirmation_icon}"
+        --iconsize "${dialog_icon_size}"
+        --overlayicon "SF=person.fill.xmark,colour=red"
+        --message "${(P)dialog_invalid_password} $user"
+    )
+    # run the dialog command
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------
@@ -3335,6 +3361,56 @@ select_build_from_dialog() {
         writelog "[select_version_from_dialog] User cancelled the version selection dialog"
         echo
         exit 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Set the icon for dialogs, either from the identified installer version 
+# or a generic icon
+# -----------------------------------------------------------------------------
+set_dialog_install_icon() {
+    # icon for dialogs
+    # macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
+
+    # determine the macOS app name - if not yet downloaded, use the name from the catalog, otherwise use the name from the installer app
+    if [[ -d "$working_macos_app" ]]; then
+        macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
+    elif [[ -n "$install_icon_name" ]]; then
+        # native mode - get name from the ia_version, removing the minor version, e.g. 27.0 becomes 27
+        macos_app_name=$(get_installer_app_name "${install_icon_name// Beta/}")
+    else
+        macos_app_name=""
+    fi
+
+    # look for the image in the workdir
+    if [[ -n "$macos_app_name" ]]; then
+        writelog "[set_dialog_install_icon] Looking for icon for $macos_app_name installer"
+        icon_path="$workdir/icons/${macos_app_name// Beta/}.png"
+        if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
+            writelog "[set_dialog_install_icon] Icon $icon_path not found on disk, downloading icon for $macos_app_name installer"
+            if [[ ! $no_curl == "yes" ]]; then
+                # ensure the icons directory exists
+                /bin/mkdir -p "$workdir/icons"
+                # download the image from github
+                macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/${macos_app_name// /%20}.png?raw=true"
+                if ! curl -L "$macos_installer_icon_url" -o "$icon_path"; then
+                    writelog "[set_dialog_install_icon] Could not download icon for $macos_app_name installer from $macos_installer_icon_url"
+                fi
+            fi
+        fi
+    else
+        writelog "[set_dialog_install_icon] No macOS app name found, using generic warning icon for dialogs"
+    fi
+
+    # check again whether we have the image now or a confirmation icon set, if not, display a generic image
+    if file -b "$icon_path" | grep "PNG image data"; then
+        dialog_install_icon="$icon_path"
+    elif [[ "$custom_icon" == "yes" ]]; then
+        writelog "[set_dialog_install_icon] Using custom confirmation icon for dialogs"
+        dialog_install_icon="$dialog_confirmation_icon"
+    else
+        writelog "[set_dialog_install_icon] Using generic warning icon for dialogs"
+        dialog_install_icon="$dialog_confirmation_icon"
     fi
 }
 
@@ -3947,82 +4023,6 @@ user_is_invalid() {
     )
     # run the dialog command
     "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
-}
-
-# -----------------------------------------------------------------------------
-# Open dialog to show that the password is not valid
-# This is required on Apple Silicon Mac
-# -----------------------------------------------------------------------------
-password_is_invalid() {
-    # required for Silicon Macs
-    writelog "[password_is_invalid] ERROR - password is invalid."
-    if [[ $silent || $very_insecure_mode ]]; then
-        writelog "[password_is_invalid] ERROR - password is invalid."
-        # exit with error code
-        exit 1
-    fi
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${dialog_window_title}"
-        --icon "${dialog_confirmation_icon}"
-        --iconsize "${dialog_icon_size}"
-        --overlayicon "SF=person.fill.xmark,colour=red"
-        --message "${(P)dialog_invalid_password} $user"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
-}
-
-# -----------------------------------------------------------------------------
-# Set the icon for dialogs, either from the identified installer version 
-# or a generic icon
-# -----------------------------------------------------------------------------
-set_dialog_install_icon() {
-    # icon for dialogs
-    # macos_installer_icon="$working_macos_app/Contents/Resources/InstallAssistant.icns"
-
-    # determine the macOS app name - if not yet downloaded, use the name from the catalog, otherwise use the name from the installer app
-    if [[ -d "$working_macos_app" ]]; then
-        macos_app_name=$(basename "$working_macos_app" | cut -d. -f1)
-    elif [[ -n "$install_icon_name" ]]; then
-        # native mode - get name from the ia_version, removing the minor version, e.g. 27.0 becomes 27
-        macos_app_name=$(get_installer_app_name "${install_icon_name// Beta/}")
-    else
-        macos_app_name=""
-    fi
-
-    # look for the image in the workdir
-    if [[ -n "$macos_app_name" ]]; then
-        writelog "[set_dialog_install_icon] Looking for icon for $macos_app_name installer"
-        icon_path="$workdir/icons/${macos_app_name// Beta/}.png"
-        if ! file -b "$icon_path" | grep "PNG image data" > /dev/null; then
-            writelog "[set_dialog_install_icon] Icon $icon_path not found on disk, downloading icon for $macos_app_name installer"
-            if [[ ! $no_curl == "yes" ]]; then
-                # ensure the icons directory exists
-                /bin/mkdir -p "$workdir/icons"
-                # download the image from github
-                macos_installer_icon_url="https://github.com/grahampugh/erase-install/blob/main/icons/${macos_app_name// /%20}.png?raw=true"
-                if ! curl -L "$macos_installer_icon_url" -o "$icon_path"; then
-                    writelog "[set_dialog_install_icon] Could not download icon for $macos_app_name installer from $macos_installer_icon_url"
-                fi
-            fi
-        fi
-    else
-        writelog "[set_dialog_install_icon] No macOS app name found, using generic warning icon for dialogs"
-    fi
-
-    # check again whether we have the image now or a confirmation icon set, if not, display a generic image
-    if file -b "$icon_path" | grep "PNG image data"; then
-        dialog_install_icon="$icon_path"
-    elif [[ "$custom_icon" == "yes" ]]; then
-        writelog "[set_dialog_install_icon] Using custom confirmation icon for dialogs"
-        dialog_install_icon="$dialog_confirmation_icon"
-    else
-        writelog "[set_dialog_install_icon] Using generic warning icon for dialogs"
-        dialog_install_icon="$dialog_confirmation_icon"
-    fi
 }
 
 # -----------------------------------------------------------------------------
