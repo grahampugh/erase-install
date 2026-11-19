@@ -35,6 +35,7 @@ No date
 
 - Improvements to handling unrecognized system languages.
 - Fixed an issue where the swiftDialog dialog would not appear on the first run after swiftDialog had been downloaded (e.g. when `Dialog.app` was missing from the workdir or was outdated), causing the script to hang waiting for user input. After a fresh download, the script used the `Dialog` binary rather than `dialogcli`, which does not display when run from a root context (fixes #604).
+- Removed a leftover dialog launch from `check_for_swiftdialog_app` that could leave an "Upgrading macOS" dialog on screen after the script had quit, for example after the user dismissed the insufficient disk space dialog (fixes #605).
 
 ## [43.3]
 

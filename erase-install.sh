@@ -371,24 +371,6 @@ check_for_swiftdialog_app() {
     /usr/bin/touch "$dialog_log"
     /usr/sbin/chown "${current_user}:wheel" "$dialog_log"
     /bin/chmod 666 "$dialog_log"
-
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${(P)dialog_reinstall_title}"
-        --icon "${dialog_install_icon}"
-        --iconsize "$iconsize"
-        --message "${(P)dialog_rebooting_heading}"
-        --button1disabled
-        --progress "$rebootdelay"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
-
-    # quit dialog
-    writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-    echo "quit:" >> "$dialog_log"
 }
 
 # -----------------------------------------------------------------------------
