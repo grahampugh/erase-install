@@ -30,6 +30,7 @@ No date
 
 - New `--fake-installer` option to simulate a workflow without having to download a real installer. Automatically switches on the existing `--test-run` option. `--test-run` remains for those who want to test the actual download.
 - New `--upgrade` option. Works like `--install`/`--reinstall`, but only proceeds if the chosen installer is newer than the system (rather than newer or the same). In native mode, if no newer installer is available the script quits with exit code 0 before downloading anything or showing any dialog. Cannot be combined with `--erase` (addresses #606).
+- Updated the embedded `ljt` JSON tool to v1.0.10.
 - Bumped required swiftDialog version to `v3.1.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.1` and `v2.2.1`, and the appropriate one will be installed.
 
 ### Bugfixes in 44.1
