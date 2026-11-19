@@ -59,7 +59,7 @@ mist_tag_required="v2.3"
 
 # Required swiftDialog version
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_tag_required="v3.1.0"
+swiftdialog_tag_required="v3.1.1"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
@@ -127,7 +127,8 @@ ask_for_credentials() {
     if [[ "$creds_dialog_output" == *"{"*"}"* ]]; then
         if [[ "$creds_dialog_output" != "{"* ]]; then
             # log only the first line of the unexpected text as it comes before the JSON, so cannot contain the password
-            writelog "[ask_for_credentials] WARNING: ignoring unexpected dialog output: ${${creds_dialog_output%%\{*}%%$'\n'*}"
+            output_warning="${creds_dialog_output%%\{*}"
+            writelog "[ask_for_credentials] WARNING: ignoring unexpected dialog output: ${output_warning%%$'\n'*}"
         fi
         creds_dialog_output="{${creds_dialog_output#*\{}"
         creds_dialog_output="${creds_dialog_output%\}*}}"
@@ -366,6 +367,24 @@ check_for_swiftdialog_app() {
     /usr/bin/touch "$dialog_log"
     /usr/sbin/chown "${current_user}:wheel" "$dialog_log"
     /bin/chmod 666 "$dialog_log"
+
+    # set the dialog command arguments
+    get_default_dialog_args "utility"
+    dialog_args=("${default_dialog_args[@]}")
+    dialog_args+=(
+        "$dialog_title_command" "${(P)dialog_reinstall_title}"
+        --icon "${dialog_install_icon}"
+        --iconsize "$iconsize"
+        --message "${(P)dialog_rebooting_heading}"
+        --button1disabled
+        --progress "$rebootdelay"
+    )
+    # run the dialog command
+    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & sleep 0.1
+
+    # quit dialog
+    writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
+    echo "quit:" >> "$dialog_log"
 }
 
 # -----------------------------------------------------------------------------

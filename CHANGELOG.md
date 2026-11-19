@@ -29,6 +29,7 @@ No date
 ### Updates in 44.0
 
 - New `--fake-installer` option to simulate a workflow without having to download a real installer. Automatically switches on the existing `--test-run` option. `--test-run` remains for those who want to test the actual download.
+- Bumped required swiftDialog version to `v3.1.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.1` and `v2.2.1`, and the appropriate one will be installed.
 
 ### Bugfixes in 44.0
 
