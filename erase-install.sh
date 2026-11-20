@@ -1885,12 +1885,10 @@ get_user_details() {
     password_check="fail"
     while [[ "$password_check" != "pass" ]] ; do
         writelog "[get_user_details] ask for user credentials (attempt $password_attempts/$max_password_attempts)"
-        # on the first attempt only, attempt to get credentials from a keychain if all values supplied from the command line - 
+        # on the first attempt only, use credentials supplied from the command line if present - 
         # recommended for testing only!! 
         # otherwise, ask via dialog
-        if [[ $password_attempts -eq 1 && $kc && $kc_pass ]]; then
-            read_from_keychain
-        elif [[ $password_attempts -eq 1 && $credentials && $very_insecure_mode == "yes" ]]; then
+        if [[ $password_attempts -eq 1 && $credentials && $very_insecure_mode == "yes" ]]; then
             credentials_decoded=$(/usr/bin/base64 -d <<< "$credentials")
             if [[ $(/usr/bin/awk -F: '{print NF-1}' <<< "$credentials_decoded") -eq 1 ]]; then
                 account_shortname=$(/usr/bin/awk -F: '{print $1}' <<< "$credentials_decoded")
@@ -3230,35 +3228,6 @@ process_product_async() {
 }
 
 # -----------------------------------------------------------------------------
-# Get a password from keychain
-# This is NOT a recommended method for production workflows for obvious security reasons.
-# Use at your own risk!!
-# -----------------------------------------------------------------------------
-read_from_keychain() {
-    # expects entries from the command line for keychain name, password, service name for the user and service name for the password
-    writelog "[read_from_keychain] Attempting to unlock keychain..."
-    if /usr/bin/security unlock-keychain -p "$kc_pass" "$kc"; then
-        writelog "[read_from_keychain] Unlocked keychain..."
-        account_shortname=$(/usr/bin/security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | /usr/bin/grep "acct" | /usr/bin/cut -d \" -f4)
-        if [[ $account_shortname ]]; then
-            writelog "[read_from_keychain] Obtained user $account_shortname..."
-        else
-            writelog "[read_from_keychain] Could not find user in keychain."
-            exit 1
-        fi
-        account_password=$(/usr/bin/security find-generic-password -s "$kc_service" -g "$kc" 2>&1 | /usr/bin/grep "password" | /usr/bin/cut -d \" -f2)
-        if [[ $account_password ]]; then
-            writelog "[read_from_keychain] Obtained password..."
-        else
-            writelog "[read_from_keychain] Could not find password in keychain."
-            exit 1
-        fi
-    else
-        writelog "[read_from_keychain] Could not unlock keychain. Continuing..."
-    fi
-}
-
-# -----------------------------------------------------------------------------
 # Run softwareupdate --list-full-installers and output to a file
 # -----------------------------------------------------------------------------
 run_list_full_installers() {
@@ -3923,11 +3892,8 @@ show_help() {
                         options.
     --rebootdelay NN    Delays the reboot after preparation has finished by NN seconds (max 300)
                         (--install/--reinstall option only)
-    --kc                Keychain containing a user password (do not use the login keychain!!)
-    --kc-pass           Password to open the keychain
-    --kc-service        The name of the key containing the account and password
-    --silent            Silent mode. No dialogs. Requires use of keychain (--kc mode) for Apple Silicon 
-                        to provide a password, or the --credentials/--very-insecure-mode mode.
+    --silent            Silent mode. No dialogs. Requires the --credentials/--very-insecure-mode 
+                        options on Apple Silicon to provide a password.
     --check-activity    If certain activity is detected, the script exits. Currently only supports 
                         Zoom meetings and Slack huddles.
     --quiet             Remove output from mist during installer download. Note that no progress 
@@ -4294,30 +4260,9 @@ while test $# -gt 0 ; do
             shift
             dialog_icon_size="$1"
             ;;
-        --kc)
-            shift
-            kc="$1"
-            ;;
-        --kc-pass)
-            shift
-            kc_pass="$1"
-            ;;
-        --kc-service)
-            shift
-            kc_service="$1"
-            ;;
         --language)
             shift
             language_override="$1"
-            ;;
-        --kc=*)
-            kc=$(echo "$1" | /usr/bin/sed -e 's|^[^=]*=||g' | /usr/bin/tr -d '"')
-            ;;
-        --kc-pass*)
-            kc_pass=$(echo "$1" | /usr/bin/sed -e 's|^[^=]*=||g' | /usr/bin/tr -d '"')
-            ;;
-        --kc-service*)
-            kc_service=$(echo "$1" | /usr/bin/sed -e 's|^[^=]*=||g' | /usr/bin/tr -d '"')
             ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | /usr/bin/sed -e 's|^[^=]*=||g' | /usr/bin/tr -d '"')
