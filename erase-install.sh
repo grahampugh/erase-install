@@ -39,7 +39,7 @@ script_name="erase-install"
 pkg_label="com.github.grahampugh.erase-install"
 
 # Version of this script
-version="44.1"
+version="45.0"
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
