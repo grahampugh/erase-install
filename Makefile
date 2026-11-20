@@ -9,6 +9,9 @@ GITHUB_RELEASE_TOKEN_FILE := $(CURDIR)/.github/gh_token_eraseinstall
 PKG_VERSION :=$(shell awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"')
 RELEASE_TAG := v$(PKG_VERSION)
 PKG_FILE := $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg
+# intermediate component package, wrapped by productbuild into the product archive $(PKG_FILE)
+PKG_COMPONENT_FILE := $(PKG_BUILD)/erase-install-component-$(PKG_VERSION).pkg
+PKG_DISTRIBUTION_FILE := $(PKG_BUILD)/distribution.xml
 SIGN_ID_PKG ?= Graham Pugh
 
 all: build
@@ -95,7 +98,13 @@ build:
 		/usr/libexec/PlistBuddy -c 'Add :0 dict' "$$component_plist" >/dev/null 2>&1 ; \
 		/usr/libexec/PlistBuddy -c 'Add :0:BundleIsRelocatable bool false' "$$component_plist" ; \
 	}
-	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" --sign "$(SIGN_ID_PKG)" "$(PKG_FILE)"
+	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" "$(PKG_COMPONENT_FILE)"
+	@echo "## Wrapping component package in a signed product archive"
+	productbuild --synthesize --package "$(PKG_COMPONENT_FILE)" "$(PKG_DISTRIBUTION_FILE)"
+	# add a title so that Installer shows the package name
+	/usr/bin/sed -i '' 's|<installer-gui-script minSpecVersion="[0-9]*">|&<title>erase-install</title>|' "$(PKG_DISTRIBUTION_FILE)"
+	productbuild --distribution "$(PKG_DISTRIBUTION_FILE)" --package-path "$(PKG_BUILD)" --identifier "com.github.grahampugh.erase-install" --version "$(PKG_VERSION)" --sign "$(SIGN_ID_PKG)" "$(PKG_FILE)"
+	rm -f "$(PKG_COMPONENT_FILE)" "$(PKG_DISTRIBUTION_FILE)"
 	open $(PKG_BUILD)
 
 .PHONY : release release-only publish-release

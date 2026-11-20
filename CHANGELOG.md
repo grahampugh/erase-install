@@ -34,6 +34,7 @@ No date
 - The Find My and power waiting messages now show the remaining time in the progress bar, rather than using a swiftDialog timer.
 - 💥 **Breaking change**: dialogs now require macOS 13 or newer. macOS 13 and 14 now get swiftDialog `v2.5.6` (previously `v2.2.1`), which is the first version that supports all the command file commands used. macOS 11 and 12 can still use `--silent` mode, or use version 44.1.
 - 💥 **Breaking change**: removed the `--kc`, `--kc-pass` and `--kc-service` options for reading credentials from a keychain. Use `--credentials` with `--very-insecure-mode` instead.
+- The installer package is now a signed product archive (built with `productbuild`) instead of a component package, so it can be installed with the `InstallEnterpriseApplication` MDM command and declarative device management (addresses #607). The component package identifier `com.github.grahampugh.erase-install.pkg` is unchanged.
 
 ### Bugfixes in 45.0
 
