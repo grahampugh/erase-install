@@ -23,7 +23,7 @@ The script is designed to interact with [mist-cli](https://github.com/ninxsoft/m
 
 It is alternatively possible to use the `softwareupdate --fetch-full-installer` command on Mac computers running **macOS 11 or greater** (macOS 11 is required because the `--list-full-installers` option is used to find valid builds).
 
-The script is also designed to interact with [swiftDialog](https://github.com/bartreardon/swiftDialog) for providing dialogues to users. **The minimum required version for swiftDialog is macOS 11**.
+The script is also designed to interact with [swiftDialog](https://github.com/bartreardon/swiftDialog) for providing dialogues to users. **Dialogs require macOS 13 or newer** (macOS 13 and 14 use swiftDialog v2.5.6, macOS 15 and newer use swiftDialog v3). On older systems, use `--silent` mode, or version 44.1 of erase-install on macOS 11 or 12.
 
 The script has many options to suit a large variety of workflows, management tools and user experiences. Originally designed to work with Macs that are enrolled into Jamf Pro, it now has additional options for use with other management systems or no management systems at all.
 

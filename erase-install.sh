@@ -63,11 +63,14 @@ swiftdialog_tag_required="v3.1.1"
 
 # Required swiftDialog version for macOS 11
 # This ensures a compatible swiftDialog version is used if not using the package installer
-swiftdialog_bigsur_tag_required="v2.2.1"
+swiftdialog_ventura_tag_required="v2.5.6"
 
 # swiftDialog variables
 dialog_portable_app="$workdir/Dialog.app"
 dialog_log=$(/usr/bin/mktemp /var/tmp/dialog.XXX)
+# process ID and blur state of the main dialog window (see dialog_start)
+dialog_pid=""
+dialog_blur_state="no"
 
 # swiftDialog icons
 dialog_dl_icon="/System/Library/PrivateFrameworks/SoftwareUpdate.framework/Versions/A/Resources/SoftwareUpdate.icns"
@@ -92,7 +95,7 @@ default_downloaded_pkg_id="com.apple.InstallAssistant.%VERSION%.%BUILD%.pkg"
 # -----------------------------------------------------------------------------
 ask_for_credentials() {
     # set the dialog command arguments
-    get_default_dialog_args "utility"
+    get_default_dialog_args
     dialog_args=("${default_dialog_args[@]}")
     dialog_args+=(
         "$dialog_title_command" "$dialog_window_title"
@@ -119,8 +122,11 @@ ask_for_credentials() {
     fi
 
     # run the dialog command (set language for password prompt)
+    # this is a separate window as text fields cannot be added to the main window from the command file
+    dialog_hide
     creds_dialog_output=$("$dialog_bin" "${dialog_args[@]}" -AppleLanguages "($language)" -AppleAccentColor "$accent_colour" 2>/dev/null)
     local creds_dialog_exit=$?
+    dialog_show
 
     # the output should be JSON, but anything else written to stdout would break parsing,
     # so keep only the part from the first { to the last }
@@ -160,51 +166,25 @@ check_fmm() {
         exit 1
     else
         writelog "[check_fmm] WARNING - Find My enabled"
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${(P)dialog_fmm_title}"
-            --icon "${dialog_confirmation_icon}"
-            --overlayicon "${dialog_fmm_icon}"
-            --iconsize "${dialog_icon_size}"
-            --message "${(P)dialog_fmm_desc}"
-            --timer "${fmm_wait_timer}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
+        # show the waiting message in the dialog window (never blurred, as the user needs to reach System Settings)
+        dialog_stage "${(P)dialog_fmm_title}" "${(P)dialog_fmm_desc}" "${dialog_confirmation_icon}" "${dialog_fmm_icon}" "" "no"
 
         # now count down while checking if Find My has been disabled
+        local fmm_wait_total=$fmm_wait_timer
         while [[ "$fmm_wait_timer" -gt 0 ]]; do
             if ! /usr/sbin/nvram -xp | /usr/bin/grep fmm-mobileme-token-FMM > /dev/null ; then
                 writelog "[check_fmm] OK - Find My not enabled"
-                # quit dialog
-                writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-                echo "quit:" >> "$dialog_log"
                 return
             fi
+            dialog_countdown "$fmm_wait_timer" "$fmm_wait_total"
             /bin/sleep 1
             ((fmm_wait_timer--))
         done
 
-        # quit dialog
-        writelog "[check_fmm] Sending quit message to dialog log ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
+        # show the failure message and wait for the user to dismiss it
+        dialog_prompt "${(P)dialog_fmm_title}" "${(P)dialog_fmmenabled_desc}" "${dialog_confirmation_icon}" "${dialog_fmm_icon}" "OK"
 
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${(P)dialog_fmm_title}"
-            --icon "${dialog_confirmation_icon}"
-            --iconsize "${dialog_icon_size}"
-            --overlayicon "${dialog_fmm_icon}"
-            --message "${(P)dialog_fmmenabled_desc}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
-
-        writelog "[check_fmm] ERROR - Find My still enabled after waiting for ${fmm_wait_timer}s, cannot continue."
+        writelog "[check_fmm] ERROR - Find My still enabled after waiting for ${fmm_wait_total}s, cannot continue."
         echo
         exit 1
     fi
@@ -299,8 +279,8 @@ check_for_swiftdialog_app() {
 
     # Determine the correct required version based on OS version
     if ! is-at-least "15" "$system_version"; then
-        # we need to get the older version of swiftDialog that is compatible with Big Sur, Monterey, Ventura, and Sonoma
-        swiftdialog_tag_required="$swiftdialog_bigsur_tag_required"
+        # we need to get the older version of swiftDialog that is compatible with Ventura and Sonoma
+        swiftdialog_tag_required="$swiftdialog_ventura_tag_required"
     fi
 
     # now check for correct version of swiftDialog and download if not present
@@ -319,7 +299,7 @@ check_for_swiftdialog_app() {
             writelog "[check_for_swiftdialog_app] swiftDialog is not installed. Proceeding to install..."
         fi
         if [[ ! $no_curl ]]; then
-            if is-at-least "11" "$system_version"; then
+            if is-at-least "13" "$system_version"; then
                 writelog "[check_for_swiftdialog_app] Downloading swiftDialog $swiftdialog_tag_required for macOS $system_version..."
                 # obtain the download URL
                 swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases"
@@ -350,7 +330,7 @@ check_for_swiftdialog_app() {
                     exit 1
                 fi
             else
-                writelog "[check_for_swiftdialog_app] swiftDialog is not compatible with macOS $system_version, so it will not be downloaded. Silent mode is required for use on macOS 10.15, so no dialog will be used on that version of macOS."
+                writelog "[check_for_swiftdialog_app] swiftDialog is not compatible with macOS $system_version, so it will not be downloaded. Silent mode is required for use on macOS 12 or older, so no dialog will be used on that version of macOS."
             fi
         else
             writelog "[check_for_swiftdialog_app] swiftDialog v$swiftdialog_tag_required is not installed. Run without --no-curl to download and install it, or run with --silent if you do not want to use dialog windows."
@@ -398,19 +378,8 @@ check_free_space() {
         exit 1
     else
         writelog "[check_free_space] ERROR - $free_disk_space GB free/purgeable disk space detected"
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${dialog_window_title}"
-            --icon "${dialog_confirmation_icon}"
-            --iconsize "${dialog_icon_size}"
-            --overlayicon "SF=externaldrive.fill.badge.xmark,colour=red"
-            --message "${(P)dialog_check_desc}"
-            --button1text "${(P)dialog_cancel_button}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+        # show the failure message and wait for the user to dismiss it
+        dialog_prompt "${dialog_window_title}" "${(P)dialog_check_desc}" "${dialog_confirmation_icon}" "SF=externaldrive.fill.badge.xmark,colour=red" "${(P)dialog_cancel_button}"
         exit 1
     fi
 }
@@ -811,51 +780,25 @@ check_power_status() {
             fi
         fi
         writelog "[check_power_status] WARNING - No AC power detected"
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${(P)dialog_power_title}"
-            --icon "${dialog_confirmation_icon}"
-            --overlayicon "SF=bolt.slash.fill,colour=red"
-            --iconsize "${dialog_icon_size}"
-            --message "${(P)dialog_power_desc}"
-            --timer "${power_wait_timer}"
-        )
-        # run the dialog command (stderr to dev/null to prevent Xfont errors)
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
+        # show the waiting message in the dialog window (never blurred, so the user can see their desktop)
+        dialog_stage "${(P)dialog_power_title}" "${(P)dialog_power_desc}" "${dialog_confirmation_icon}" "SF=bolt.slash.fill,colour=red" "" "no"
 
         # now count down while checking for power
+        local power_wait_total=$power_wait_timer
         while [[ "$power_wait_timer" -gt 0 ]]; do
             if /usr/bin/pmset -g ps | /usr/bin/grep "AC Power" > /dev/null ; then
                 writelog "[check_power_status] OK - AC power detected"
-                # quit dialog
-                writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-                echo "quit:" >> "$dialog_log"
                 return
             fi
+            dialog_countdown "$power_wait_timer" "$power_wait_total"
             /bin/sleep 1
             ((power_wait_timer--))
         done
 
-        # quit dialog
-        writelog "[check_power_status] Sending quit message to dialog log ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
+        # show the failure message and wait for the user to dismiss it
+        dialog_prompt "${(P)dialog_power_title}" "${(P)dialog_nopower_desc}" "${dialog_confirmation_icon}" "SF=powerplug.fill,colour=red" "OK"
 
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${(P)dialog_power_title}"
-            --icon "${dialog_confirmation_icon}"
-            --iconsize "${dialog_icon_size}"
-            --overlayicon "SF=powerplug.fill,colour=red"
-            --message "${(P)dialog_nopower_desc}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
-
-        writelog "[check_power_status] ERROR - No AC power detected after waiting for ${power_wait_timer}s, cannot continue."
+        writelog "[check_power_status] ERROR - No AC power detected after waiting for ${power_wait_total}s, cannot continue."
         echo
         exit 1
     fi
@@ -876,20 +819,8 @@ confirm() {
         local dialog_message="${(P)dialog_reinstall_confirmation_desc}"
     fi
 
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "$dialog_title"
-        --icon "${dialog_confirmation_icon}"
-        --iconsize "${dialog_icon_size}"
-        --overlayicon "SF=person.fill.checkmark,colour=red"
-        --message "$dialog_message"
-        --button1text "${(P)dialog_confirmation_button}"
-        --button2text "${(P)dialog_cancel_button}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+    # show the confirmation in the dialog window and wait for the user to press a button
+    dialog_prompt "$dialog_title" "$dialog_message" "${dialog_confirmation_icon}" "SF=person.fill.checkmark,colour=red" "${(P)dialog_confirmation_button}" "${(P)dialog_cancel_button}"
     confirmation=$?
 
     if [[ "$confirmation" == "2" ]]; then
@@ -1066,6 +997,82 @@ create_pipe() {
 }
 
 # -----------------------------------------------------------------------------
+# Dialog window helpers.
+# A single swiftDialog window is used for every stage that shows information
+# (waiting for power or Find My, downloading, preparing, reboot countdown) and
+# for messages that only need buttons (confirmation, errors). Its content is
+# changed by writing commands to the command file ($dialog_log), see
+# https://swiftdialog.app/advanced/command-file/
+# The command file is one-way, so a button press can only be detected when the
+# window exits (see dialog_prompt). Prompts that need text input or a selection
+# (ask_for_credentials, select_build_from_dialog) use a separate window.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Blur the screen and disable the button (fullscreen mode), or remove the blur
+# and enable the button.
+# Buttons cannot be hidden from the command file ("hide" is the same as "disable").
+# -----------------------------------------------------------------------------
+dialog_apply_blur() {
+    # $1 - "yes" to blur the screen, "no" to remove the blur
+    if [[ "$1" == "yes" ]]; then
+        dialog_cmd "blurscreen: enable"
+        dialog_cmd "button1: disable"
+        dialog_blur_state="yes"
+    else
+        if [[ $dialog_blur_state == "yes" ]]; then
+            dialog_cmd "blurscreen: disable"
+        fi
+        dialog_cmd "button1: enable"
+        dialog_blur_state="no"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Send a command to the dialog window via the command file.
+# Literal \n line breaks (as used in the localised messages) are converted to
+# <br>, so that a message is always written as a single line.
+# -----------------------------------------------------------------------------
+dialog_cmd() {
+    # $1 - the command, e.g. "message: some text"
+    [[ $silent ]] && return 0
+    local command="${1//\\n/<br>}"
+    writelog "[dialog_cmd] $command"
+    printf '%s\n' "$command" >> "$dialog_log"
+}
+
+# -----------------------------------------------------------------------------
+# Show a countdown in the progress bar of the dialog window.
+# Called once per second, so this does not write to the log.
+# -----------------------------------------------------------------------------
+dialog_countdown() {
+    # $1 - seconds remaining, $2 - total seconds
+    [[ $silent ]] && return 0
+    printf 'progress: %d\n' $(( $1 * 100 / $2 )) >> "$dialog_log"
+    printf 'progresstext: %d:%02d\n' $(( $1 / 60 )) $(( $1 % 60 )) >> "$dialog_log"
+}
+
+# -----------------------------------------------------------------------------
+# Hide the dialog window while a separate prompt is shown.
+# swiftDialog v2 does not hide the blur along with the window, so remove it first.
+# -----------------------------------------------------------------------------
+dialog_hide() {
+    dialog_is_running || return 0
+    if [[ $dialog_blur_state == "yes" ]]; then
+        dialog_cmd "blurscreen: disable"
+    fi
+    dialog_cmd "hide:"
+}
+
+# -----------------------------------------------------------------------------
+# Check whether the dialog window is open.
+# The user may have closed it, e.g. with the Hide button.
+# -----------------------------------------------------------------------------
+dialog_is_running() {
+    [[ $dialog_pid ]] && kill -0 "$dialog_pid" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
 # Show progress information in swiftDialog while the installer is being 
 # downloaded or prepared, or during reboot-delay, thanks to @andredb90.
 # -----------------------------------------------------------------------------
@@ -1235,16 +1242,177 @@ dialog_progress() {
 
     elif [[ "$1" == "reboot-delay" ]]; then
         # Countdown seconds to reboot (a bit shorter than rebootdelay)
+        # the progress bar has 100 steps, so show the remaining time as a percentage
         countdown=$((rebootdelay-2))
-        echo "progress: $countdown" >> "$dialog_log"
         until [ "$countdown" -eq 0 ]; do
-            /bin/sleep 1
-            current_progress_value=$countdown
             echo "progresstext: Computer will be restarted in $countdown seconds" >> "$dialog_log"
-            echo "progress: $countdown" >> "$dialog_log"
+            echo "progress: $(( countdown * 100 / rebootdelay ))" >> "$dialog_log"
+            /bin/sleep 1
             ((countdown--))
         done
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Show a message in the dialog window and wait for the user to press a button.
+# Used for the confirmation and for error messages.
+# The window closes when a button is pressed. The next dialog_stage opens it again.
+# Buttons cannot be added from the command file, so if a second button is
+# needed the window is reopened with it.
+# Returns the swiftDialog exit code (0 = button1, 2 = button2).
+# -----------------------------------------------------------------------------
+dialog_prompt() {
+    # $1 - title, $2 - message, $3 - icon, $4 - overlay icon ("" for none)
+    # $5 - button1 text, $6 - button2 text (optional)
+    local title="$1" message="$2" icon="$3" overlay="$4" button1="$5" button2="$6"
+    # never prompt in silent mode, and treat it as a cancellation
+    [[ $silent ]] && return 2
+
+    if [[ $button2 ]]; then
+        dialog_quit
+    fi
+    if dialog_is_running; then
+        dialog_set_content "$title" "$message" "$icon" "$overlay"
+        dialog_cmd "button1text: $button1"
+    else
+        local prompt_args=(
+            "$dialog_title_command" "$title"
+            --message "${message//\\n/<br>}"
+            --icon "$icon"
+            --button1text "$button1"
+        )
+        if [[ $overlay ]]; then
+            prompt_args+=(--overlayicon "$overlay")
+        fi
+        if [[ $button2 ]]; then
+            prompt_args+=(--button2text "$button2")
+        fi
+        dialog_start "${prompt_args[@]}"
+    fi
+    dialog_cmd "progresstext: "
+    dialog_cmd "progress: hide"
+    # the user must be able to press the button
+    dialog_apply_blur "no"
+    dialog_cmd "activate:"
+
+    writelog "[dialog_prompt] Waiting for the user to press a button"
+    wait "$dialog_pid"
+    local exit_code=$?
+    writelog "[dialog_prompt] Dialog window closed with exit code $exit_code"
+    dialog_pid=""
+    dialog_blur_state="no"
+    return $exit_code
+}
+
+# -----------------------------------------------------------------------------
+# Close the dialog window if it is open
+# -----------------------------------------------------------------------------
+dialog_quit() {
+    [[ $silent ]] && return 0
+    writelog "[dialog_quit] Sending quit message to dialog log ($dialog_log)"
+    printf '%s\n' "quit:" >> "$dialog_log"
+    # wait up to 5 seconds for the window to close
+    local i
+    for i in {1..20}; do
+        dialog_is_running || break
+        /bin/sleep 0.25
+    done
+    dialog_pid=""
+    dialog_blur_state="no"
+}
+
+# -----------------------------------------------------------------------------
+# Replace the title, message and icons in an open dialog window
+# -----------------------------------------------------------------------------
+dialog_set_content() {
+    # $1 - title, $2 - message, $3 - icon, $4 - overlay icon ("" for none)
+    dialog_cmd "title: $1"
+    dialog_cmd "message: $2"
+    dialog_cmd "icon: $3"
+    dialog_cmd "overlayicon: ${4:-none}"
+}
+
+# -----------------------------------------------------------------------------
+# Show the dialog window again after a separate prompt
+# -----------------------------------------------------------------------------
+dialog_show() {
+    dialog_is_running || return 0
+    dialog_cmd "show:"
+    if [[ $dialog_blur_state == "yes" ]]; then
+        dialog_cmd "blurscreen: enable"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Set the dialog window to show a new stage of the workflow, with a progress bar.
+# Opens the window if it is not open, e.g. if the user pressed Hide in an earlier stage.
+# -----------------------------------------------------------------------------
+dialog_stage() {
+    # $1 - title, $2 - message, $3 - icon, $4 - overlay icon ("" for none)
+    # $5 - button1 text ("" to disable button1), $6 - "yes" to blur the screen
+    local title="$1" message="$2" icon="$3" overlay="$4" button1="$5" blur="$6"
+    [[ $silent ]] && return 0
+
+    if dialog_is_running; then
+        dialog_set_content "$title" "$message" "$icon" "$overlay"
+    else
+        local stage_args=(
+            "$dialog_title_command" "$title"
+            --message "${message//\\n/<br>}"
+            --icon "$icon"
+        )
+        if [[ $overlay ]]; then
+            stage_args+=(--overlayicon "$overlay")
+        fi
+        dialog_start "${stage_args[@]}"
+    fi
+    dialog_cmd "progresstext: "
+    dialog_cmd "progress: reset"
+    dialog_cmd "progress: show"
+    if [[ $blur == "yes" ]]; then
+        dialog_apply_blur "yes"
+    else
+        dialog_apply_blur "no"
+        if [[ $button1 ]]; then
+            dialog_cmd "button1text: $button1"
+        else
+            dialog_cmd "button1: disable"
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Open the dialog window, unless it is already open.
+# The command file is emptied first, so a new window cannot act on old commands.
+# -----------------------------------------------------------------------------
+dialog_start() {
+    # $@ - content arguments for the window (title, message, icon, buttons)
+    dialog_is_running && return 0
+    : > "$dialog_log"
+    local start_args=(
+        --commandfile "$dialog_log"
+        --ontop
+        --ignorednd
+        --position "centre"
+        --quitkey "c"
+        --moveable
+        --width "650"
+        --height "350"
+        --titlefont "size=20,shadow=1"
+        --messagefont "size=14"
+        --alignment "left"
+        --iconsize "$dialog_icon_size"
+        --progress "100"
+    )
+    if is-at-least "15" "$system_version"; then
+        start_args+=(--bannerimage "colour=#056AE6" --bannerheight "40")
+    fi
+    writelog "[dialog_start] Opening dialog window"
+    "$dialog_bin" "${start_args[@]}" "$@" >/dev/null 2>&1 &
+    dialog_pid=$!
+    dialog_blur_state="no"
+    # give the window time to start reading the command file
+    /bin/sleep 0.5
 }
 
 # -----------------------------------------------------------------------------
@@ -1486,11 +1654,7 @@ finish() {
 
     # kill any dialogs if startosinstall quits without rebooting the machine (exit code > 0)
     if [[ $test_run == "yes" || $exit_code -gt 0 ]]; then
-        writelog "[finish] sending quit message to dialog ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
-        # delete dialog logfile
-        /bin/sleep 0.5
-        # /bin/rm -f "$dialog_log"
+        dialog_quit
     fi
 
     # set final exit code and quit, but do not call finish() again
@@ -1550,52 +1714,27 @@ get_darwin_from_os_version() {
 }
 
 # -----------------------------------------------------------------------------
-# Default dialog arguments
+# Default dialog arguments for prompts that need a separate window
+# (text input or a selection). All other stages use the main dialog window,
+# see dialog_start.
 # -----------------------------------------------------------------------------
 get_default_dialog_args() {
     # set the dialog command arguments
-    # $1 - window type
     default_dialog_args=(
-        --commandfile "$dialog_log"
         --ontop
         --json
         --ignorednd
         --position "centre"
         --quitkey "c"
+        --moveable
+        --width "600"
+        --height "300"
+        --titlefont "size=20,shadow=1"
+        --messagefont "size=14"
+        --alignment "left"
     )
     if is-at-least "15" "$system_version"; then
-        default_dialog_args+=(--bannerimage "colour=#056AE6")
-        dialog_title_command="--bannertitle"
-    else
-        dialog_title_command="--title"
-    fi
-    if [[ "$1" == "fullscreen" ]]; then
-        writelog "[get_default_dialog_args] Invoking fullscreen dialog"
-        default_dialog_args+=(
-            --blurscreen
-            --width "50%"
-            --height "50%"
-            --button1disabled
-            --titlefont "size=32,shadow=1"
-            --messagefont "size=24"
-            --alignment "left"
-        )
-        if is-at-least "15" "$system_version"; then
-            default_dialog_args+=(--bannerheight "70")
-        fi
-    elif [[ "$1" == "utility" ]]; then
-        writelog "[get_default_dialog_args] Invoking utility dialog"
-        default_dialog_args+=(
-            --moveable
-            --width "600"
-            --height "300"
-            --titlefont "size=20,shadow=1"
-            --messagefont "size=14"
-            --alignment "left"
-        )
-        if is-at-least "15" "$system_version"; then
-            default_dialog_args+=(--bannerheight "40")
-        fi
+        default_dialog_args+=(--bannerimage "colour=#056AE6" --bannerheight "40")
     fi
 }
 
@@ -2954,18 +3093,8 @@ password_is_invalid() {
         # exit with error code
         exit 1
     fi
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${dialog_window_title}"
-        --icon "${dialog_confirmation_icon}"
-        --iconsize "${dialog_icon_size}"
-        --overlayicon "SF=person.fill.xmark,colour=red"
-        --message "${(P)dialog_invalid_password} $user"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+    # show the message and wait for the user to dismiss it
+    dialog_prompt "${dialog_window_title}" "${(P)dialog_invalid_password} $user" "${dialog_confirmation_icon}" "SF=person.fill.xmark,colour=red" "OK"
 }
 
 # -----------------------------------------------------------------------------
@@ -2973,29 +3102,23 @@ password_is_invalid() {
 # -----------------------------------------------------------------------------
 # shellcheck disable=SC2317
 post_prep_work() {
+    # preparation is finished, so stop the progress monitor, which can miss the final
+    # 100% line if startosinstall writes something else straight after it
+    if [[ $prep_progress_pid ]]; then
+        kill "$prep_progress_pid" 2>/dev/null
+    fi
+    if [[ ! $silent ]]; then
+        dialog_cmd "progresstext: Preparing macOS Installer (100%)"
+        dialog_cmd "progress: complete"
+        # give the user a moment to see that preparation is complete
+        /bin/sleep 2
+    fi
+
     # set dialog progress for rebootdelay if set
-    if [[ "$rebootdelay" -gt 10 && ! $silent && $fs != "yes" ]]; then
-        # quit an existing window
-        writelog "[post_prep_work] Sending quit message to dialog log ($dialog_log)"
-        echo "quit:" >> "$dialog_log"
-        writelog "[post_prep_work] Opening full screen dialog (language=$user_language)"
-
-        window_type="utility"
-        iconsize=$dialog_icon_size
-
-        # set the dialog command arguments
-        get_default_dialog_args "$window_type"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${(P)dialog_reinstall_title}"
-            --icon "${dialog_install_icon}"
-            --iconsize "$iconsize"
-            --message "${(P)dialog_rebooting_heading}"
-            --button1disabled
-            --progress "$rebootdelay"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
+    if [[ "$rebootdelay" -ge 10 && ! $silent && $fs != "yes" ]]; then
+        # show the reboot countdown in the dialog window, unblurred so the user can save their work
+        writelog "[post_prep_work] Showing reboot delay countdown (language=$user_language)"
+        dialog_stage "${(P)dialog_reinstall_title}" "${(P)dialog_rebooting_heading}" "${dialog_install_icon}" "" "" "no"
 
         dialog_progress reboot-delay >/dev/null 2>&1 &
     fi
@@ -3253,7 +3376,7 @@ run_list_full_installers() {
 # The dialog will show the version and build number for each available installer, and the user can select one. The selected version and build will be stored in variables for later use.
 # -----------------------------------------------------------------------------
 select_build_from_dialog() {
-    get_default_dialog_args "utility"
+    get_default_dialog_args
     dialog_args=("${default_dialog_args[@]}")
     # produce a list of compatible available macOS versions from the JSON file, and format for dialog, showing only version and build
     version_list=()
@@ -3310,8 +3433,11 @@ select_build_from_dialog() {
         exit 1
     fi
 
+    # this is a separate window as a select list cannot be added to the main window from the command file
+    dialog_hide
     dialog_response=$("$dialog_bin" "${dialog_args[@]}")
     dialog_exit_code=$?
+    dialog_show
     if [[ $dialog_exit_code -eq 0 ]]; then
         # user clicked Select
         selected_version_line=$(echo "$dialog_response" | /usr/bin/grep 'selectedValue' | /usr/bin/cut -d '"' -f4)
@@ -3845,10 +3971,10 @@ show_help() {
                         Note that when using --mist mode, it takes a long time to build the package from the complete installer, so
                         this method is not recommended for normal workflows.
     --keep-pkg          Retains a cached package if --move is used to extract an installer from it.
-    --fs                Uses full-screen windows for all stages, not just the
-                        preparation phase.
-    --no-fs             Replaces the full-screen dialog window with a smaller dialog during the preparation
-                        phase, so you can still access the desktop while the script runs.
+    --fs                Blurs the screen and disables the dialog button for the download stage
+                        as well as the preparation stage.
+    --no-fs             Never blurs the screen, so you can still access the desktop while the
+                        script runs.
     --beta              Include beta versions in the search. Works with the no-flag
                         (i.e. automatic), --os and --version arguments.
     --path /path/to     Overrides the destination of --move to a specified directory
@@ -3977,18 +4103,8 @@ user_is_invalid() {
         # exit with error code
         exit 1
     fi
-    # set the dialog command arguments
-    get_default_dialog_args "utility"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${dialog_window_title}"
-        --icon "${dialog_warning_icon}"
-        --iconsize "${dialog_icon_size}"
-        --overlayicon "SF=person.fill.xmark,colour=red"
-        --message "${(P)dialog_invalid_user}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+    # show the message and wait for the user to dismiss it
+    dialog_prompt "${dialog_window_title}" "${(P)dialog_invalid_user}" "${dialog_warning_icon}" "SF=person.fill.xmark,colour=red" "OK"
 }
 
 # -----------------------------------------------------------------------------
@@ -4000,18 +4116,8 @@ user_not_volume_owner() {
     # required for Silicon Macs
     writelog "[user_is_invalid] ERROR - user is not a Volume Owner."
     if [[ ! $silent ]]; then
-        # set the dialog command arguments
-        get_default_dialog_args "utility"
-        dialog_args=("${default_dialog_args[@]}")
-        dialog_args+=(
-            "$dialog_title_command" "${dialog_window_title}"
-            --icon "${dialog_warning_icon}"
-            --iconsize "${dialog_icon_size}"
-            --overlayicon "SF=person.fill.xmark,colour=red"
-            --message "$account_shortname ${(P)dialog_not_volume_owner}: ${enabled_users}"
-        )
-        # run the dialog command
-        "$dialog_bin" "${dialog_args[@]}" 2>/dev/null
+        # show the message and wait for the user to dismiss it
+        dialog_prompt "${dialog_window_title}" "$account_shortname ${(P)dialog_not_volume_owner}: ${enabled_users}" "${dialog_warning_icon}" "SF=person.fill.xmark,colour=red" "OK"
     fi
 }
 
@@ -4394,6 +4500,13 @@ system_build=$( /usr/bin/sw_vers -buildVersion )
 
 writelog "[$script_name] System version: $system_version (Build: $system_build)"
 
+# swiftDialog v3 (macOS 15+) shows the title over a coloured banner
+if is-at-least "15" "$system_version"; then
+    dialog_title_command="--bannertitle"
+else
+    dialog_title_command="--title"
+fi
+
 # check if this is the latest version of erase-install
 if [[ "$no_curl" != "yes" ]]; then
     if is-at-least "13" "$system_version"; then 
@@ -4412,9 +4525,9 @@ if ! is-at-least "10.15" "$system_version"; then
 fi
 
 if [[ ! $silent ]]; then
-    # bail if system is older than macOS 11 and --silent mode is not selected
-    if ! is-at-least "11" "$system_version"; then 
-        writelog "[$script_name] This script requires macOS 11 or newer in interactive mode. Please use version 27.3 of erase-install.sh on older systems."
+    # bail if system is older than macOS 13 and --silent mode is not selected
+    if ! is-at-least "13" "$system_version"; then 
+        writelog "[$script_name] This script requires macOS 13 or newer in interactive mode. Please use version 44.1 of erase-install.sh on macOS 11 or 12, or use --silent mode."
         echo
         exit 1
     fi
@@ -4512,10 +4625,6 @@ elif [[ ($overwrite == "yes" && $update_installer == "yes") || ($replace_invalid
     exit 1
 fi
 
-# different dialog icon for OS older than macOS 13
-if ! is-at-least "13" "$system_version"; then 
-    dialog_confirmation_icon="/System/Applications/System Preferences.app"
-fi
 
 # fetch-full-installer workflows should normalize installers to /Applications
 if [[ $ffi == "yes" ]]; then
@@ -4706,32 +4815,16 @@ if [[ ! -d "$working_macos_app" && ! -f "$working_installer_pkg" ]]; then
     if [[ ! $silent ]]; then
         # if erasing or reinstalling, open a dialog to state that the download is taking place.
         if [[ $erase == "yes" || $reinstall == "yes" || ($dl_dialog == "yes" && $check_for_activity != "yes") ]]; then
-            # if no_fs is set, show a utility window instead of the full screen display (for test purposes)
+            # the screen is only blurred during the download if --fs is set
             if [[ $fs == "yes" ]]; then
-                window_type="fullscreen"
-                iconsize=200
+                download_blur="yes"
             else
-                window_type="utility"
-                iconsize=$dialog_icon_size
+                download_blur="no"
             fi
-            # set the dialog command arguments
-            get_default_dialog_args "$window_type"
-            dialog_args=("${default_dialog_args[@]}")
-            dialog_args+=(
-                "$dialog_title_command" "${(P)dialog_dl_title}"
-                --icon "$dialog_confirmation_icon"
-                --iconsize "$iconsize"
-                --message "${(P)dialog_dl_desc}"
-                --progress "100"
-                --button1text "${(P)dialog_hide_button}"
-            )
+            dialog_stage "${(P)dialog_dl_title}" "${(P)dialog_dl_desc}" "$dialog_confirmation_icon" "" "${(P)dialog_hide_button}" "$download_blur"
             if [[ $ffi == "yes" ]]; then
-                dialog_args+=(
-                    --progresstext "Searching for a valid macOS installer"
-                )
+                dialog_cmd "progresstext: Searching for a valid macOS installer"
             fi
-            # run the dialog command
-            "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
         fi
     fi
 
@@ -4786,11 +4879,8 @@ fi
 
 # if not erasing or reinstalling, quit here
 if [[ $erase != "yes" && $reinstall != "yes" ]]; then
-    if [[ ! $silent ]]; then
-        # quit dialog when the download is complete
-        writelog "[$script_name] Sending quit message to dialog log ($dialog_log)"
-        echo "quit:" >> "$dialog_log" & /bin/sleep 0.1
-    fi
+    # close the dialog window when the download is complete
+    dialog_quit
 
     # Clear the working directory
     writelog "[$script_name] Cleaning working directory '$workdir/content'"
@@ -4830,12 +4920,6 @@ elif [[ $reinstall == "yes" ]]; then
     writelog "[$script_name] WARNING! Running $working_macos_app with reinstall option"
 fi
 echo
-
-# quit dialog when the download is complete
-if [[ ! $silent ]]; then
-    writelog "[$script_name] Sending quit message to dialog log ($dialog_log)"
-    echo "quit:" >> "$dialog_log" & /bin/sleep 0.1
-fi
 
 # if configured to do so, display a confirmation window to the user
 if [[ $confirm == "yes" && ! $silent ]]; then
@@ -4896,52 +4980,26 @@ if [[ $erase == "yes" && $cloneuser ]]; then
     install_args+=("--cloneuser")
 fi
 
-# window type for erase and reinstall dialogs
+# blur the screen during preparation for erase, or for reinstall without a reboot delay, unless --no-fs is set
 if [[ $fs == "yes" || ($erase == "yes" && $no_fs != "yes") || ($reinstall == "yes" && $no_fs != "yes" && $rebootdelay -lt 10) ]]; then
-    window_type="fullscreen"
-    iconsize=200
+    prep_blur="yes"
 else
-    window_type="utility"
-    iconsize=$dialog_icon_size
+    prep_blur="no"
 fi
 
 # ensure the icon for the dialogs is set to the icon of the installer app if it exists, otherwise use the default icon
 set_dialog_install_icon
 writelog "[$script_name] Icon for dialogs: $dialog_install_icon"
 
-# dialogs for erase
+# dialog window for the preparation stage
 if [[ $erase == "yes" && ! $silent ]]; then
-    # set the dialog command arguments
-    get_default_dialog_args "$window_type"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${(P)dialog_erase_title}"
-        --icon "${dialog_install_icon}"
-        --message "${(P)dialog_erase_desc}"
-        --progress "100"
-        --button1text "${(P)dialog_hide_button}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
-
+    dialog_stage "${(P)dialog_erase_title}" "${(P)dialog_erase_desc}" "${dialog_install_icon}" "" "${(P)dialog_hide_button}" "$prep_blur"
     dialog_progress startosinstall >/dev/null 2>&1 &
-
-# dialogs for reinstallation
+    prep_progress_pid=$!
 elif [[ $reinstall == "yes" && ! $silent ]]; then
-    # set the dialog command arguments
-    get_default_dialog_args "$window_type"
-    dialog_args=("${default_dialog_args[@]}")
-    dialog_args+=(
-        "$dialog_title_command" "${(P)dialog_reinstall_title}"
-        --icon "${dialog_install_icon}"
-        --message "${(P)dialog_reinstall_desc}"
-        --progress "100"
-        --button1text "${(P)dialog_hide_button}"
-    )
-    # run the dialog command
-    "$dialog_bin" "${dialog_args[@]}" 2>/dev/null & /bin/sleep 0.1
-
+    dialog_stage "${(P)dialog_reinstall_title}" "${(P)dialog_reinstall_desc}" "${dialog_install_icon}" "" "${(P)dialog_hide_button}" "$prep_blur"
     dialog_progress startosinstall >/dev/null 2>&1 &
+    prep_progress_pid=$!
 fi
 
 # set launchdaemon to remove $workdir if $cleanup_after_use is set
