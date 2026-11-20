@@ -22,6 +22,25 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
+## [45.0]
+
+No date
+
+### Updates in 45.0
+
+- 💥 **Breaking change**: erase-install now uses a single swiftDialog window for the whole run instead of opening and closing a new window for each stage. The window content changes for each stage (waiting for power or Find My, download, confirmation, preparation, reboot delay countdown) by writing to a swiftDialog [command file](https://swiftdialog.app/advanced/command-file/). The credentials prompt and the `--select`/`--select-valid` version list still use a separate window, because text fields and select lists cannot be added to a window that is already open.
+- 💥 **Breaking change**: the separate "full screen" window has been removed. `--fs`, and the default behaviour during the preparation stage of `--erase` and `--reinstall`, now blur the screen and disable the button on the same window, rather than showing a larger window with larger text. `--no-fs` means the screen is never blurred. The Find My and power waiting messages are never blurred, so that users can reach System Settings or check their desktop.
+- If the user presses Hide during the download, the window opens again at the preparation stage.
+- The Find My and power waiting messages now show the remaining time in the progress bar, rather than using a swiftDialog timer.
+- 💥 **Breaking change**: dialogs now require macOS 13 or newer. macOS 13 and 14 now get swiftDialog `v2.5.6` (previously `v2.2.1`), which is the first version that supports all the command file commands used. macOS 11 and 12 can still use `--silent` mode, or use version 44.1.
+- 💥 **Breaking change**: removed the `--kc`, `--kc-pass` and `--kc-service` options for reading credentials from a keychain. Use `--credentials` with `--very-insecure-mode` instead.
+- The installer package is now a signed product archive (built with `productbuild`) instead of a component package, so it can be installed with the `InstallEnterpriseApplication` MDM command and declarative device management (addresses #607). The component package identifier `com.github.grahampugh.erase-install.pkg` is unchanged.
+
+### Bugfixes in 45.0
+
+- The preparation progress bar now always reaches 100% before the reboot delay countdown is shown or the script exits. Previously it could stop at the last value read from startosinstall.
+- The reboot delay countdown is now shown when `--rebootdelay` is set to exactly 10 seconds. Previously that value got neither the countdown nor the blurred screen.
+
 ## [44.1]
 
 No date

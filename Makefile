@@ -9,6 +9,9 @@ GITHUB_RELEASE_TOKEN_FILE := $(CURDIR)/.github/gh_token_eraseinstall
 PKG_VERSION :=$(shell awk -F '=' '/^version=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"')
 RELEASE_TAG := v$(PKG_VERSION)
 PKG_FILE := $(PKG_BUILD)/erase-install-$(PKG_VERSION).pkg
+# intermediate component package, wrapped by productbuild into the product archive $(PKG_FILE)
+PKG_COMPONENT_FILE := $(PKG_BUILD)/erase-install-component-$(PKG_VERSION).pkg
+PKG_DISTRIBUTION_FILE := $(PKG_BUILD)/distribution.xml
 SIGN_ID_PKG ?= Graham Pugh
 
 all: build
@@ -47,19 +50,19 @@ build:
 	rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 
 	@echo
-	swiftdialog_bigsur_tag=$$(awk -F '=' '/swiftdialog_bigsur_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
-	echo "## Downloading swiftDialog $$swiftdialog_bigsur_tag" ;\
+	swiftdialog_ventura_tag=$$(awk -F '=' '/swiftdialog_ventura_tag_required="v/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
+	echo "## Downloading swiftDialog $$swiftdialog_ventura_tag" ;\
 	github_token=$$(cat $(GITHUB_TOKEN_FILE)) ;\
 	swiftdialog_api_url="https://api.github.com/repos/swiftDialog/swiftDialog/releases" ;\
-	swiftdialog_bigsur_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_bigsur_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.0.browser_download_url' raw -) ;\
-	echo "## Downloading swiftDialog from $$swiftdialog_bigsur_url" ;\
-	curl -L "$$swiftdialog_bigsur_url" -o "/private/tmp/swiftDialog.pkg" ;\
-	echo "## Downloaded swiftDialog $$swiftdialog_bigsur_tag"
+	swiftdialog_ventura_url=$$(/usr/bin/curl -sL -H "Accept: application/json" "$$swiftdialog_api_url/tags/$$swiftdialog_ventura_tag" --header "Authorization: Bearer $$github_token" --header "X-GitHub-Api-Version: 2022-11-28" | /usr/bin/plutil -extract 'assets.0.browser_download_url' raw -) ;\
+	echo "## Downloading swiftDialog from $$swiftdialog_ventura_url" ;\
+	curl -L "$$swiftdialog_ventura_url" -o "/private/tmp/swiftDialog.pkg" ;\
+	echo "## Downloaded swiftDialog $$swiftdialog_ventura_tag"
 	echo "## Extracting Dialog.app from swiftDialog pkg" ;\
 	pkgutil --expand "/private/tmp/swiftDialog.pkg" "/private/tmp/swiftDialog_expanded" ;\
 	mkdir -p "/private/tmp/swiftDialog_payload" ;\
 	cd "/private/tmp/swiftDialog_payload" && cat "/private/tmp/swiftDialog_expanded/tmp-package.pkg/Payload" | gunzip -dc | cpio -i ;\
-	cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$(PKG_SCRIPTS)/Dialog-bigsur.app" ;\
+	cp -r "/private/tmp/swiftDialog_payload/Library/Application Support/Dialog/Dialog.app" "$(PKG_SCRIPTS)/Dialog-ventura.app" ;\
 	rm -rf "/private/tmp/swiftDialog_expanded" "/private/tmp/swiftDialog_payload" "/private/tmp/swiftDialog.pkg"
 	@echo
 	mist_tag=$$(awk -F '=' '/mist_tag_required=/ {print $$NF}' $(CURDIR)/erase-install.sh | tr -d '"') ;\
@@ -95,7 +98,13 @@ build:
 		/usr/libexec/PlistBuddy -c 'Add :0 dict' "$$component_plist" >/dev/null 2>&1 ; \
 		/usr/libexec/PlistBuddy -c 'Add :0:BundleIsRelocatable bool false' "$$component_plist" ; \
 	}
-	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" --sign "$(SIGN_ID_PKG)" "$(PKG_FILE)"
+	pkgbuild --root "$(PKG_ROOT)" --identifier "com.github.grahampugh.erase-install.pkg" --version "$(PKG_VERSION)" --install-location "/" --component-plist "$(PKG_BUILD)/erase-install-component.plist" --scripts "$(PKG_SCRIPTS)" "$(PKG_COMPONENT_FILE)"
+	@echo "## Wrapping component package in a signed product archive"
+	productbuild --synthesize --package "$(PKG_COMPONENT_FILE)" "$(PKG_DISTRIBUTION_FILE)"
+	# add a title so that Installer shows the package name
+	/usr/bin/sed -i '' 's|<installer-gui-script minSpecVersion="[0-9]*">|&<title>erase-install</title>|' "$(PKG_DISTRIBUTION_FILE)"
+	productbuild --distribution "$(PKG_DISTRIBUTION_FILE)" --package-path "$(PKG_BUILD)" --identifier "com.github.grahampugh.erase-install" --version "$(PKG_VERSION)" --sign "$(SIGN_ID_PKG)" "$(PKG_FILE)"
+	rm -f "$(PKG_COMPONENT_FILE)" "$(PKG_DISTRIBUTION_FILE)"
 	open $(PKG_BUILD)
 
 .PHONY : release release-only publish-release

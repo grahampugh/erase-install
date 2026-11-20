@@ -10,8 +10,8 @@ DIR=$(dirname "$0")
 system_version=$( /usr/bin/sw_vers -productVersion )
 
 # macOS 15 and greater uses the latest swiftDialog
-# macOS 11, 12, 13, and 14 use the older version of swiftDialog that is compatible with those versions of macOS
-# macOS 10.15 can only function in silent mode and does not use the swiftDialog app, so no need to install it on macOS 10
+# macOS 13 and 14 use the older version of swiftDialog that is compatible with those versions of macOS
+# macOS 12 and older can only function in silent mode and do not use the swiftDialog app, so no need to install it
 system_os=$(/usr/bin/cut -d. -f 1 <<< "$system_version")
 
 if [[ $system_os -ge 15 ]]; then
@@ -21,9 +21,9 @@ if [[ $system_os -ge 15 ]]; then
         echo "ERROR: swiftDialog was not installed"
         exit 1
     fi
-elif [[ $system_os -ge 11 ]]; then
+elif [[ $system_os -ge 13 ]]; then
     rm -rf "/Library/Management/erase-install/Dialog.app" ||:
-    cp -R "$DIR/Dialog-bigsur.app" "/Library/Management/erase-install/Dialog.app"
+    cp -R "$DIR/Dialog-ventura.app" "/Library/Management/erase-install/Dialog.app"
     if [[ -d "/Library/Management/erase-install/Dialog.app" ]]; then
         echo "swiftDialog successfully installed"
     else
