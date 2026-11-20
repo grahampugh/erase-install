@@ -30,8 +30,8 @@ DOC
 script_name="erase-install-launcher"
 
 escape_args() {
-    temp_string=$(awk 'BEGIN{FS=OFS="\""} {for (i=1;i<=NF;i+=2) gsub(/ /,"§",$i)}1' <<< "$1")
-    # temp_string=$(awk -F\" '{OFS="\""; for(i=2;i<NF;i+=2)gsub(/ /,"++",$i);print}' <<< "$1")
+    temp_string=$(/usr/bin/awk 'BEGIN{FS=OFS="\""} {for (i=1;i<=NF;i+=2) gsub(/ /,"§",$i)}1' <<< "$1")
+    # temp_string=$(/usr/bin/awk -F\" '{OFS="\""; for(i=2;i<NF;i+=2)gsub(/ /,"++",$i);print}' <<< "$1")
     temp_string="${temp_string//\\ /++}"
     echo "$temp_string"
 }
@@ -64,12 +64,12 @@ for arg in "${arguments[@]}"; do
         # replace any equals after the command with a space
         arg="${arg/=/ }"
         # if the first argument is an option (--*) then any second part should be a value, split it once more
-        first_arg=$(cut -d' ' -f1 <<< "$arg")
+        first_arg=$(/usr/bin/cut -d' ' -f1 <<< "$arg")
         if [[ "$first_arg" ]]; then
             eraseinstall_args+=("$first_arg")
             echo "[$count] $first_arg"
             ((count++))
-            potential_arg=$(cut -d' ' -f2- <<< "$arg")
+            potential_arg=$(/usr/bin/cut -d' ' -f2- <<< "$arg")
             if [[ "$potential_arg" && ("$potential_arg" != "$first_arg") ]]; then
                 eraseinstall_args+=("$potential_arg")
                 echo "[$count] $potential_arg"

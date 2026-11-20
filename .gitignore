@@ -115,3 +115,4 @@ __MACOSX/*
 *.pkg
 *.app
 .github/gh_token*
+session-summary.md
