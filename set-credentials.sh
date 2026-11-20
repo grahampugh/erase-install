@@ -15,7 +15,7 @@ printf '%s ' 'Enter password : '
 read -r -s password
 echo
 
-b64_credentials=$(printf "%s:%s" "$username" "$password" | iconv -t ISO-8859-1 | base64 -i -)
+b64_credentials=$(printf "%s:%s" "$username" "$password" | /usr/bin/iconv -t ISO-8859-1 | /usr/bin/base64 -i -)
 
 echo "Your encoded credentials are: $b64_credentials"
 echo

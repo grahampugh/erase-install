@@ -22,6 +22,24 @@ I have deleted previous beta releases that don't make it to be a latest release.
 
 No date
 
+## [44.1]
+
+No date
+
+### Updates in 44.1
+
+- New `--fake-installer` option to simulate a workflow without having to download a real installer. Automatically switches on the existing `--test-run` option. `--test-run` remains for those who want to test the actual download.
+- New `--upgrade` option. Works like `--install`/`--reinstall`, but only proceeds if the chosen installer is newer than the system (rather than newer or the same). In native mode, if no newer installer is available the script quits with exit code 0 before downloading anything or showing any dialog. Cannot be combined with `--erase` (addresses #606).
+- All external shell commands are now called by their full path, for consistency and so that the script does not depend on `$PATH`.
+- Updated the embedded `ljt` JSON tool to v1.0.10.
+- Bumped required swiftDialog version to `v3.1.1` except for systems running macOS 14 or older which still get `v2.2.1`. Note that the installer package includes both version `v3.1.1` and `v2.2.1`, and the appropriate one will be installed.
+
+### Bugfixes in 44.1
+
+- Improvements to handling unrecognized system languages.
+- Fixed an issue where the swiftDialog dialog would not appear on the first run after swiftDialog had been downloaded (e.g. when `Dialog.app` was missing from the workdir or was outdated), causing the script to hang waiting for user input. After a fresh download, the script used the `Dialog` binary rather than `dialogcli`, which does not display when run from a root context (fixes #604).
+- Removed a leftover dialog launch from `check_for_swiftdialog_app` that could leave an "Upgrading macOS" dialog on screen after the script had quit, for example after the user dismissed the insufficient disk space dialog (fixes #605).
+
 ## [43.3]
 
 2026.09.09

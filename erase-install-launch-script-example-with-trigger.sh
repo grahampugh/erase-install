@@ -11,7 +11,7 @@ To see all possible parameters, run erase-install.sh --help
 DOC
 
 # call a policy to install erase-install
-jamf policy -event install-erase-install
+/usr/local/bin/jamf policy -event install-erase-install
 
 # run erase-install with parameters of your choice
 /Library/Management/erase-install/erase-install.sh --os 13 --update --reinstall --cleanup-after-use --check-power
